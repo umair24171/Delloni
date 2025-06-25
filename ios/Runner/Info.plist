@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Delloni</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Delloni</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	
+	<!-- LOCATION PERMISSIONS (for geolocator & geocoding) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Delloni needs access to your location to help you find nearby items and provide personalized marketplace experiences.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Delloni needs access to your location to help you find nearby items and provide personalized marketplace experiences.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Delloni needs access to your location to help you find nearby items and provide personalized marketplace experiences.</string>
+	
+	<!-- CAMERA & PHOTO PERMISSIONS (for image_picker & firebase_storage) -->
+	<key>NSCameraUsageDescription</key>
+	<string>Delloni needs access to your camera to take photos of items you want to sell.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Delloni needs access to your photo library to select images of items you want to sell.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Delloni needs permission to save photos to your photo library.</string>
+	
+	<!-- MICROPHONE PERMISSION (sometimes required with camera) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Delloni needs access to your microphone to record videos of items you want to sell.</string>
+	
+	<!-- PUSH NOTIFICATIONS (for firebase_messaging & flutter_local_notifications) -->
+	<key>aps-environment</key>
+	<string>development</string>
+	
+	<!-- URL SCHEMES (for url_launcher, google_sign_in, and deep linking) -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+		<!-- Google Sign-In URL Scheme (using your REVERSED_CLIENT_ID) -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>google</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.324991894056-47d302jl3uq3oo05m5oi6vkk3b6kvs08</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- CONTACTS PERMISSION (optional - for sharing contacts) -->
+	<key>NSContactsUsageDescription</key>
+	<string>Delloni would like to access your contacts to help you share items with friends.</string>
+	
+	<!-- PHONE PERMISSION (for phone authentication) -->
+	<key>NSPhoneUsageDescription</key>
+	<string>Delloni needs access to make phone calls for customer support.</string>
+	
+	<!-- NETWORK & INTERNET ACCESS (implicit but good to declare) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	
+	<!-- SUPPORTED INTERFACE ORIENTATIONS -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	
+	<!-- PERFORMANCE OPTIMIZATIONS -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	
+	<!-- BACKGROUND MODES (for push notifications) -->
+	<key>UIBackgroundModes</key>
+<array>
+    <string>remote-notification</string>
+</array>
+
+<key>LSApplicationQueriesSchemes</key>
+<array>
+    <string>tel</string>
+</array>
+	
+	<!-- SHARING & EXPORT COMPLIANCE -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	
+	<!-- FILE SHARING (if you want to allow file sharing) -->
+	<key>UIFileSharingEnabled</key>
+	<false/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+</dict>
+</plist>

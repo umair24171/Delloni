@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "324991894056",
+    "project_id": "delloni",
+    "storage_bucket": "delloni.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:324991894056:android:4b62f23aaff54a8461eb1d",
+        "android_client_info": {
+          "package_name": "com.app.delloni"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "324991894056-ec8jkepos7c5is796ntimkqrcjomn2nj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.app.delloni",
+            "certificate_hash": "c03379ba119e49ba4a48109635dc964f28ea913c"
+          }
+        },
+        {
+          "client_id": "324991894056-79rcs725c9vnh56vs6j16nf5sp01kuq2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJ0mNpgPO5z2uI1qem3XMJbBypmySPkcM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "324991894056-79rcs725c9vnh56vs6j16nf5sp01kuq2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "324991894056-47d302jl3uq3oo05m5oi6vkk3b6kvs08.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.app.delloni"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
