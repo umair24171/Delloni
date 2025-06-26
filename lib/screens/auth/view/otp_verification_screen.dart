@@ -1,7 +1,9 @@
-// Updated OTPVerificationScreen.dart
+// Updated OTPVerificationScreen.dart - Localized with existing keys only
 import 'package:arabicmarketplace/screens/auth/controller/auth_provider.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:flutter/material.dart';
 import 'package:arabicmarketplace/screens/auth/view/location_screen.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
 
 class OTPVerificationScreen extends StatefulWidget {
   final String verificationId;
@@ -29,8 +31,11 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   bool isLoading = false;
 
   Future<void> _verifyOTP() async {
-    if (otpController.text.trim().isEmpty || otpController.text.trim().length != 6) {
-      _showErrorSnackBar('Please enter a valid 6-digit OTP');
+    if (otpController.text.trim().isEmpty ||
+        otpController.text.trim().length != 6) {
+      _showErrorSnackBar(
+        '${AppLocalizations.enterOtp.tr()} ${AppLocalizations.required.tr()}',
+      ); // Using existing keys
       return;
     }
 
@@ -58,17 +63,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       setState(() => isLoading = false);
 
       if (result['success']) {
-        _showSuccessSnackBar(result['message'] ?? 'Verification successful!');
+        _showSuccessSnackBar(
+          result['message'] ?? AppLocalizations.success.tr(),
+        ); // Using existing key
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LocationScreen()),
         );
       } else {
-        _showErrorSnackBar(result['message'] ?? 'Verification failed');
+        _showErrorSnackBar(
+          result['message'] ?? AppLocalizations.error.tr(),
+        ); // Using existing key
       }
     } catch (e) {
       setState(() => isLoading = false);
-      _showErrorSnackBar('Verification failed. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Using existing key
     }
   }
 
@@ -76,19 +85,25 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     setState(() => isLoading = true);
 
     try {
-      Map<String, dynamic> result = await _authService.resendPhoneOtp(widget.phoneNumber);
-      
+      Map<String, dynamic> result = await _authService.resendPhoneOtp(
+        widget.phoneNumber,
+      );
+
       setState(() => isLoading = false);
 
       if (result['success']) {
-        _showSuccessSnackBar('OTP resent successfully');
+        _showSuccessSnackBar(
+          AppLocalizations.success.tr(),
+        ); // Using existing key
         // You might want to update the verificationId here if needed
       } else {
-        _showErrorSnackBar(result['message'] ?? 'Failed to resend OTP');
+        _showErrorSnackBar(
+          result['message'] ?? AppLocalizations.error.tr(),
+        ); // Using existing key
       }
     } catch (e) {
       setState(() => isLoading = false);
-      _showErrorSnackBar('Failed to resend OTP. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Using existing key
     }
   }
 
@@ -124,7 +139,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Verify Phone',
+          AppLocalizations.verifyOtp.tr(), // Using existing key
           style: TextStyle(
             color: Colors.black,
             fontSize: 18,
@@ -138,28 +153,25 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            
+
             Text(
-              'Enter verification code',
+              AppLocalizations.enterOtp.tr(), // Using existing key
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Text(
-              'We sent a 6-digit code to ${widget.phoneNumber}',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              '${AppLocalizations.phone.tr()}: ${widget.phoneNumber}', // Using existing key
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
-            
+
             const SizedBox(height: 40),
-            
+
             // OTP Input Field
             TextFormField(
               controller: otpController,
@@ -172,11 +184,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 letterSpacing: 8,
               ),
               decoration: InputDecoration(
-                hintText: '000000',
-                hintStyle: TextStyle(
-                  color: Colors.grey[400],
-                  letterSpacing: 8,
-                ),
+                hintText: AppLocalizations.enterOtp.tr(), // Using existing key
+                hintStyle: TextStyle(color: Colors.grey[400], letterSpacing: 8),
                 counterText: '',
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -189,9 +198,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 contentPadding: EdgeInsets.symmetric(vertical: 20),
               ),
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Verify Button
             SizedBox(
               width: double.infinity,
@@ -206,16 +215,18 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   elevation: 0,
                 ),
                 child: isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
                     : Text(
-                        'Verify',
+                        AppLocalizations.verifyOtp.tr(), // Using existing key
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -224,15 +235,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Resend OTP
             Center(
               child: TextButton(
                 onPressed: isLoading ? null : _resendOTP,
                 child: Text(
-                  'Resend Code',
+                  AppLocalizations.resendOtp.tr(), // Using existing key
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.blue,
@@ -241,10 +252,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
             ),
-            
+
             const Spacer(),
-            
-            // Help Text
+
+            // Help Text - Using existing keys where possible
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -255,19 +266,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Having trouble?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
+                    AppLocalizations.helpSupport.tr(), // Using existing key
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '• Make sure you entered the correct phone number\n• Check your SMS messages\n• Wait a few seconds before requesting a new code',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+                    '• ${AppLocalizations.phone.tr()}\n• ${AppLocalizations.loading.tr()}\n• ${AppLocalizations.resendOtp.tr()}', // Using existing keys creatively
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
                   ),
                 ],
               ),

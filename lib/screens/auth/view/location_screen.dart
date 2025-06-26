@@ -1,11 +1,14 @@
 import 'package:arabicmarketplace/resources/colors_controller.dart';
+
 import 'package:arabicmarketplace/screens/custom_bottom_bar.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 class LocationScreen extends StatefulWidget {
   const LocationScreen({Key? key}) : super(key: key);
@@ -27,7 +30,9 @@ class _LocationScreenState extends State<LocationScreen> {
       // Check and request location permission
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        _showErrorSnackBar('Location services are disabled. Please enable them.');
+        _showErrorSnackBar(
+          'Location services are disabled. Please enable them.',
+        );
         setState(() => isLoading = false);
         return;
       }
@@ -43,7 +48,9 @@ class _LocationScreenState extends State<LocationScreen> {
       }
 
       if (permission == LocationPermission.deniedForever) {
-        _showErrorSnackBar('Location permission permanently denied. Please enable it in settings.');
+        _showErrorSnackBar(
+          'Location permission permanently denied. Please enable it in settings.',
+        );
         setState(() => isLoading = false);
         return;
       }
@@ -59,19 +66,25 @@ class _LocationScreenState extends State<LocationScreen> {
         position.longitude,
       );
       Placemark place = placemarks[0];
-      String address = '${place.street}, ${place.locality}, ${place.administrativeArea}, ${place.country}';
+      String address =
+          '${place.street}, ${place.locality}, ${place.administrativeArea}, ${place.country}';
 
       // Save to Firestore
       User? user = _auth.currentUser;
       if (user != null) {
-        await _firestore.collection('users').doc(user.uid).collection('location').doc('current').set({
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'address': address,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('location')
+            .doc('current')
+            .set({
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'address': address,
+              'timestamp': FieldValue.serverTimestamp(),
+            });
 
-        _showSuccessSnackBar('Location saved successfully!');
+        _showSuccessSnackBar(AppLocalizations.success.tr());
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()),
@@ -80,7 +93,7 @@ class _LocationScreenState extends State<LocationScreen> {
         _showErrorSnackBar('User not authenticated. Please log in again.');
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to get location: $e');
+      _showErrorSnackBar('${AppLocalizations.error.tr()}: $e');
     } finally {
       setState(() => isLoading = false);
     }
@@ -91,7 +104,7 @@ class _LocationScreenState extends State<LocationScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Enter Your Location',
+          AppLocalizations.location.tr(),
           style: GoogleFonts.jost(
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -106,22 +119,20 @@ class _LocationScreenState extends State<LocationScreen> {
             color: Colors.black,
           ),
           decoration: InputDecoration(
-            hintText: 'Enter full address',
+            hintText: AppLocalizations.address.tr(),
             hintStyle: GoogleFonts.jost(
               fontSize: 16,
               fontWeight: FontWeight.w400,
               color: Color(0xFF9E9E9E),
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(),
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -132,7 +143,9 @@ class _LocationScreenState extends State<LocationScreen> {
           TextButton(
             onPressed: () async {
               if (addressController.text.trim().isEmpty) {
-                _showErrorSnackBar('Please enter an address');
+                _showErrorSnackBar(
+                  '${AppLocalizations.address.tr()} ${AppLocalizations.required.tr()}',
+                );
                 return;
               }
 
@@ -141,34 +154,49 @@ class _LocationScreenState extends State<LocationScreen> {
                 User? user = _auth.currentUser;
                 if (user != null) {
                   // Optional: Geocode manual address to get lat/lng
-                  List<Location> locations = await locationFromAddress(addressController.text.trim());
-                  double latitude = locations.isNotEmpty ? locations[0].latitude : 0.0;
-                  double longitude = locations.isNotEmpty ? locations[0].longitude : 0.0;
+                  List<Location> locations = await locationFromAddress(
+                    addressController.text.trim(),
+                  );
+                  double latitude = locations.isNotEmpty
+                      ? locations[0].latitude
+                      : 0.0;
+                  double longitude = locations.isNotEmpty
+                      ? locations[0].longitude
+                      : 0.0;
 
-                  await _firestore.collection('users').doc(user.uid).collection('location').doc('current').set({
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'address': addressController.text.trim(),
-                    'timestamp': FieldValue.serverTimestamp(),
-                  });
+                  await _firestore
+                      .collection('users')
+                      .doc(user.uid)
+                      .collection('location')
+                      .doc('current')
+                      .set({
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'address': addressController.text.trim(),
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
 
-                  _showSuccessSnackBar('Location saved successfully!');
+                  _showSuccessSnackBar(AppLocalizations.success.tr());
                   Navigator.pop(context);
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()),
+                    MaterialPageRoute(
+                      builder: (context) => CustomBottomNavigationBar(),
+                    ),
                   );
                 } else {
-                  _showErrorSnackBar('User not authenticated. Please log in again.');
+                  _showErrorSnackBar(
+                    'User not authenticated. Please log in again.',
+                  );
                 }
               } catch (e) {
-                _showErrorSnackBar('Failed to save location: $e');
+                _showErrorSnackBar('${AppLocalizations.error.tr()}: $e');
               } finally {
                 setState(() => isLoading = false);
               }
             },
             child: Text(
-              'Save',
+              AppLocalizations.save.tr(),
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -254,11 +282,12 @@ class _LocationScreenState extends State<LocationScreen> {
                             height: 80,
                             child: Image.asset(
                               'assets/icons/location.png',
-                              errorBuilder: (context, error, stackTrace) => Icon(
-                                Icons.location_on,
-                                size: 40,
-                                color: Color(0xFF2D5A27),
-                              ),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Icon(
+                                    Icons.location_on,
+                                    size: 40,
+                                    color: Color(0xFF2D5A27),
+                                  ),
                             ),
                           ),
                         ),
@@ -272,7 +301,7 @@ class _LocationScreenState extends State<LocationScreen> {
 
               // Title
               Text(
-                'Where is your Location?',
+                AppLocalizations.whereIsYourLocation.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
@@ -285,7 +314,7 @@ class _LocationScreenState extends State<LocationScreen> {
 
               // Subtitle
               Text(
-                'Enjoy a personalized selling and buying\nexperience by telling us your location',
+                AppLocalizations.enjoyPersonalizedExperience.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 15,
                   fontWeight: FontWeight.w400,
@@ -312,12 +341,14 @@ class _LocationScreenState extends State<LocationScreen> {
                     ),
                   ),
                   child: isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Row(
@@ -330,7 +361,7 @@ class _LocationScreenState extends State<LocationScreen> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              'Find my Location',
+                              AppLocalizations.findMyLocation.tr(),
                               style: GoogleFonts.jost(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -351,7 +382,7 @@ class _LocationScreenState extends State<LocationScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: Text(
-                  'Other Location',
+                  AppLocalizations.otherLocation.tr(),
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

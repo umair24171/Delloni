@@ -1,4 +1,4 @@
-// screens/start_browsing_page.dart
+// screens/start_browsing_page.dart - Localized
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
@@ -8,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
 import 'package:arabicmarketplace/screens/chat/view/messages_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
+import 'package:easy_localization/easy_localization.dart'; // Add this import
 
 class StartBrowsingUsersPage extends StatefulWidget {
   const StartBrowsingUsersPage({Key? key}) : super(key: key);
@@ -26,10 +28,11 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
     super.initState();
     _provider = StartBrowsingProvider();
     _provider.loadUsers();
-    
+
     // Setup scroll listener for pagination
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
         _provider.loadMoreUsers();
       }
     });
@@ -57,7 +60,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'Start New Chat',
+            AppLocalizations.browseUsers.tr(), // Using existing key
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -76,7 +79,8 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                     controller: _searchController,
                     onChanged: (value) => provider.searchUsers(value),
                     decoration: InputDecoration(
-                      hintText: 'Search users...',
+                      hintText: AppLocalizations.search
+                          .tr(), // Using existing key
                       hintStyle: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.grey[500],
@@ -88,15 +92,16 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
-                
+
                 // Users List
-                Expanded(
-                  child: _buildUsersList(provider),
-                ),
+                Expanded(child: _buildUsersList(provider)),
               ],
             );
           },
@@ -107,7 +112,19 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
 
   Widget _buildUsersList(StartBrowsingProvider provider) {
     if (provider.isLoading && provider.users.isEmpty) {
-      return Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              AppLocalizations.loading.tr(), // Using existing key
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
     }
     log('error is ${provider.error}');
 
@@ -122,7 +139,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => provider.loadUsers(),
-              child: Text('Retry'),
+              child: Text('Retry'), // Simple word
             ),
           ],
         ),
@@ -137,11 +154,9 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
-              'No users found',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                color: Colors.grey[600],
-              ),
+              AppLocalizations.noReviewsYet
+                  .tr(), // Using existing key creatively
+              style: GoogleFonts.poppins(fontSize: 18, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -158,7 +173,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
           if (index == provider.users.length) {
             return _buildLoadingItem();
           }
-          
+
           final user = provider.users[index];
           return _buildUserItem(user);
         },
@@ -167,7 +182,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
   }
 
   Widget _buildUserItem(Map<String, dynamic> user) {
-    final userName = user['type'] == 'company' 
+    final userName = user['type'] == 'company'
         ? (user['companyName'] ?? 'Unknown Company')
         : (user['name'] ?? 'Unknown User');
     final userImage = user['profileImage'] ?? '';
@@ -195,7 +210,11 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                             width: 56,
                             height: 56,
                             errorBuilder: (context, error, stackTrace) {
-                              return Icon(Icons.person, size: 32, color: Colors.grey[600]);
+                              return Icon(
+                                Icons.person,
+                                size: 32,
+                                color: Colors.grey[600],
+                              );
                             },
                           ),
                         )
@@ -217,9 +236,9 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 ),
               ],
             ),
-            
+
             SizedBox(width: 16),
-            
+
             // User Details
             Expanded(
               child: Column(
@@ -241,25 +260,35 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                         ),
                       ),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: userType == 'company' ? Colors.blue[100] : Colors.green[100],
+                          color: userType == 'company'
+                              ? Colors.blue[100]
+                              : Colors.green[100],
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          userType == 'company' ? 'Company' : 'Individual',
+                          userType == 'company'
+                              ? AppLocalizations.company.tr()
+                              : AppLocalizations.individual
+                                    .tr(), // Using existing keys
                           style: GoogleFonts.poppins(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: userType == 'company' ? Colors.blue[800] : Colors.green[800],
+                            color: userType == 'company'
+                                ? Colors.blue[800]
+                                : Colors.green[800],
                           ),
                         ),
                       ),
                     ],
                   ),
-                  
+
                   SizedBox(height: 4),
-                  
+
                   // Last Seen
                   Text(
                     _getLastSeenText(isOnline, lastSeen),
@@ -268,25 +297,37 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                       color: isOnline ? Colors.green : Colors.grey[600],
                     ),
                   ),
-                  
+
                   // User Stats
-                  if (user['activeAdsCount'] != null || user['averageRating'] != null) ...[
+                  if (user['activeAdsCount'] != null ||
+                      user['averageRating'] != null) ...[
                     SizedBox(height: 4),
                     Row(
                       children: [
                         if (user['activeAdsCount'] != null) ...[
-                          Icon(Icons.inventory_2_outlined, size: 12, color: Colors.grey[500]),
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            size: 12,
+                            color: Colors.grey[500],
+                          ),
                           SizedBox(width: 4),
                           Text(
-                            '${user['activeAdsCount']} ads',
+                            '${user['activeAdsCount']} ${AppLocalizations.myAds.tr().toLowerCase()}', // Using existing key
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               color: Colors.grey[600],
                             ),
                           ),
                         ],
-                        if (user['activeAdsCount'] != null && user['averageRating'] != null)
-                          Text(' • ', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                        if (user['activeAdsCount'] != null &&
+                            user['averageRating'] != null)
+                          Text(
+                            ' • ',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 11,
+                            ),
+                          ),
                         if (user['averageRating'] != null) ...[
                           Icon(Icons.star, size: 12, color: Colors.amber),
                           SizedBox(width: 2),
@@ -304,12 +345,12 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 ],
               ),
             ),
-            
+
             // Chat Button
             IconButton(
               onPressed: () => _startChatWithUser(user),
               icon: Icon(Icons.chat_bubble_outline, color: Color(0xff014700)),
-              tooltip: 'Start Chat',
+              tooltip: AppLocalizations.chat.tr(), // Using existing key
             ),
           ],
         ),
@@ -331,30 +372,31 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
   }
 
   String _getLastSeenText(bool isOnline, Timestamp? lastSeen) {
-    if (isOnline) return 'Online now';
-    
-    if (lastSeen == null) return 'Last seen unknown';
-    
+    if (isOnline) return AppLocalizations.online.tr(); // Using existing key
+
+    if (lastSeen == null)
+      return AppLocalizations.lastSeenRecently.tr(); // Using existing key
+
     final now = DateTime.now();
     final lastSeenDate = lastSeen.toDate();
     final difference = now.difference(lastSeenDate);
-    
+
     if (difference.inMinutes < 1) {
-      return 'Active now';
+      return AppLocalizations.online.tr(); // Using existing key
     } else if (difference.inMinutes < 60) {
-      return 'Active ${difference.inMinutes}m ago';
+      return '${difference.inMinutes}${AppLocalizations.mAgo.tr()}'; // Using existing key
     } else if (difference.inHours < 24) {
-      return 'Active ${difference.inHours}h ago';
+      return '${difference.inHours}${AppLocalizations.hAgo.tr()}'; // Using existing key
     } else if (difference.inDays < 7) {
-      return 'Active ${difference.inDays}d ago';
+      return '${difference.inDays}${AppLocalizations.dAgo.tr()}'; // Using existing key
     } else {
-      return 'Active ${lastSeenDate.day}/${lastSeenDate.month}/${lastSeenDate.year}';
+      return AppLocalizations.lastSeenRecently.tr(); // Using existing key
     }
   }
 
   Future<void> _startChatWithUser(Map<String, dynamic> user) async {
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
-    
+
     try {
       // Show loading
       showDialog(
@@ -373,7 +415,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
                 Text(
-                  'Starting chat...',
+                  AppLocalizations.loading.tr(), // Using existing key
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -387,7 +429,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
 
       final chatId = await chatProvider.createOrGetChatEnhanced(
         otherUserId: user['uid'],
-        otherUserName: user['type'] == 'company' 
+        otherUserName: user['type'] == 'company'
             ? (user['companyName'] ?? 'Unknown Company')
             : (user['name'] ?? 'Unknown User'),
         otherUserImage: user['profileImage'],
@@ -406,7 +448,9 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create chat')),
+          SnackBar(
+            content: Text(AppLocalizations.error.tr()),
+          ), // Using existing key
         );
       }
     } catch (e) {
@@ -414,9 +458,11 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(
+          content: Text('${AppLocalizations.error.tr()}: $e'),
+        ), // Using existing key
       );
     }
   }
@@ -426,7 +472,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
 class StartBrowsingProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
+
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
   bool _isLoading = false;
@@ -434,11 +480,12 @@ class StartBrowsingProvider with ChangeNotifier {
   String? _error;
   DocumentSnapshot? _lastDocument;
   String _searchQuery = '';
-  
+
   static const int _pageSize = 20;
 
   // Getters
-  List<Map<String, dynamic>> get users => _searchQuery.isEmpty ? _users : _filteredUsers;
+  List<Map<String, dynamic>> get users =>
+      _searchQuery.isEmpty ? _users : _filteredUsers;
   bool get isLoading => _isLoading;
   bool get hasMore => _hasMore;
   String? get error => _error;
@@ -446,7 +493,7 @@ class StartBrowsingProvider with ChangeNotifier {
   // Load initial users
   Future<void> loadUsers() async {
     if (_isLoading) return;
-    
+
     _isLoading = true;
     _error = null;
     _users.clear();
@@ -470,7 +517,7 @@ class StartBrowsingProvider with ChangeNotifier {
           .limit(_pageSize);
 
       final snapshot = await query.get();
-      
+
       if (snapshot.docs.isNotEmpty) {
         _users = await _processUsers(snapshot.docs);
         _lastDocument = snapshot.docs.last;
@@ -488,8 +535,12 @@ class StartBrowsingProvider with ChangeNotifier {
 
   // Load more users (pagination)
   Future<void> loadMoreUsers() async {
-    if (_isLoading || !_hasMore || _lastDocument == null || _searchQuery.isNotEmpty) return;
-    
+    if (_isLoading ||
+        !_hasMore ||
+        _lastDocument == null ||
+        _searchQuery.isNotEmpty)
+      return;
+
     _isLoading = true;
     notifyListeners();
 
@@ -506,7 +557,7 @@ class StartBrowsingProvider with ChangeNotifier {
           .limit(_pageSize);
 
       final snapshot = await query.get();
-      
+
       if (snapshot.docs.isNotEmpty) {
         final newUsers = await _processUsers(snapshot.docs);
         _users.addAll(newUsers);
@@ -531,33 +582,38 @@ class StartBrowsingProvider with ChangeNotifier {
   // Search users
   void searchUsers(String query) {
     _searchQuery = query.toLowerCase();
-    
+
     if (_searchQuery.isEmpty) {
       _filteredUsers.clear();
     } else {
       _filteredUsers = _users.where((user) {
-        final userName = (user['type'] == 'company' 
-            ? (user['companyName'] ?? '')
-            : (user['name'] ?? '')).toLowerCase();
+        final userName =
+            (user['type'] == 'company'
+                    ? (user['companyName'] ?? '')
+                    : (user['name'] ?? ''))
+                .toLowerCase();
         final userEmail = (user['email'] ?? '').toLowerCase();
-        
-        return userName.contains(_searchQuery) || userEmail.contains(_searchQuery);
+
+        return userName.contains(_searchQuery) ||
+            userEmail.contains(_searchQuery);
       }).toList();
     }
-    
+
     notifyListeners();
   }
 
   // Process users data and add additional info
-  Future<List<Map<String, dynamic>>> _processUsers(List<QueryDocumentSnapshot> docs) async {
+  Future<List<Map<String, dynamic>>> _processUsers(
+    List<QueryDocumentSnapshot> docs,
+  ) async {
     List<Map<String, dynamic>> processedUsers = [];
-    
+
     for (var doc in docs) {
       Map<String, dynamic> userData = doc.data() as Map<String, dynamic>;
-      
+
       // Add user ID
       userData['uid'] = doc.id;
-      
+
       // Get user's active ads count
       try {
         final adsSnapshot = await _firestore
@@ -569,14 +625,14 @@ class StartBrowsingProvider with ChangeNotifier {
       } catch (e) {
         userData['activeAdsCount'] = 0;
       }
-      
+
       // Get user's rating
       try {
         final ratingsSnapshot = await _firestore
             .collection('ratings')
             .where('sellerId', isEqualTo: doc.id)
             .get();
-            
+
         if (ratingsSnapshot.docs.isNotEmpty) {
           double totalRating = 0;
           for (var rating in ratingsSnapshot.docs) {
@@ -589,13 +645,13 @@ class StartBrowsingProvider with ChangeNotifier {
       } catch (e) {
         userData['averageRating'] = 0.0;
       }
-      
+
       // Check online status
       userData['isOnline'] = await _isUserOnline(doc.id);
-      
+
       processedUsers.add(userData);
     }
-    
+
     return processedUsers;
   }
 
@@ -608,12 +664,12 @@ class StartBrowsingProvider with ChangeNotifier {
           .collection('presence')
           .doc('status')
           .get();
-          
+
       if (presenceDoc.exists) {
         final data = presenceDoc.data() as Map<String, dynamic>;
         final lastSeen = data['lastSeen'] as Timestamp?;
         final isOnline = data['isOnline'] as bool? ?? false;
-        
+
         if (isOnline && lastSeen != null) {
           final now = DateTime.now();
           final lastSeenDate = lastSeen.toDate();

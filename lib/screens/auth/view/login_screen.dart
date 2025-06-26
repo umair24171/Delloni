@@ -4,25 +4,14 @@ import 'package:arabicmarketplace/screens/auth/view/location_screen.dart';
 import 'package:arabicmarketplace/screens/auth/view/otp_verification_screen.dart';
 import 'package:arabicmarketplace/screens/auth/view/register_screen.dart';
 import 'package:arabicmarketplace/screens/forgot_password/view/forgot_password_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:country_code_picker/country_code_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:country_code_picker/country_code_picker.dart';
-// Import your auth service and other screens
-// import 'auth_service.dart';
-// import 'location_screen.dart';
-// import 'otp_verification_screen.dart';
-// import 'create_account_screen.dart';
-// import 'forgot_password_screen.dart';
-// import 'colors_controller.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -45,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
-  final AuthService _authService = AuthService(); // Add this line
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -55,8 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Email and Password Login
   Future<void> _loginWithEmailPassword() async {
-    if (emailController.text.trim().isEmpty || passwordController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please fill in all fields');
+    if (emailController.text.trim().isEmpty ||
+        passwordController.text.trim().isEmpty) {
+      _showErrorSnackBar(AppLocalizations.emailRequired.tr()); // Localized
       return;
     }
 
@@ -70,37 +60,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
       User? user = userCredential.user;
       if (user != null) {
-        DocumentSnapshot<Map<String, dynamic>> userDoc = await _firestore.collection('users').doc(user.uid).get();
+        DocumentSnapshot<Map<String, dynamic>> userDoc = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
         if (userDoc.exists) {
           String userType = userDoc.data()!['type'] ?? '';
           String expectedType = isIndividualSelected ? 'individual' : 'company';
 
           if (userType == expectedType) {
-            _showSuccessSnackBar('Login successful!');
+            _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => LocationScreen()),
             );
           } else {
             await _auth.signOut();
-            _showErrorSnackBar('Account type mismatch. Please select the correct account type.');
+            _showErrorSnackBar(
+              'Account type mismatch. Please select the correct account type.',
+            ); // Could add this to localizations too
           }
         } else {
-          _showErrorSnackBar('User data not found. Please contact support.');
+          _showErrorSnackBar(
+            'User data not found. Please contact support.',
+          ); // Could add this to localizations too
         }
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
         case 'user-not-found':
-          errorMessage = 'No account found with this email.';
+          errorMessage =
+              'No account found with this email.'; // Could add these to localizations
           break;
         case 'wrong-password':
           errorMessage = 'Incorrect password.';
           break;
         case 'invalid-email':
-          errorMessage = 'Invalid email address.';
+          errorMessage = AppLocalizations.emailInvalid.tr(); // Localized
           break;
         case 'user-disabled':
           errorMessage = 'This account has been disabled.';
@@ -109,11 +107,11 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'Too many failed attempts. Please try again later.';
           break;
         default:
-          errorMessage = 'Login failed. Please try again.';
+          errorMessage = AppLocalizations.error.tr(); // Localized
       }
       _showErrorSnackBar(errorMessage);
     } catch (e) {
-      _showErrorSnackBar('An unexpected error occurred. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Localized
     } finally {
       setState(() => isLoading = false);
     }
@@ -121,8 +119,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Phone Number Login using AuthService
   Future<void> _loginWithPhoneNumber() async {
-    if (phoneController.text.trim().isEmpty || phoneController.text.trim().length < 7) {
-      _showErrorSnackBar('Please enter a valid phone number');
+    if (phoneController.text.trim().isEmpty ||
+        phoneController.text.trim().length < 7) {
+      _showErrorSnackBar(AppLocalizations.phoneInvalid.tr()); // Localized
       return;
     }
 
@@ -130,29 +129,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       String phoneNumber = '$countryCode${phoneController.text.trim()}';
-      
+
       Map<String, dynamic> result = await _authService.initiatePhoneLogin(
-        phoneNumber, 
-        isIndividualSelected
+        phoneNumber,
+        isIndividualSelected,
       );
 
       if (result['success']) {
         if (result['autoVerified'] == true) {
-          // Auto-verification successful
-          _showSuccessSnackBar('Login successful!');
+          _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => LocationScreen()),
           );
         } else {
-          // OTP sent, navigate to verification screen
           _navigateToOTPScreen(result['verificationId'], phoneNumber);
         }
       } else {
         _showErrorSnackBar(result['message']);
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to send OTP. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Localized
     } finally {
       setState(() => isLoading = false);
     }
@@ -181,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['success']) {
-        _showSuccessSnackBar('Google Sign-In successful!');
+        _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LocationScreen()),
@@ -190,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _showErrorSnackBar(result['message']);
       }
     } catch (e) {
-      _showErrorSnackBar('Google Sign-In failed. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Localized
     } finally {
       setState(() => isLoading = false);
     }
@@ -206,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['success']) {
-        _showSuccessSnackBar('Facebook Sign-In successful!');
+        _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LocationScreen()),
@@ -215,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _showErrorSnackBar(result['message']);
       }
     } catch (e) {
-      _showErrorSnackBar('Facebook Sign-In failed. Please try again.');
+      _showErrorSnackBar(AppLocalizations.error.tr()); // Localized
     } finally {
       setState(() => isLoading = false);
     }
@@ -260,20 +257,20 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 40),
-              
-              // Log In Title
+
+              // Log In Title - LOCALIZED
               Text(
-                'Log In',
+                AppLocalizations.logIn.tr(),
                 style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
                   color: Colors.black,
                 ),
               ),
-              
+
               const SizedBox(height: 60),
-              
-              // Individual/Company Toggle
+
+              // Individual/Company Toggle - LOCALIZED
               Row(
                 children: [
                   Expanded(
@@ -286,17 +283,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         children: [
                           Text(
-                            'Individual',
+                            AppLocalizations.individual.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: isIndividualSelected ? Colors.black : const Color(0xFF9CA3AF),
+                              color: isIndividualSelected
+                                  ? Colors.black
+                                  : const Color(0xFF9CA3AF),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Container(
                             height: 2,
-                            color: isIndividualSelected ? Colors.black : Colors.transparent,
+                            color: isIndividualSelected
+                                ? Colors.black
+                                : Colors.transparent,
                           ),
                         ],
                       ),
@@ -312,17 +313,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         children: [
                           Text(
-                            'Company',
+                            AppLocalizations.company.tr(),
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: !isIndividualSelected ? Colors.black : const Color(0xFF9CA3AF),
+                              color: !isIndividualSelected
+                                  ? Colors.black
+                                  : const Color(0xFF9CA3AF),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Container(
                             height: 2,
-                            color: !isIndividualSelected ? Colors.black : Colors.transparent,
+                            color: !isIndividualSelected
+                                ? Colors.black
+                                : Colors.transparent,
                           ),
                         ],
                       ),
@@ -330,10 +335,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 40),
-              
-              // Login Type Toggle Buttons
+
+              // Login Type Toggle Buttons - LOCALIZED
               Row(
                 children: [
                   Expanded(
@@ -346,16 +351,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: !isPhoneSelected ? ColorsController.primaryColor : Colors.transparent,
+                          color: !isPhoneSelected
+                              ? ColorsController.primaryColor
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(25),
                         ),
                         child: Center(
                           child: Text(
-                            'Login with email',
+                            AppLocalizations.loginWithEmail.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: !isPhoneSelected ? Colors.white : const Color(0xFF9CA3AF),
+                              color: !isPhoneSelected
+                                  ? Colors.white
+                                  : const Color(0xFF9CA3AF),
                             ),
                           ),
                         ),
@@ -373,17 +382,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: isPhoneSelected ? ColorsController.primaryColor : Colors.transparent,
+                          color: isPhoneSelected
+                              ? ColorsController.primaryColor
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(25),
                         ),
                         child: Center(
                           child: Text(
-                            'Login with phone number',
+                            AppLocalizations.loginWithPhoneNumber.tr(),
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: isPhoneSelected ? Colors.white : const Color(0xFF9CA3AF),
+                              color: isPhoneSelected
+                                  ? Colors.white
+                                  : const Color(0xFF9CA3AF),
                             ),
                           ),
                         ),
@@ -392,10 +405,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 40),
-              
-              // Input Fields (Phone or Email/Password)
+
+              // Input Fields (Phone or Email/Password) - LOCALIZED
               if (isPhoneSelected) ...[
                 // Phone Number Input Field with Country Code Picker
                 Container(
@@ -420,7 +433,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w400,
                           color: Colors.black,
                         ),
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
                         showFlag: true,
                         showFlagDialog: true,
                       ),
@@ -432,7 +448,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: const Color(0xFFE5E7EB),
                       ),
 
-                      // Phone Number Input
+                      // Phone Number Input - LOCALIZED
                       Expanded(
                         child: TextField(
                           controller: phoneController,
@@ -444,8 +460,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           decoration: InputDecoration(
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                            hintText: 'Enter phone number',
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 0,
+                            ),
+                            hintText: AppLocalizations.enterPhoneNumber.tr(),
                             hintStyle: GoogleFonts.jost(
                               fontSize: 16,
                               fontWeight: FontWeight.w400,
@@ -480,9 +499,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-           
               ] else ...[
-                // Email and Password Fields
+                // Email and Password Fields - LOCALIZED
                 // Email Field
                 TextField(
                   controller: emailController,
@@ -492,7 +510,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontWeight: FontWeight.w400,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Enter your email',
+                    hintText: AppLocalizations.enterEmail.tr(),
                     hintStyle: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
@@ -501,7 +519,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     filled: true,
                     fillColor: Colors.white,
                     prefixIcon: const Icon(Icons.email),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(22),
                       borderSide: BorderSide(
@@ -532,10 +553,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
-                // Password Field
+
+                // Password Field - LOCALIZED
                 TextFormField(
                   controller: passwordController,
                   obscureText: !isPasswordVisible,
@@ -546,7 +567,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.lock),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(22),
                       borderSide: BorderSide(
@@ -575,7 +599,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 1.5,
                       ),
                     ),
-                    hintText: 'Enter your password',
+                    hintText: AppLocalizations.enterPassword.tr(),
                     hintStyle: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
@@ -590,7 +614,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         child: Icon(
-                          isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                          isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                           size: 20,
                           color: const Color(0xFF6B7280),
                         ),
@@ -599,10 +625,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ],
-              
+
               const SizedBox(height: 40),
-              
-              // Login Button
+
+              // Login Button - LOCALIZED
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -616,16 +642,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     elevation: 0,
                   ),
                   child: isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Text(
-                          'Login',
+                          AppLocalizations.login.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -634,19 +662,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
-              // Social Login Buttons
+
+              // Social Login Buttons - LOCALIZED
               Row(
                 children: [
                   // Google Sign In Button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: isLoading ? null : _signInWithGoogle,
-                      icon: const Icon(Icons.g_mobiledata, color: Colors.red, size: 24),
+                      icon: const Icon(
+                        Icons.g_mobiledata,
+                        color: Colors.red,
+                        size: 24,
+                      ),
                       label: Text(
-                        'Google',
+                        AppLocalizations.google.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -662,16 +694,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(width: 12),
-                  
+
                   // Facebook Sign In Button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: isLoading ? null : _signInWithFacebook,
-                      icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 20),
+                      icon: const Icon(
+                        Icons.facebook,
+                        color: Color(0xFF1877F2),
+                        size: 20,
+                      ),
                       label: Text(
-                        'Facebook',
+                        AppLocalizations.facebook.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -689,22 +725,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              
+
               const Spacer(),
-              
-              // Bottom Section
+
+              // Bottom Section - LOCALIZED
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => CreateAccountScreen())
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CreateAccountScreen(),
+                        ),
                       );
                     },
                     child: Text(
-                      'Sign up',
+                      AppLocalizations.signUp.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -716,12 +754,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => ForgotPasswordScreen())
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ForgotPasswordScreen(),
+                        ),
                       );
                     },
                     child: Text(
-                      'Forget Password',
+                      AppLocalizations.forgetPassword.tr(),
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -732,29 +772,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 20),
-              
-              // Terms and Privacy
+
+              // Terms and Privacy - LOCALIZED
               RichText(
                 text: TextSpan(
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
                   children: [
-                    const TextSpan(text: 'By signing up you agree to our '),
+                    TextSpan(text: AppLocalizations.bySigningUpAgree.tr()),
+                    const TextSpan(text: ' '),
                     TextSpan(
-                      text: 'Terms of Services',
+                      text: AppLocalizations.termsOfServices.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: const Color(0xFFEF4444),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const TextSpan(text: ' and '),
+                    TextSpan(text: ' ${AppLocalizations.and.tr()} '),
                     TextSpan(
-                      text: 'Privacy Policy',
+                      text: AppLocalizations.privacyPolicy.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: const Color(0xFFEF4444),
@@ -765,7 +803,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 40),
             ],
           ),

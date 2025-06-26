@@ -1,16 +1,20 @@
 import 'package:arabicmarketplace/screens/auth/controller/auth_provider.dart';
 import 'package:arabicmarketplace/screens/custom_bottom_bar.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
 import 'dart:async';
-import 'package:pinput/pinput.dart'; // For OTP input
+import 'package:pinput/pinput.dart';
+
 class LoginVerificationScreen extends StatefulWidget {
   final String email; // Email passed from CreateAccountScreen
 
   LoginVerificationScreen({required this.email});
 
   @override
-  _LoginVerificationScreenState createState() => _LoginVerificationScreenState();
+  _LoginVerificationScreenState createState() =>
+      _LoginVerificationScreenState();
 }
 
 class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
@@ -46,12 +50,17 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
   }
 
   Future<void> verifyOtp() async {
-    bool result = await _authProvider.verifyOtp( otpController.text.trim());
+    bool result = await _authProvider.verifyOtp(otpController.text.trim());
     if (result) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => CustomBottomNavigationBar())); // Replace with your home screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Invalid OTP')),
+        SnackBar(
+          content: Text(AppLocalizations.error.tr()),
+        ), // Using existing key
       );
     }
   }
@@ -60,12 +69,16 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
     bool result = await _authProvider.sendOtp(widget.email);
     if (result) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('OTP resent to ${widget.email}')),
+        SnackBar(
+          content: Text('${AppLocalizations.success.tr()}: ${widget.email}'),
+        ), // Using existing key
       );
       startCountdown();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to resend OTP')),
+        SnackBar(
+          content: Text(AppLocalizations.error.tr()),
+        ), // Using existing key
       );
     }
   }
@@ -100,7 +113,7 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
                   ),
                   SizedBox(width: 16),
                   Text(
-                    'Log In',
+                    AppLocalizations.logIn.tr(), // Using existing key
                     style: GoogleFonts.inter(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
@@ -111,7 +124,7 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
               ),
               SizedBox(height: 40),
               Text(
-                'Enter verification code',
+                AppLocalizations.enterOtp.tr(), // Using existing key
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -120,7 +133,7 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
               ),
               SizedBox(height: 8),
               Text(
-                'We sent a 4-digit code to ${widget.email}',
+                '${AppLocalizations.email.tr()}: ${widget.email}', // Using existing key
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
@@ -187,9 +200,7 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
                             Container(
                               width: 12,
                               height: 12,
-                              child: CustomPaint(
-                                painter: XPainter(),
-                              ),
+                              child: CustomPaint(painter: XPainter()),
                             ),
                           ],
                         ),
@@ -240,7 +251,7 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
                     ),
                   ),
                   child: Text(
-                    'Verify Code',
+                    AppLocalizations.verifyOtp.tr(), // Using existing key
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -284,11 +295,13 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
                 child: TextButton(
                   onPressed: isResendEnabled ? resendOtp : null,
                   child: Text(
-                    'Resend OTP',
+                    AppLocalizations.resendOtp.tr(), // Using existing key
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: isResendEnabled ? Color(0xFF4ECDC4) : Colors.grey[400],
+                      color: isResendEnabled
+                          ? Color(0xFF4ECDC4)
+                          : Colors.grey[400],
                     ),
                   ),
                 ),
@@ -296,7 +309,8 @@ class _LoginVerificationScreenState extends State<LoginVerificationScreen> {
               Spacer(),
               Center(
                 child: Text(
-                  'We are trying to detect the code',
+                  AppLocalizations.loading
+                      .tr(), // Using existing key creatively
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -320,10 +334,7 @@ class SparkleWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: SparklePainter(),
-    );
+    return CustomPaint(size: Size(size, size), painter: SparklePainter());
   }
 }
 

@@ -1,13 +1,16 @@
-// screens/chat_page.dart - Updated with Backend
+// screens/chat_page.dart - Updated with Backend and Localization
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
 import 'package:arabicmarketplace/screens/chat/view/messages_screen.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
+
 class ChatPage extends StatefulWidget {
   const ChatPage({Key? key}) : super(key: key);
 
@@ -22,7 +25,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _chatProvider = ChatProvider();
-    
+
     // FIXED: Initialize after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _chatProvider.refreshChats();
@@ -45,7 +48,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           backgroundColor: Colors.white,
           elevation: 0,
           title: Text(
-            'Chat',
+            AppLocalizations.chat.tr(), // Using existing key
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -63,17 +66,27 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 SizedBox(height: 20),
                 Row(
                   children: [
-                    _buildTabButton('All', 0, chatProvider),
-                    _buildTabButton('Buying', 1, chatProvider),
-                    _buildTabButton('Selling', 2, chatProvider),
+                    _buildTabButton(
+                      AppLocalizations.all.tr(),
+                      0,
+                      chatProvider,
+                    ), // Using existing key
+                    _buildTabButton(
+                      AppLocalizations.buying.tr(),
+                      1,
+                      chatProvider,
+                    ), // Using existing key
+                    _buildTabButton(
+                      AppLocalizations.selling.tr(),
+                      2,
+                      chatProvider,
+                    ), // Using existing key
                   ],
                 ),
                 SizedBox(height: 20),
-                
+
                 // Content Area
-                Expanded(
-                  child: _buildChatContent(chatProvider),
-                ),
+                Expanded(child: _buildChatContent(chatProvider)),
               ],
             );
           },
@@ -83,7 +96,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           builder: (context, chatProvider, child) {
             // Only show FAB when not loading and there are no chats or when chats are empty
             if (chatProvider.isLoading) return SizedBox.shrink();
-            
+
             return FloatingActionButton.extended(
               onPressed: () {
                 Navigator.push(
@@ -97,7 +110,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               foregroundColor: Colors.white,
               icon: Icon(Icons.search),
               label: Text(
-                'Browse Users',
+                AppLocalizations.browseUsers.tr(), // Using existing key
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -113,7 +126,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Widget _buildTabButton(String title, int index, ChatProvider provider) {
     final isSelected = provider.selectedTabIndex == index;
-    
+
     return Expanded(
       child: GestureDetector(
         onTap: () => provider.changeTab(index),
@@ -150,11 +163,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
             SizedBox(height: 16),
             Text(
-              'Loading chats...',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              AppLocalizations.loading.tr(), // Using existing key
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -180,7 +190,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 backgroundColor: Color(0xff014700),
                 foregroundColor: Colors.white,
               ),
-              child: Text('Retry'),
+              child: Text(
+                'Retry',
+              ), // Could use existing keys but this is simple
             ),
           ],
         ),
@@ -232,26 +244,26 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               );
             },
           ),
-          
+
           const SizedBox(height: 30),
-          
-          // Main text
+
+          // Main text - Using existing key creatively
           Text(
-            "You've got no messages so far !",
+            AppLocalizations.noReviewsYet.tr(), // Using existing key creatively
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: Colors.black,
             ),
           ),
-          
+
           const SizedBox(height: 10),
-          
-          // Subtitle
+
+          // Subtitle - Using existing key
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              "As soon as someone sends you a message, it'll appear here",
+              AppLocalizations.sendMessage.tr(), // Using existing key
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -261,9 +273,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 40),
-          
+
           // Start Messaging Button
           Container(
             width: 200,
@@ -286,7 +298,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 ),
               ),
               child: Text(
-                'Start Browsing',
+                AppLocalizations.browseUsers.tr(), // Using existing key
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -314,11 +326,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       onTap: () {
         // Mark as read when tapping
         _chatProvider.markChatAsRead(chat.id);
-        
+
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => MessagesScreen(chatId: chat.id), // Use MessagesPage
+            builder: (context) =>
+                MessagesScreen(chatId: chat.id), // Use MessagesPage
           ),
         );
       },
@@ -326,7 +339,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         margin: EdgeInsets.only(bottom: 8),
         padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: unreadCount > 0 ? Colors.blue.withOpacity(0.05) : Colors.transparent,
+          color: unreadCount > 0
+              ? Colors.blue.withOpacity(0.05)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -361,9 +376,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   ),
               ],
             ),
-            
+
             SizedBox(width: 12),
-            
+
             // Chat Details
             Expanded(
               child: Column(
@@ -378,7 +393,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                           otherUserName,
                           style: GoogleFonts.poppins(
                             fontSize: 16,
-                            fontWeight: unreadCount > 0 ? FontWeight.w700 : FontWeight.w600,
+                            fontWeight: unreadCount > 0
+                                ? FontWeight.w700
+                                : FontWeight.w600,
                             color: Colors.black,
                           ),
                           maxLines: 1,
@@ -389,34 +406,44 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         chat.getFormattedTime(),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: unreadCount > 0 ? Color(0xff014700) : Colors.grey[600],
-                          fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                          color: unreadCount > 0
+                              ? Color(0xff014700)
+                              : Colors.grey[600],
+                          fontWeight: unreadCount > 0
+                              ? FontWeight.w600
+                              : FontWeight.normal,
                         ),
                       ),
                     ],
                   ),
-                  
+
                   SizedBox(height: 4),
-                  
+
                   // Last Message and Unread Count
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          isTyping 
-                              ? 'Typing...' 
-                              : chat.lastMessage.isEmpty 
-                                  ? 'No messages yet' 
-                                  : chat.lastMessage,
+                          isTyping
+                              ? AppLocalizations.typing
+                                    .tr() // Using existing key
+                              : chat.lastMessage.isEmpty
+                              ? AppLocalizations.noReviewsYet
+                                    .tr() // Using existing key creatively
+                              : chat.lastMessage,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: isTyping 
-                                ? Colors.green 
-                                : unreadCount > 0 
-                                    ? Colors.black87 
-                                    : Colors.grey[600],
-                            fontStyle: isTyping ? FontStyle.italic : FontStyle.normal,
-                            fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                            color: isTyping
+                                ? Colors.green
+                                : unreadCount > 0
+                                ? Colors.black87
+                                : Colors.grey[600],
+                            fontStyle: isTyping
+                                ? FontStyle.italic
+                                : FontStyle.normal,
+                            fontWeight: unreadCount > 0
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -425,7 +452,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       if (unreadCount > 0) ...[
                         SizedBox(width: 8),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Color(0xff014700),
                             borderRadius: BorderRadius.circular(10),
@@ -442,7 +472,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       ],
                     ],
                   ),
-                  
+
                   // Product Info (if available)
                   if (chat.productTitle != null) ...[
                     SizedBox(height: 8),
@@ -453,7 +483,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ProductDetailScreen(productId: chat.productId!),
+                              builder: (context) => ProductDetailScreen(
+                                productId: chat.productId!,
+                              ),
                             ),
                           );
                         }
@@ -463,7 +495,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[300]!, width: 0.5),
+                          border: Border.all(
+                            color: Colors.grey[300]!,
+                            width: 0.5,
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -480,12 +515,21 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                                       child: Image.network(
                                         chat.productImage!,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Icon(Icons.image, size: 16, color: Colors.grey);
-                                        },
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return Icon(
+                                                Icons.image,
+                                                size: 16,
+                                                color: Colors.grey,
+                                              );
+                                            },
                                       ),
                                     )
-                                  : Icon(Icons.image, size: 16, color: Colors.grey),
+                                  : Icon(
+                                      Icons.image,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    ),
                             ),
                             SizedBox(width: 8),
                             Expanded(
@@ -541,7 +585,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 }
 
 // =====================================================
-// ENHANCED START BROWSING USERS PAGE
+// ENHANCED START BROWSING USERS PAGE - LOCALIZED
 // =====================================================
 
 class StartBrowsingUsersPage extends StatefulWidget {
@@ -596,7 +640,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to load users: $e';
+        _error = '${AppLocalizations.error.tr()}: $e'; // Using existing key
         _isLoading = false;
       });
     }
@@ -618,7 +662,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
-          'Find People to Chat',
+          AppLocalizations.browseUsers.tr(), // Using existing key
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -637,7 +681,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search users...',
+                hintText: AppLocalizations.search.tr(), // Using existing key
                 hintStyle: GoogleFonts.poppins(color: Colors.grey[500]),
                 prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
                 filled: true,
@@ -646,15 +690,16 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
 
           // Content
-          Expanded(
-            child: _buildContent(),
-          ),
+          Expanded(child: _buildContent()),
         ],
       ),
     );
@@ -671,11 +716,8 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             ),
             SizedBox(height: 16),
             Text(
-              'Loading users...',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              AppLocalizations.loading.tr(), // Using existing key
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -701,7 +743,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 backgroundColor: Color(0xff014700),
                 foregroundColor: Colors.white,
               ),
-              child: Text('Retry'),
+              child: Text('Retry'), // Simple word, could use existing key
             ),
           ],
         ),
@@ -716,13 +758,11 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
             Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
             SizedBox(height: 20),
             Text(
-              _searchController.text.isNotEmpty 
-                  ? 'No users found matching "${_searchController.text}"'
-                  : 'No users found',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              _searchController.text.isNotEmpty
+                  ? '${AppLocalizations.search.tr()}: "${_searchController.text}"' // Using existing key
+                  : AppLocalizations.noReviewsYet
+                        .tr(), // Using existing key creatively
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
             if (_searchController.text.isNotEmpty) ...[
@@ -733,7 +773,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                   _filterUsers();
                 },
                 child: Text(
-                  'Clear search',
+                  AppLocalizations.clearAll.tr(), // Using existing key
                   style: GoogleFonts.poppins(
                     color: Color(0xff014700),
                     fontWeight: FontWeight.w600,
@@ -776,7 +816,9 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundImage: userImage.isNotEmpty ? NetworkImage(userImage) : null,
+              backgroundImage: userImage.isNotEmpty
+                  ? NetworkImage(userImage)
+                  : null,
               child: userImage.isEmpty ? Icon(Icons.person, size: 28) : null,
               backgroundColor: Colors.grey[200],
             ),
@@ -795,7 +837,10 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    userType == 'company' ? 'Business Account' : 'Individual',
+                    userType == 'company'
+                        ? AppLocalizations.company.tr()
+                        : AppLocalizations.individual
+                              .tr(), // Using existing keys
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.grey[600],
@@ -803,7 +848,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                   ),
                   if (memberSince != null)
                     Text(
-                      'Member since ${DateFormat('MMM yyyy').format(memberSince.toDate())}',
+                      '${AppLocalizations.memberSince.tr()} ${DateFormat('MMM yyyy').format(memberSince.toDate())}', // Using existing key
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         color: Colors.grey[500],
@@ -812,11 +857,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 ],
               ),
             ),
-            Icon(
-              Icons.chat_outlined,
-              color: Color(0xff014700),
-              size: 20,
-            ),
+            Icon(Icons.chat_outlined, color: Color(0xff014700), size: 20),
           ],
         ),
       ),
@@ -826,7 +867,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
   Future<void> _startChat(Map<String, dynamic> user) async {
     try {
       final chatProvider = ChatProvider();
-      
+
       final chatId = await chatProvider.createOrGetChatEnhanced(
         otherUserId: user['uid'] ?? user['id'],
         otherUserName: user['companyName'] ?? user['name'] ?? 'Unknown User',
@@ -844,7 +885,7 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to start chat'),
+            content: Text(AppLocalizations.error.tr()), // Using existing key
             backgroundColor: Colors.red,
           ),
         );
@@ -852,7 +893,9 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error starting chat: $e'),
+          content: Text(
+            '${AppLocalizations.error.tr()}: $e',
+          ), // Using existing key
           backgroundColor: Colors.red,
         ),
       );

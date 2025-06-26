@@ -1,9 +1,11 @@
-// email_reset_screen.dart - Fixed email password reset
+// email_reset_screen.dart - Fixed email password reset with localization
 import 'package:arabicmarketplace/resources/colors_controller.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
 import 'dart:developer';
 
 class EmailResetScreen extends StatefulWidget {
@@ -30,10 +32,7 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
         ),
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            color: Colors.grey[200],
-          ),
+          child: Container(height: 1, color: Colors.grey[200]),
         ),
       ),
       body: Padding(
@@ -43,7 +42,7 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
           children: [
             SizedBox(height: 8),
             Text(
-              'Reset with Email',
+              AppLocalizations.resetWithEmail.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 28,
                 fontWeight: FontWeight.w600,
@@ -52,7 +51,7 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
             ),
             SizedBox(height: 12),
             Text(
-              'Enter your email address and we\'ll send you\na password reset link.',
+              AppLocalizations.enterEmailSendReset.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w400,
@@ -61,10 +60,10 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
               ),
             ),
             SizedBox(height: 40),
-            
+
             // Email Input
             Text(
-              'Email Address',
+              AppLocalizations.email.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -86,20 +85,24 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
                   color: Colors.black,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Enter your email',
+                  hintText: AppLocalizations.enterEmail
+                      .tr(), // Using existing key
                   hintStyle: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
                     color: Colors.grey[500],
                   ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
-            
+
             Spacer(),
-            
+
             // Send Reset Link Button
             Container(
               width: double.infinity,
@@ -114,15 +117,16 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
                   elevation: 0,
                 ),
                 child: _isLoading
-                  ? CircularProgressIndicator(color: Colors.white)
-                  : Text(
-                      'Send Reset Link',
-                      style: GoogleFonts.jost(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    ? CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        AppLocalizations.sendResetLink
+                            .tr(), // Using existing key
+                        style: GoogleFonts.jost(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
               ),
             ),
             SizedBox(height: 40),
@@ -135,12 +139,16 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
   // Fixed Email Password Reset using Firebase built-in method
   void _sendPasswordResetEmail() async {
     if (_emailController.text.trim().isEmpty) {
-      _showErrorDialog('Please enter your email address');
+      _showErrorDialog(
+        AppLocalizations.emailRequired.tr(),
+      ); // Using existing key
       return;
     }
 
     if (!_isValidEmail(_emailController.text.trim())) {
-      _showErrorDialog('Please enter a valid email address');
+      _showErrorDialog(
+        AppLocalizations.emailInvalid.tr(),
+      ); // Using existing key
       return;
     }
 
@@ -150,7 +158,7 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
 
     try {
       String email = _emailController.text.trim();
-      
+
       // Check if user exists in Firestore
       QuerySnapshot userQuery = await _firestore
           .collection('users')
@@ -162,13 +170,15 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
         setState(() {
           _isLoading = false;
         });
-        _showErrorDialog('No account found with this email address');
+        _showErrorDialog(
+          AppLocalizations.emailInvalid.tr(),
+        ); // Using existing key
         return;
       }
 
       // Send Firebase password reset email
       await _auth.sendPasswordResetEmail(email: email);
-      
+
       setState(() {
         _isLoading = false;
       });
@@ -179,23 +189,27 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
         _isLoading = false;
       });
       log('Password reset error: $e');
-      
+
       if (e is FirebaseAuthException) {
         switch (e.code) {
           case 'user-not-found':
-            _showErrorDialog('No account found with this email address');
+            _showErrorDialog(
+              AppLocalizations.emailInvalid.tr(),
+            ); // Using existing key
             break;
           case 'invalid-email':
-            _showErrorDialog('Invalid email address');
+            _showErrorDialog(
+              AppLocalizations.emailInvalid.tr(),
+            ); // Using existing key
             break;
           case 'too-many-requests':
-            _showErrorDialog('Too many requests. Please try again later');
+            _showErrorDialog(AppLocalizations.error.tr()); // Using existing key
             break;
           default:
-            _showErrorDialog('Failed to send reset email. Please try again.');
+            _showErrorDialog(AppLocalizations.error.tr()); // Using existing key
         }
       } else {
-        _showErrorDialog('An error occurred. Please try again.');
+        _showErrorDialog(AppLocalizations.error.tr()); // Using existing key
       }
     }
   }
@@ -208,12 +222,29 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Error'),
-        content: Text(message),
+        title: Text(
+          AppLocalizations.error.tr(), // Using existing key
+          style: GoogleFonts.jost(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            child: Text(
+              AppLocalizations.ok.tr(), // Using existing key
+              style: GoogleFonts.jost(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: ColorsController.primaryColor,
+              ),
+            ),
           ),
         ],
       ),
@@ -225,14 +256,31 @@ class _EmailResetScreenState extends State<EmailResetScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text('Success'),
-        content: Text('Password reset link has been sent to your email. Please check your inbox and follow the instructions.'),
+        title: Text(
+          AppLocalizations.success.tr(), // Using existing key
+          style: GoogleFonts.jost(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+        ),
+        content: Text(
+          AppLocalizations.success.tr(), // Using existing key for content
+          style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
-            child: Text('OK'),
+            child: Text(
+              AppLocalizations.ok.tr(), // Using existing key
+              style: GoogleFonts.jost(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: ColorsController.primaryColor,
+              ),
+            ),
           ),
         ],
       ),

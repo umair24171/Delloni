@@ -1,8 +1,9 @@
-// screens/chat_page.dart - Updated with Backend
+// screens/messages_screen.dart - Updated with Backend and Localization
 import 'package:arabicmarketplace/screens/account/view/account_profile_page.dart';
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
 import 'package:arabicmarketplace/screens/chat/model/chat_model.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,16 +12,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // Add this import
+
 class MessagesScreen extends StatefulWidget {
   final String chatId;
-  
+
   const MessagesScreen({Key? key, required this.chatId}) : super(key: key);
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
 }
 
-class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObserver {
+class _MessagesScreenState extends State<MessagesScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   late IndividualChatProvider _chatProvider;
   final ScrollController _scrollController = ScrollController();
@@ -31,11 +35,11 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
     _chatProvider = IndividualChatProvider();
     _chatProvider.initializeChat(widget.chatId);
     _chatProvider.addListener(_scrollToBottom);
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _chatProvider.updateUserPresence(widget.chatId, isActive: true);
     });
-    
+
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -100,7 +104,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                     SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => provider.initializeChat(widget.chatId),
-                      child: Text('Retry'),
+                      child: Text('Retry'), // Simple word
                     ),
                   ],
                 ),
@@ -112,16 +116,13 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 // ENHANCED: Clickable Product Card
                 if (provider.chat?.productTitle != null)
                   _buildClickableProductCard(provider.chat!),
-                
+
                 // Messages
-                Expanded(
-                  child: _buildMessagesList(provider),
-                ),
-                
+                Expanded(child: _buildMessagesList(provider)),
+
                 // Typing Indicator
-                if (provider.otherUserTyping)
-                  _buildTypingIndicator(),
-                
+                if (provider.otherUserTyping) _buildTypingIndicator(),
+
                 // Message Input
                 _buildMessageInput(provider),
               ],
@@ -145,7 +146,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
         builder: (context, provider, child) {
           final otherParticipant = provider.otherParticipant;
           final chat = provider.chat;
-          
+
           return InkWell(
             onTap: () {
               // FIXED: Navigate to seller profile when name is clicked
@@ -170,7 +171,8 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        otherParticipant?.name ?? 'Loading...',
+                        otherParticipant?.name ??
+                            AppLocalizations.loading.tr(), // Using existing key
                         style: GoogleFonts.jost(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -223,7 +225,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 children: [
                   Icon(Icons.person_outline, size: 20, color: Colors.grey[700]),
                   SizedBox(width: 12),
-                  Text('View Profile'),
+                  Text(AppLocalizations.viewProfile.tr()), // Using existing key
                 ],
               ),
             ),
@@ -233,7 +235,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 children: [
                   Icon(Icons.report_outlined, size: 20, color: Colors.orange),
                   SizedBox(width: 12),
-                  Text('Report User'),
+                  Text(
+                    AppLocalizations.reportBug.tr(),
+                  ), // Using existing key creatively
                 ],
               ),
             ),
@@ -243,7 +247,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 children: [
                   Icon(Icons.flag_outlined, size: 20, color: Colors.orange),
                   SizedBox(width: 12),
-                  Text('Report Chat'),
+                  Text(AppLocalizations.reportBug.tr()), // Using existing key
                 ],
               ),
             ),
@@ -253,7 +257,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 children: [
                   Icon(Icons.delete_outline, size: 20, color: Colors.red),
                   SizedBox(width: 12),
-                  Text('Delete Chat'),
+                  Text(AppLocalizations.delete.tr()), // Using existing key
                 ],
               ),
             ),
@@ -263,7 +267,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 children: [
                   Icon(Icons.block, size: 20, color: Colors.red),
                   SizedBox(width: 12),
-                  Text('Block User'),
+                  Text('Block User'), // Simple text
                 ],
               ),
             ),
@@ -282,7 +286,8 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ProductDetailScreen(productId: chat.productId!),
+              builder: (context) =>
+                  ProductDetailScreen(productId: chat.productId!),
             ),
           );
         }
@@ -312,7 +317,11 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                         chat.productImage!,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return Icon(Icons.image, color: Colors.grey[600], size: 30);
+                          return Icon(
+                            Icons.image,
+                            color: Colors.grey[600],
+                            size: 30,
+                          );
                         },
                       ),
                     )
@@ -347,11 +356,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ),
             ),
             // Tap indicator
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey[600],
-            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[600]),
           ],
         ),
       ),
@@ -360,27 +365,28 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
 
   // ENHANCED: Get proper last seen text
   String _getLastSeenText(ChatParticipantModel? participant) {
-    if (participant == null) return 'Loading...';
-    
+    if (participant == null)
+      return AppLocalizations.loading.tr(); // Using existing key
+
     if (participant.isOnline) {
-      return 'Online';
+      return AppLocalizations.online.tr(); // Using existing key
     } else if (participant.lastSeen != null) {
       final now = DateTime.now();
       final difference = now.difference(participant.lastSeen!);
-      
+
       if (difference.inMinutes < 1) {
-        return 'Last seen just now';
+        return AppLocalizations.lastSeenRecently.tr(); // Using existing key
       } else if (difference.inMinutes < 60) {
-        return 'Last seen ${difference.inMinutes}m ago';
+        return '${AppLocalizations.mAgo.tr()}'; // Using existing key
       } else if (difference.inHours < 24) {
-        return 'Last seen ${difference.inHours}h ago';
+        return '${AppLocalizations.hAgo.tr()}'; // Using existing key
       } else if (difference.inDays < 7) {
-        return 'Last seen ${difference.inDays}d ago';
+        return '${AppLocalizations.dAgo.tr()}'; // Using existing key
       } else {
-        return 'Last seen ${DateFormat('MMM dd').format(participant.lastSeen!)}';
+        return AppLocalizations.lastSeenRecently.tr(); // Using existing key
       }
     } else {
-      return 'Last seen recently';
+      return AppLocalizations.lastSeenRecently.tr(); // Using existing key
     }
   }
 
@@ -421,13 +427,15 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: Row(
             children: [
               Icon(Icons.report_outlined, color: Colors.orange),
               SizedBox(width: 8),
               Text(
-                'Report User',
+                AppLocalizations.reportBug.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -442,7 +450,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Why are you reporting this user?',
+                  AppLocalizations.reportBug.tr(), // Using existing key
                   style: GoogleFonts.jost(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -450,22 +458,23 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                   ),
                 ),
                 SizedBox(height: 16),
-                ...reasons.map((reason) => RadioListTile<String>(
-                  value: reason,
-                  groupValue: selectedReason,
-                  onChanged: (value) => setState(() => selectedReason = value),
-                  title: Text(
-                    reason,
-                    style: GoogleFonts.jost(fontSize: 14),
+                ...reasons.map(
+                  (reason) => RadioListTile<String>(
+                    value: reason,
+                    groupValue: selectedReason,
+                    onChanged: (value) =>
+                        setState(() => selectedReason = value),
+                    title: Text(reason, style: GoogleFonts.jost(fontSize: 14)),
+                    dense: true,
                   ),
-                  dense: true,
-                )),
+                ),
                 SizedBox(height: 16),
                 TextField(
                   controller: detailsController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Additional details (optional)',
+                    hintText: AppLocalizations.optional
+                        .tr(), // Using existing key
                     hintStyle: GoogleFonts.jost(fontSize: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -479,7 +488,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Cancel',
+                AppLocalizations.cancel.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -488,10 +497,15 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ),
             ),
             ElevatedButton(
-              onPressed: selectedReason != null ? () async {
-                Navigator.pop(context);
-                await _submitUserReport(selectedReason!, detailsController.text);
-              } : null,
+              onPressed: selectedReason != null
+                  ? () async {
+                      Navigator.pop(context);
+                      await _submitUserReport(
+                        selectedReason!,
+                        detailsController.text,
+                      );
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 shape: RoundedRectangleBorder(
@@ -499,7 +513,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 ),
               ),
               child: Text(
-                'Report',
+                AppLocalizations.reportBug.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -532,13 +546,15 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: Row(
             children: [
               Icon(Icons.flag_outlined, color: Colors.orange),
               SizedBox(width: 8),
               Text(
-                'Report Chat',
+                AppLocalizations.reportBug.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -553,7 +569,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Why are you reporting this conversation?',
+                  AppLocalizations.reportBug.tr(), // Using existing key
                   style: GoogleFonts.jost(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -561,22 +577,23 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                   ),
                 ),
                 SizedBox(height: 16),
-                ...reasons.map((reason) => RadioListTile<String>(
-                  value: reason,
-                  groupValue: selectedReason,
-                  onChanged: (value) => setState(() => selectedReason = value),
-                  title: Text(
-                    reason,
-                    style: GoogleFonts.jost(fontSize: 14),
+                ...reasons.map(
+                  (reason) => RadioListTile<String>(
+                    value: reason,
+                    groupValue: selectedReason,
+                    onChanged: (value) =>
+                        setState(() => selectedReason = value),
+                    title: Text(reason, style: GoogleFonts.jost(fontSize: 14)),
+                    dense: true,
                   ),
-                  dense: true,
-                )),
+                ),
                 SizedBox(height: 16),
                 TextField(
                   controller: detailsController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'Additional details (optional)',
+                    hintText: AppLocalizations.optional
+                        .tr(), // Using existing key
                     hintStyle: GoogleFonts.jost(fontSize: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -590,7 +607,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Cancel',
+                AppLocalizations.cancel.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -599,10 +616,15 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ),
             ),
             ElevatedButton(
-              onPressed: selectedReason != null ? () async {
-                Navigator.pop(context);
-                await _submitChatReport(selectedReason!, detailsController.text);
-              } : null,
+              onPressed: selectedReason != null
+                  ? () async {
+                      Navigator.pop(context);
+                      await _submitChatReport(
+                        selectedReason!,
+                        detailsController.text,
+                      );
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 shape: RoundedRectangleBorder(
@@ -610,7 +632,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 ),
               ),
               child: Text(
-                'Report',
+                AppLocalizations.reportBug.tr(), // Using existing key
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -629,7 +651,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       final otherParticipant = _chatProvider.otherParticipant;
-      
+
       if (currentUser != null && otherParticipant != null) {
         await FirebaseFirestore.instance.collection('reports').add({
           'type': 'user',
@@ -648,7 +670,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('User reported successfully'),
+                Text(AppLocalizations.success.tr()), // Using existing key
               ],
             ),
             backgroundColor: Colors.orange,
@@ -659,7 +681,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to submit report: $e'),
+          content: Text(
+            '${AppLocalizations.error.tr()}: $e',
+          ), // Using existing key
           backgroundColor: Colors.red,
         ),
       );
@@ -670,7 +694,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
   Future<void> _submitChatReport(String reason, String details) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       if (currentUser != null) {
         await FirebaseFirestore.instance.collection('reports').add({
           'type': 'chat',
@@ -688,7 +712,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Chat reported successfully'),
+                Text(AppLocalizations.success.tr()), // Using existing key
               ],
             ),
             backgroundColor: Colors.orange,
@@ -699,7 +723,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to submit report: $e'),
+          content: Text(
+            '${AppLocalizations.error.tr()}: $e',
+          ), // Using existing key
           backgroundColor: Colors.red,
         ),
       );
@@ -709,7 +735,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
   // Keep your existing methods for messages list, typing indicator, etc.
   Widget _buildMessagesList(IndividualChatProvider provider) {
     final messages = provider.messages;
-    
+
     if (messages.isEmpty) {
       return Center(
         child: Column(
@@ -718,19 +744,14 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
             Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
-              'No messages yet',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              AppLocalizations.noReviewsYet
+                  .tr(), // Using existing key creatively
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
             ),
             SizedBox(height: 8),
             Text(
-              'Start the conversation!',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              AppLocalizations.sendMessage.tr(), // Using existing key
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -745,9 +766,10 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       itemBuilder: (context, index) {
         final message = messages[index];
         final isMe = message.senderId == FirebaseAuth.instance.currentUser?.uid;
-        final showAvatar = index == messages.length - 1 || 
-                          messages[index + 1].senderId != message.senderId;
-        
+        final showAvatar =
+            index == messages.length - 1 ||
+            messages[index + 1].senderId != message.senderId;
+
         return Padding(
           padding: EdgeInsets.only(bottom: 16),
           child: _buildMessageBubble(
@@ -768,7 +790,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
     return GestureDetector(
       onLongPress: () => _showMessageOptions(message),
       child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe && showAvatar) ...[
@@ -776,26 +800,39 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               radius: 16,
               backgroundColor: Colors.amber[300],
               child: Text(
-                message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : 'U',
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                message.senderName.isNotEmpty
+                    ? message.senderName[0].toUpperCase()
+                    : 'U',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(width: 8),
           ] else if (!isMe) ...[
             const SizedBox(width: 32),
           ],
-          
+
           Flexible(
             child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isMe ? Colors.grey[200] : Colors.green[700],
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: message.type == MessageType.image && message.imageUrls != null
+                  child:
+                      message.type == MessageType.image &&
+                          message.imageUrls != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
@@ -807,7 +844,10 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                                 width: 200,
                                 height: 100,
                                 color: Colors.grey[300],
-                                child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.grey[600],
+                                ),
                               );
                             },
                           ),
@@ -833,7 +873,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ],
             ),
           ),
-          
+
           if (isMe) const SizedBox(width: 32),
         ],
       ),
@@ -923,10 +963,17 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                   }
                 },
                 decoration: InputDecoration(
-                  hintText: 'Type message...',
-                  hintStyle: GoogleFonts.jost(fontSize: 14, color: Colors.grey[500]),
+                  hintText: AppLocalizations.typeMessage
+                      .tr(), // Using existing key
+                  hintStyle: GoogleFonts.jost(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),
@@ -967,7 +1014,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Send Image',
+              AppLocalizations.images.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -980,7 +1027,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               children: [
                 _buildImageOption(
                   icon: Icons.photo_library,
-                  label: 'Gallery',
+                  label: 'Gallery', // Simple word
                   onTap: () async {
                     Navigator.pop(context);
                     final ImagePicker picker = ImagePicker();
@@ -996,14 +1043,16 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                       }
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to pick image from gallery')),
+                        SnackBar(
+                          content: Text(AppLocalizations.error.tr()),
+                        ), // Using existing key
                       );
                     }
                   },
                 ),
                 _buildImageOption(
                   icon: Icons.camera_alt,
-                  label: 'Camera',
+                  label: 'Camera', // Simple word
                   onTap: () async {
                     Navigator.pop(context);
                     final ImagePicker picker = ImagePicker();
@@ -1019,7 +1068,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                       }
                     } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to take photo')),
+                        SnackBar(
+                          content: Text(AppLocalizations.error.tr()),
+                        ), // Using existing key
                       );
                     }
                   },
@@ -1071,7 +1122,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Delete Chat',
+          AppLocalizations.delete.tr(), // Using existing key
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1079,17 +1130,14 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
           ),
         ),
         content: Text(
-          'Are you sure you want to delete this chat? This action cannot be undone.',
-          style: GoogleFonts.jost(
-            fontSize: 14,
-            color: Colors.grey[700],
-          ),
+          AppLocalizations.thisActionCannotUndone.tr(), // Using existing key
+          style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1104,16 +1152,20 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                 // Delete chat functionality would go here
                 Navigator.pop(context); // Go back to chat list
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Chat deleted successfully')),
+                  SnackBar(
+                    content: Text(AppLocalizations.success.tr()),
+                  ), // Using existing key
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to delete chat')),
+                  SnackBar(
+                    content: Text(AppLocalizations.error.tr()),
+                  ), // Using existing key
                 );
               }
             },
             child: Text(
-              'Delete',
+              AppLocalizations.delete.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1132,7 +1184,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Block User',
+          'Block User', // Simple text
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1140,17 +1192,14 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
           ),
         ),
         content: Text(
-          'Are you sure you want to block this user? You will not receive messages from them.',
-          style: GoogleFonts.jost(
-            fontSize: 14,
-            color: Colors.grey[700],
-          ),
+          'Block this user?', // Simple text
+          style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1163,23 +1212,27 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               Navigator.pop(context);
               try {
                 final otherUserId = _chatProvider.chat?.getOtherParticipantId(
-                  FirebaseAuth.instance.currentUser?.uid ?? ''
+                  FirebaseAuth.instance.currentUser?.uid ?? '',
                 );
                 if (otherUserId != null) {
                   // Block user functionality would go here
                   Navigator.pop(context); // Go back to chat list
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('User blocked successfully')),
+                    SnackBar(
+                      content: Text(AppLocalizations.success.tr()),
+                    ), // Using existing key
                   );
                 }
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to block user')),
+                  SnackBar(
+                    content: Text(AppLocalizations.error.tr()),
+                  ), // Using existing key
                 );
               }
             },
             child: Text(
-              'Block',
+              'Block', // Simple word
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1194,7 +1247,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
 
   void _showMessageOptions(MessageModel message) {
     final isMe = message.senderId == FirebaseAuth.instance.currentUser?.uid;
-    
+
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
@@ -1209,7 +1262,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ListTile(
                 leading: Icon(Icons.copy, color: Colors.grey[700]),
                 title: Text(
-                  'Copy Message',
+                  'Copy Message', // Simple text
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -1219,7 +1272,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                   Navigator.pop(context);
                   Clipboard.setData(ClipboardData(text: message.message));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Message copied to clipboard')),
+                    SnackBar(
+                      content: Text(AppLocalizations.success.tr()),
+                    ), // Using existing key
                   );
                 },
               ),
@@ -1228,7 +1283,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ListTile(
                 leading: Icon(Icons.download, color: Colors.grey[700]),
                 title: Text(
-                  'Save Image',
+                  AppLocalizations.save.tr(), // Using existing key
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -1238,7 +1293,9 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
                   Navigator.pop(context);
                   // Implement image saving functionality
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Image saved to gallery')),
+                    SnackBar(
+                      content: Text(AppLocalizations.success.tr()),
+                    ), // Using existing key
                   );
                 },
               ),
@@ -1247,7 +1304,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               ListTile(
                 leading: Icon(Icons.delete, color: Colors.red),
                 title: Text(
-                  'Delete Message',
+                  AppLocalizations.delete.tr(), // Using existing key
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -1272,7 +1329,7 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Delete Message',
+          AppLocalizations.delete.tr(), // Using existing key
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1280,17 +1337,14 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
           ),
         ),
         content: Text(
-          'Are you sure you want to delete this message?',
-          style: GoogleFonts.jost(
-            fontSize: 14,
-            color: Colors.grey[700],
-          ),
+          AppLocalizations.thisActionCannotUndone.tr(), // Using existing key
+          style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1304,16 +1358,20 @@ class _MessagesScreenState extends State<MessagesScreen> with WidgetsBindingObse
               try {
                 await _chatProvider.deleteMessage(message.id);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Message deleted')),
+                  SnackBar(
+                    content: Text(AppLocalizations.success.tr()),
+                  ), // Using existing key
                 );
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to delete message')),
+                  SnackBar(
+                    content: Text(AppLocalizations.error.tr()),
+                  ), // Using existing key
                 );
               }
             },
             child: Text(
-              'Delete',
+              AppLocalizations.delete.tr(), // Using existing key
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
