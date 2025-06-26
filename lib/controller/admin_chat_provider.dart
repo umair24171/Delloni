@@ -9,6 +9,12 @@ class AdminChatProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+
+
+
+
+
+
   // State variables
   bool _isLoading = true;
   String? _error;

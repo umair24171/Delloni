@@ -8,6 +8,7 @@ import 'package:arabicmarketplace/screens/product_detail/controller/product_deta
 import 'package:arabicmarketplace/screens/product_detail/model/product_detail_model.dart';
 import 'package:arabicmarketplace/screens/reviews_page/model/review_model.dart';
 import 'package:arabicmarketplace/screens/reviews_page/view/reviews_page.dart';
+import 'package:arabicmarketplace/widgets/image_optimise.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -330,18 +331,32 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                         colors: [Color(0xFFE8E8E8), Color(0xFFF5F5F5)],
                       ),
                     ),
-                    child: Image.network(
-                      product.imageUrls[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[300],
+                    child: UniversalImage(
+                        imageUrl:  product.imageUrls[index],
+                        fit: BoxFit.cover,
+                        errorWidget: Container(
+                          color: Colors.grey[200],
                           child: Center(
-                            child: Icon(Icons.image, size: 80, color: Colors.grey[600]),
+                            child: Icon(
+                              Icons.image,
+                              size: 50,
+                              color: Colors.grey[400],
+                            ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                    // Image.network(
+                    //   product.imageUrls[index],
+                    //   fit: BoxFit.cover,
+                    //   errorBuilder: (context, error, stackTrace) {
+                    //     return Container(
+                    //       color: Colors.grey[300],
+                    //       child: Center(
+                    //         child: Icon(Icons.image, size: 80, color: Colors.grey[600]),
+                    //       ),
+                    //     );
+                    //   },
+                    // ),
                   );
                 },
               )

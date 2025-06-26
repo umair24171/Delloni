@@ -87,6 +87,7 @@ class AppLocalizations {
   static const arabic = 'arabic';
   static const urdu = 'urdu';
   
+  
   // Categories & Home
   static const browseCategories = 'browse_categories';
   static const allCategories = 'all_categories';

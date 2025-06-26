@@ -1,8 +1,6 @@
-import 'package:arabicmarketplace/screens/account/controller/help_contact_service.dart';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TermsConditionsPage extends StatefulWidget {
   final bool requireAcceptance;

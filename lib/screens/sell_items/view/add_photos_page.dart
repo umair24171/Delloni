@@ -1,26 +1,15 @@
 import 'dart:io';
-
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/review_publish.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-
-import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-class EnhancedAddPhotosPage extends StatefulWidget {
-  const EnhancedAddPhotosPage({Key? key}) : super(key: key);
+
+class EnhancedAddPhotosPage extends StatefulWidget { 
+  const EnhancedAddPhotosPage({super.key});
 
   @override
   State<EnhancedAddPhotosPage> createState() => _EnhancedAddPhotosPageState();
