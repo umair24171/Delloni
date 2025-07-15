@@ -3,7 +3,7 @@ import 'package:arabicmarketplace/screens/account/view/favorite_ads.dart';
 import 'package:arabicmarketplace/screens/account/view/help_contact_pag.dart';
 import 'package:arabicmarketplace/screens/account/view/language_screen.dart';
 import 'package:arabicmarketplace/screens/account/view/my_ads.dart';
-import 'package:arabicmarketplace/screens/account/view/notifications_page.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notifications_page.dart';
 import 'package:arabicmarketplace/screens/account/view/edit_profile_screen.dart';
 import 'package:arabicmarketplace/screens/account/view/re_auth_dialog.dart';
 import 'package:arabicmarketplace/screens/account/view/terms_conditions.dart';
@@ -11,9 +11,12 @@ import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
 import 'package:arabicmarketplace/screens/reviews_page/view/reviews_page.dart';
 import 'package:arabicmarketplace/screens/account/controller/account_service.dart';
 import 'package:arabicmarketplace/screens/auth/view/login_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:arabicmarketplace/main.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({Key? key}) : super(key: key);
@@ -29,7 +32,7 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -39,11 +42,11 @@ class _AccountScreenState extends State<AccountScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Account',
+                    AppLocalizations.account.tr(),
                     style: GoogleFonts.jost(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      color: Theme.of(context).colorScheme.onBackground,
                     ),
                   ),
                 ],
@@ -89,11 +92,11 @@ class _AccountScreenState extends State<AccountScreen> {
                             
                             // Name
                             Text(
-                              user?.companyName ?? user?.email?.split('@').first.toUpperCase() ?? 'User',
+                              user?.companyName ?? user?.email?.split('@').first.toUpperCase() ?? AppLocalizations.user.tr(),
                               style: GoogleFonts.jost(
                                 fontSize: 23,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.black,
+                                color: Theme.of(context).colorScheme.onBackground,
                               ),
                             ),
                             
@@ -103,18 +106,18 @@ class _AccountScreenState extends State<AccountScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
-                                color: ColorsController.primaryColor.withOpacity(0.1),
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: ColorsController.primaryColor.withOpacity(0.3),
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
                                 ),
                               ),
                               child: Text(
-                                user?.type.toUpperCase() ?? 'USER',
+                                user?.type.toUpperCase() ?? AppLocalizations.user.tr(),
                                 style: GoogleFonts.jost(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: ColorsController.primaryColor,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             ),
@@ -139,6 +142,36 @@ class _AccountScreenState extends State<AccountScreen> {
                     
                     const SizedBox(height: 40),
                     
+                    // Dark Mode Toggle
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Consumer<ThemeProvider>(
+                        builder: (context, themeProvider, _) {
+                          final isDark = themeProvider.themeMode == ThemeMode.dark;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.dark_mode, color: isDark ? ColorsController.primaryColor : Colors.grey[700]),
+                            title: Text(
+                              'Dark Mode',
+                              style: GoogleFonts.jost(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? ColorsController.primaryColor : Colors.black,
+                              ),
+                            ),
+                            trailing: Switch(
+                              value: isDark,
+                              onChanged: (val) {
+                                themeProvider.toggleTheme(val);
+                              },
+                              activeColor: ColorsController.primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    
                     // Menu Items
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -146,21 +179,21 @@ class _AccountScreenState extends State<AccountScreen> {
                         children: [
                           _buildMenuItem(
                             icon: Icons.person_outline,
-                            title: 'My Profile',
+                            title: '${AppLocalizations.myProfile.tr()}',
                             onTap: () {
                                Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfileScreen()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.business_center_outlined,
-                            title: 'My Ads',
+                            title:'${AppLocalizations.myAds.tr()}',
                             onTap: () {
                                 Navigator.push(context, MaterialPageRoute(builder: (context) => MyAdsPage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.star_outline,
-                            title: 'Favourite Ads',
+                            title: '${AppLocalizations.favouriteAds.tr()}',
                             iconColor: ColorsController.primaryColor,
                             onTap: () {
                                Navigator.push(context, MaterialPageRoute(builder: (context) => FavoriteAds()));
@@ -168,42 +201,42 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                           _buildMenuItem(
                             icon: Icons.bar_chart_outlined,
-                            title: 'Notifications',
+                            title: '${AppLocalizations.notifications.tr()}',
                             onTap: () {
                                 Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.star_outline,
-                            title: 'Reviews',
+                            title: '${AppLocalizations.reviews.tr()}',
                             onTap: () {
                                 Navigator.push(context, MaterialPageRoute(builder: (context) => ReviewsPage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.help_outline,
-                            title: 'Help/Contact Us',
+                            title: '${AppLocalizations.helpContactUs.tr()}',
                             onTap: () {
                                Navigator.push(context, MaterialPageRoute(builder: (context) => HelpContactPage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.info_outline,
-                            title: 'Terms & Conditions',
+                            title: '${AppLocalizations.termsConditions.tr()}',
                             onTap: () {
                               Navigator.push(context, MaterialPageRoute(builder: (context) => TermsConditionsPage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.language_outlined,
-                            title: 'Select Language',
+                            title: '${AppLocalizations.selectLanguage.tr()}',
                             onTap: () {
                                 Navigator.push(context, MaterialPageRoute(builder: (context) => LanguagePage()));
                             },
                           ),
                           _buildMenuItem(
                             icon: Icons.logout_outlined,
-                            title: 'Logout',
+                            title: '${AppLocalizations.logout.tr()}',
                             iconColor: Colors.orange[700],
                             onTap: _showLogoutDialog,
                           ),
@@ -222,7 +255,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         onPressed: _isLoading ? null : _showDeleteAccountDialog,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xffF25252),
-                          foregroundColor: Colors.white,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -243,11 +276,11 @@ class _AccountScreenState extends State<AccountScreen> {
                                   Image.asset('assets/icons/Trash.png', height: 32, width: 32),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Delete Account',
+                                    '${AppLocalizations.deleteAccount.tr()}',
                                     style: GoogleFonts.jost(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w400,
-                                      color: Colors.black,
+                                      color: Theme.of(context).colorScheme.onBackground,
                                     ),
                                   ),
                                 ],
@@ -268,7 +301,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildDefaultAvatar() {
     return Container(
-      color: Colors.grey[800],
+      color: Theme.of(context).colorScheme.surface,
       child: const Icon(
         Icons.person,
         size: 60,
@@ -301,7 +334,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   Icon(
                     icon,
                     size: 22,
-                    color: iconColor ?? Colors.black,
+                    color: iconColor ?? Theme.of(context).colorScheme.onBackground,
                   ),
                   const SizedBox(width: 16),
                 ] else ...[
@@ -313,7 +346,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     style: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: iconColor ?? Colors.black,
+                      color: iconColor ?? Theme.of(context).colorScheme.onBackground,
                     ),
                   ),
                 ),
@@ -340,7 +373,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -359,13 +392,13 @@ class _AccountScreenState extends State<AccountScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.orange[50],
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.logout_rounded,
                     size: 40,
-                    color: Colors.orange[700],
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 
@@ -373,11 +406,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Title
                 Text(
-                  'Logout',
+                 '${AppLocalizations.logout.tr()}',
                   style: GoogleFonts.jost(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black,
+                    color: Theme.of(context).colorScheme.onBackground,
                   ),
                 ),
                 
@@ -385,11 +418,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Message
                 Text(
-                  'Are you sure you want to logout from your account?',
+                 '${AppLocalizations.areYouSureLogout.tr()}',
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -410,11 +443,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                         ),
                         child: Text(
-                          'Cancel',
+                          '${AppLocalizations.cancel.tr()}',
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -434,11 +467,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           elevation: 0,
                         ),
                         child: Text(
-                          'Logout',
+                          '${AppLocalizations.logout.tr()}',
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           ),
                         ),
                       ),
@@ -467,7 +500,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -486,13 +519,13 @@ class _AccountScreenState extends State<AccountScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.red[50],
+                    color: Theme.of(context).colorScheme.errorContainer,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.delete_forever_rounded,
                     size: 40,
-                    color: Colors.red[600],
+                    color: Theme.of(context).colorScheme.error,
                   ),
                 ),
                 
@@ -500,11 +533,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Title
                 Text(
-                  'Delete Account',
+                  '${AppLocalizations.deleteAccount.tr()}',
                   style: GoogleFonts.jost(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black,
+                    color: Theme.of(context).colorScheme.onBackground,
                   ),
                 ),
                 
@@ -514,24 +547,24 @@ class _AccountScreenState extends State<AccountScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.red[50],
+                    color: Theme.of(context).colorScheme.errorContainer,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red[200]!),
+                    border: Border.all(color: Theme.of(context).colorScheme.errorContainer),
                   ),
                   child: Column(
                     children: [
                       Icon(
                         Icons.warning_amber_rounded,
-                        color: Colors.red[600],
+                        color: Theme.of(context).colorScheme.error,
                         size: 24,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'This action cannot be undone!',
+                        '${AppLocalizations.thisActionCannotUndone.tr()}',
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.red[700],
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                     ],
@@ -542,11 +575,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Details
                 Text(
-                  'Deleting your account will permanently remove:',
+                  '${AppLocalizations.deletingAccountPermanently.tr()}',
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 
@@ -555,11 +588,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 // List of things that will be deleted
                 Column(
                   children: [
-                    _buildDeletionItem('• All your personal information'),
-                    _buildDeletionItem('• Your active listings and ads'),
-                    _buildDeletionItem('• Message history and conversations'),
-                    _buildDeletionItem('• Reviews and ratings'),
-                    _buildDeletionItem('• Account preferences and settings'),
+                    _buildDeletionItem(AppLocalizations.allPersonalInformation.tr()),
+                    _buildDeletionItem(AppLocalizations.activeListingsAds.tr()),
+                    _buildDeletionItem(AppLocalizations.messageHistoryConversations.tr()),
+                    _buildDeletionItem(AppLocalizations.reviewsRatings.tr()),
+                    _buildDeletionItem(AppLocalizations.accountPreferencesSettings.tr()),
                   ],
                 ),
                 
@@ -567,11 +600,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Confirmation text
                 Text(
-                  'Are you absolutely sure you want to proceed?',
+                  '${AppLocalizations.absolutelySureProceed.tr()}',
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                    color: Theme.of(context).colorScheme.onBackground,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -592,11 +625,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                         ),
                         child: Text(
-                          'Cancel',
+                          '${AppLocalizations.cancel.tr()}',
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -608,7 +641,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       child: ElevatedButton(
                         onPressed: () => _showFinalDeleteConfirmation(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[600],
+                          backgroundColor: Theme.of(context).colorScheme.error,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -616,11 +649,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           elevation: 0,
                         ),
                         child: Text(
-                          'Delete',
+                         '${AppLocalizations.delete.tr()}',
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           ),
                         ),
                       ),
@@ -651,7 +684,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -670,13 +703,13 @@ class _AccountScreenState extends State<AccountScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.red[100],
+                    color: Theme.of(context).colorScheme.errorContainer,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.warning_rounded,
                     size: 40,
-                    color: Colors.red[700],
+                    color: Theme.of(context).colorScheme.error,
                   ),
                 ),
                 
@@ -684,11 +717,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Title
                 Text(
-                  'Final Confirmation',
+                  AppLocalizations.finalConfirmation.tr(),
                   style: GoogleFonts.jost(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black,
+                    color: Theme.of(context).colorScheme.onBackground,
                   ),
                 ),
                 
@@ -696,11 +729,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 
                 // Message
                 Text(
-                  'Type "DELETE" to confirm account deletion',
+                  AppLocalizations.typeDeleteConfirm.tr(),
                   style: GoogleFonts.jost(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey[700],
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -719,18 +752,18 @@ class _AccountScreenState extends State<AccountScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Type DELETE here',
+                    hintText: AppLocalizations.typeDeleteHere.tr(),
                     hintStyle: GoogleFonts.jost(
-                      color: Colors.grey[500],
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontWeight: FontWeight.w400,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.red[300]!),
+                      borderSide: BorderSide(color: Theme.of(context).colorScheme.errorContainer),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.red[600]!, width: 2),
+                      borderSide: BorderSide(color: Theme.of(context).colorScheme.error, width: 2),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
@@ -752,11 +785,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                         ),
                         child: Text(
-                          'Cancel',
+                          AppLocalizations.cancel.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -768,7 +801,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       child: ElevatedButton(
                         onPressed: () => _handleDeleteAccount(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
+                          backgroundColor: Theme.of(context).colorScheme.error,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -776,11 +809,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           elevation: 0,
                         ),
                         child: Text(
-                          'Delete Forever',
+                          AppLocalizations.deleteForever.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           ),
                         ),
                       ),
@@ -805,7 +838,7 @@ class _AccountScreenState extends State<AccountScreen> {
           style: GoogleFonts.jost(
             fontSize: 14,
             fontWeight: FontWeight.w400,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ),
@@ -833,16 +866,16 @@ class _AccountScreenState extends State<AccountScreen> {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Logged out successfully'),
+            content: Text(AppLocalizations.loggedOutSuccessfully.tr()),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
       } else {
-        _showErrorSnackBar(result['message'] ?? 'Logout failed');
+        _showErrorSnackBar(result['message'] ?? AppLocalizations.logoutFailed.tr());
       }
     } catch (e) {
-      _showErrorSnackBar('An error occurred during logout');
+      _showErrorSnackBar(AppLocalizations.logoutError.tr());
     } finally {
       setState(() => _isLoading = false);
     }
@@ -870,7 +903,7 @@ class _AccountScreenState extends State<AccountScreen> {
       await _performDeleteAccount();
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('An error occurred during account deletion');
+      _showErrorSnackBar(AppLocalizations.accountDeletionError.tr());
     }
   }
 
@@ -893,7 +926,7 @@ class _AccountScreenState extends State<AccountScreen> {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Account deleted successfully'),
+            content: Text(AppLocalizations.accountDeletedSuccessfully.tr()),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -907,12 +940,12 @@ class _AccountScreenState extends State<AccountScreen> {
             onError: (message) => _showErrorSnackBar(message),
           );
         } else {
-          _showErrorSnackBar(result['message'] ?? 'Account deletion failed');
+          _showErrorSnackBar(result['message'] ?? AppLocalizations.accountDeletionFailed.tr());
         }
       }
-    } catch (e) {
-      _showErrorSnackBar('An error occurred during account deletion');
-    } finally {
+          } catch (e) {
+        _showErrorSnackBar(AppLocalizations.accountDeletionError.tr());
+      } finally {
       setState(() => _isLoading = false);
     }
   }

@@ -85,6 +85,13 @@ class ProductModel {
   final double? latitude;
   final double? longitude;
   final String? locationAddress;
+  
+  // NEW: City/District support for enhanced location
+  final String? cityId;
+  final String? cityName;
+  final String? districtId;
+  final String? districtName;
+  
   final String status; // 'active', 'sold', 'inactive'
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -93,6 +100,18 @@ class ProductModel {
   final bool isFeatured;
   final bool isPromoted;
   final DateTime? promotedUntil;
+  
+  // NEW: Category-specific fields for edit support
+  final Map<String, dynamic>? categorySpecificFields;
+  final List<Map<String, dynamic>>? categoryFieldTemplate;
+  final String? categoryTemplateName;
+  final bool? hasCustomFields;
+  
+  // NEW: Enhanced metadata
+  final bool? isRealEstate;
+  final int? photoCount;
+  final bool? hasMultiplePhotos;
+  final bool? isPremiumListing;
 
   ProductModel({
     required this.id,
@@ -114,6 +133,11 @@ class ProductModel {
     this.latitude,
     this.longitude,
     this.locationAddress,
+    // NEW: City/District fields
+    this.cityId,
+    this.cityName,
+    this.districtId,
+    this.districtName,
     required this.status,
     required this.createdAt,
     this.updatedAt,
@@ -122,7 +146,16 @@ class ProductModel {
     this.isFeatured = false,
     this.isPromoted = false,
     this.promotedUntil,
-
+    // NEW: Category-specific fields
+    this.categorySpecificFields,
+    this.categoryFieldTemplate,
+    this.categoryTemplateName,
+    this.hasCustomFields,
+    // NEW: Enhanced metadata
+    this.isRealEstate,
+    this.photoCount,
+    this.hasMultiplePhotos,
+    this.isPremiumListing,
   });
 
   factory ProductModel.fromFirestore(DocumentSnapshot doc) {
@@ -131,9 +164,10 @@ class ProductModel {
       id: doc.id,
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? '',
-
       sellerType: data['sellerType'] ?? 'individual',
-      title: data['title'] ?? '',
+      
+      // Support both 'title' and 'itemTitle' for backward compatibility
+      title: data['title'] ?? data['itemTitle'] ?? '',
       description: data['description'] ?? '',
       category: data['category'] ?? '',
       categoryName: data['categoryName'],
@@ -148,14 +182,37 @@ class ProductModel {
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
       locationAddress: data['locationAddress'],
+      
+      // NEW: City/District fields
+      cityId: data['cityId'],
+      cityName: data['cityName'],
+      districtId: data['districtId'],
+      districtName: data['districtName'],
+      
       status: data['status'] ?? 'active',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-      viewCount: data['viewCount'] ?? 0,
-      favoriteCount: data['favoriteCount'] ?? 0,
+      viewCount: data['viewCount'] ?? data['views'] ?? 0, // Support both field names
+      favoriteCount: data['favoriteCount'] ?? data['likes'] ?? 0, // Support both field names
       isFeatured: data['isFeatured'] ?? false,
       isPromoted: data['isPromoted'] ?? false,
       promotedUntil: (data['promotedUntil'] as Timestamp?)?.toDate(),
+      
+      // NEW: Category-specific fields
+      categorySpecificFields: data['categorySpecificFields'] != null 
+          ? Map<String, dynamic>.from(data['categorySpecificFields'])
+          : null,
+      categoryFieldTemplate: data['categoryFieldTemplate'] != null
+          ? List<Map<String, dynamic>>.from(data['categoryFieldTemplate'])
+          : null,
+      categoryTemplateName: data['categoryTemplateName'],
+      hasCustomFields: data['hasCustomFields'],
+      
+      // NEW: Enhanced metadata
+      isRealEstate: data['isRealEstate'],
+      photoCount: data['photoCount'],
+      hasMultiplePhotos: data['hasMultiplePhotos'],
+      isPremiumListing: data['isPremiumListing'],
     );
   }
 
@@ -164,8 +221,8 @@ class ProductModel {
       'sellerId': sellerId,
       'sellerName': sellerName,
       'sellerType': sellerType,
-
       'title': title,
+      'itemTitle': title, // Store both for compatibility
       'description': description,
       'category': category,
       'categoryName': categoryName,
@@ -180,14 +237,35 @@ class ProductModel {
       'latitude': latitude,
       'longitude': longitude,
       'locationAddress': locationAddress,
+      
+      // NEW: City/District fields
+      'cityId': cityId,
+      'cityName': cityName,
+      'districtId': districtId,
+      'districtName': districtName,
+      
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'viewCount': viewCount,
+      'views': viewCount, // Store both for compatibility
       'favoriteCount': favoriteCount,
+      'likes': favoriteCount, // Store both for compatibility
       'isFeatured': isFeatured,
       'isPromoted': isPromoted,
       'promotedUntil': promotedUntil != null ? Timestamp.fromDate(promotedUntil!) : null,
+      
+      // NEW: Category-specific fields
+      'categorySpecificFields': categorySpecificFields,
+      'categoryFieldTemplate': categoryFieldTemplate,
+      'categoryTemplateName': categoryTemplateName,
+      'hasCustomFields': hasCustomFields,
+      
+      // NEW: Enhanced metadata
+      'isRealEstate': isRealEstate,
+      'photoCount': photoCount,
+      'hasMultiplePhotos': hasMultiplePhotos,
+      'isPremiumListing': isPremiumListing,
     };
   }
 
@@ -211,6 +289,11 @@ class ProductModel {
     double? latitude,
     double? longitude,
     String? locationAddress,
+    // NEW: City/District parameters
+    String? cityId,
+    String? cityName,
+    String? districtId,
+    String? districtName,
     String? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -219,6 +302,16 @@ class ProductModel {
     bool? isFeatured,
     bool? isPromoted,
     DateTime? promotedUntil,
+    // NEW: Category-specific parameters
+    Map<String, dynamic>? categorySpecificFields,
+    List<Map<String, dynamic>>? categoryFieldTemplate,
+    String? categoryTemplateName,
+    bool? hasCustomFields,
+    // NEW: Enhanced metadata parameters
+    bool? isRealEstate,
+    int? photoCount,
+    bool? hasMultiplePhotos,
+    bool? isPremiumListing,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -240,6 +333,11 @@ class ProductModel {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationAddress: locationAddress ?? this.locationAddress,
+      // NEW: City/District fields
+      cityId: cityId ?? this.cityId,
+      cityName: cityName ?? this.cityName,
+      districtId: districtId ?? this.districtId,
+      districtName: districtName ?? this.districtName,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -248,6 +346,16 @@ class ProductModel {
       isFeatured: isFeatured ?? this.isFeatured,
       isPromoted: isPromoted ?? this.isPromoted,
       promotedUntil: promotedUntil ?? this.promotedUntil,
+      // NEW: Category-specific fields
+      categorySpecificFields: categorySpecificFields ?? this.categorySpecificFields,
+      categoryFieldTemplate: categoryFieldTemplate ?? this.categoryFieldTemplate,
+      categoryTemplateName: categoryTemplateName ?? this.categoryTemplateName,
+      hasCustomFields: hasCustomFields ?? this.hasCustomFields,
+      // NEW: Enhanced metadata
+      isRealEstate: isRealEstate ?? this.isRealEstate,
+      photoCount: photoCount ?? this.photoCount,
+      hasMultiplePhotos: hasMultiplePhotos ?? this.hasMultiplePhotos,
+      isPremiumListing: isPremiumListing ?? this.isPremiumListing,
     );
   }
 
@@ -277,8 +385,99 @@ class ProductModel {
       return 'Rs ${price.toStringAsFixed(0)}';
     }
   }
-}
 
+  // NEW: Helper method to get full location string
+  String getFullLocationString() {
+    List<String> locationParts = [];
+    
+    if (districtName != null && districtName!.isNotEmpty) {
+      locationParts.add(districtName!);
+    }
+    if (cityName != null && cityName!.isNotEmpty) {
+      locationParts.add(cityName!);
+    }
+    if (locationParts.isEmpty && locationAddress != null && locationAddress!.isNotEmpty) {
+      locationParts.add(locationAddress!);
+    }
+    
+    return locationParts.join(', ');
+  }
+
+  // NEW: Helper method to check if item has category-specific data
+  bool get hasCategorySpecificData {
+    return categorySpecificFields != null && 
+           categorySpecificFields!.isNotEmpty;
+  }
+
+  // NEW: Helper method to get category-specific field value
+  dynamic getCategoryField(String fieldName) {
+    return categorySpecificFields?[fieldName];
+  }
+
+  // NEW: Helper method to check if this is a premium listing
+  bool get isPremium {
+    return isPremiumListing == true || 
+           isFeatured || 
+           isPromoted ||
+           (hasMultiplePhotos == true && (photoCount ?? 0) >= 10);
+  }
+
+  // NEW: Helper method to get display category name
+  String get displayCategoryName {
+    return categoryName ?? category;
+  }
+
+  // NEW: Helper method to check if location is complete
+  bool get hasCompleteLocation {
+    return latitude != null && 
+           longitude != null && 
+           (cityName != null || locationAddress != null);
+  }
+
+  // NEW: Helper method to validate required fields for editing
+  bool get isValidForEdit {
+    return title.isNotEmpty &&
+           description.isNotEmpty &&
+           category.isNotEmpty &&
+           condition.isNotEmpty &&
+           price > 0 &&
+           imageUrls.isNotEmpty;
+  }
+
+  // NEW: Helper method to get short description
+  String getShortDescription({int maxLength = 100}) {
+    if (description.length <= maxLength) {
+      return description;
+    }
+    return '${description.substring(0, maxLength)}...';
+  }
+
+  // NEW: Helper method to check if item is recently posted
+  bool get isRecentlyPosted {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    return difference.inDays <= 7; // Consider items posted within 7 days as recent
+  }
+
+  // NEW: Helper method to get status display text
+  String getStatusDisplayText() {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'Active';
+      case 'sold':
+        return 'Sold';
+      case 'inactive':
+        return 'Inactive';
+      default:
+        return status;
+    }
+  }
+
+  // NEW: Helper method to check if item can be edited
+  bool get canBeEdited {
+    return status.toLowerCase() != 'sold';
+  }
+}
 // models/ad_banner_model.dart
 class AdBannerModel {
   final String id;

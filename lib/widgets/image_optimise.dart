@@ -1,10 +1,11 @@
-// Create this as a separate file: widgets/universal_image.dart
-
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-class UniversalImage extends StatelessWidget {
+class UniversalImage extends StatefulWidget {
   final String imageUrl;
   final double? width;
   final double? height;
@@ -12,6 +13,8 @@ class UniversalImage extends StatelessWidget {
   final Widget? errorWidget;
   final Widget? loadingWidget;
   final BorderRadius? borderRadius;
+  final Duration cacheDuration;
+  final bool highQuality; // NEW: Quality control flag
 
   const UniversalImage({
     Key? key,
@@ -22,187 +25,84 @@ class UniversalImage extends StatelessWidget {
     this.errorWidget,
     this.loadingWidget,
     this.borderRadius,
+    this.cacheDuration = const Duration(hours: 24),
+    this.highQuality = true, // NEW: Default to high quality
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    // Check if it's a base64 data URL
-    if (imageUrl.startsWith('data:image/')) {
-      return _buildBase64Image();
-    } 
-    // Check if it's a regular HTTP/HTTPS URL
-    else if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return _buildNetworkImage();
-    }
-    // Handle other cases or invalid URLs
-    else {
-      return _buildErrorWidget();
-    }
-  }
-
-  Widget _buildBase64Image() {
-    try {
-      // Extract the base64 data from the data URL
-      final base64String = imageUrl.split(',')[1];
-      final bytes = base64Decode(base64String);
-      
-      return ClipRRect(
-        borderRadius: borderRadius ?? BorderRadius.zero,
-        child: Image.memory(
-          bytes,
-          width: width,
-          height: height,
-          fit: fit ?? BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
-        ),
-      );
-    } catch (e) {
-      print('Error decoding base64 image: $e');
-      return _buildErrorWidget();
-    }
-  }
-
-  Widget _buildNetworkImage() {
-    return ClipRRect(
-      borderRadius: borderRadius ?? BorderRadius.zero,
-      child: Image.network(
-        imageUrl,
-        width: width,
-        height: height,
-        fit: fit ?? BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return loadingWidget ?? _buildLoadingWidget();
-        },
-        errorBuilder: (context, error, stackTrace) {
-          print('Error loading network image: $error');
-          return _buildErrorWidget();
-        },
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget() {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: borderRadius ?? BorderRadius.zero,
-      ),
-      child: errorWidget ?? 
-        Center(
-          child: Icon(
-            Icons.broken_image,
-            size: 40,
-            color: Colors.grey[400],
-          ),
-        ),
-    );
-  }
-
-  Widget _buildLoadingWidget() {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: borderRadius ?? BorderRadius.zero,
-      ),
-      child: loadingWidget ?? 
-        Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
-            ),
-          ),
-        ),
-    );
-  }
+  _UniversalImageState createState() => _UniversalImageState();
 }
 
-// Extension to check image URL type
-extension ImageUrlExtension on String {
-  bool get isBase64DataUrl => startsWith('data:image/');
-  bool get isNetworkUrl => startsWith('http://') || startsWith('https://');
-  bool get isValidImageUrl => isBase64DataUrl || isNetworkUrl;
-}
-
-// Enhanced version with caching and better performance
-class CachedUniversalImage extends StatefulWidget {
-  final String imageUrl;
-  final double? width;
-  final double? height;
-  final BoxFit? fit;
-  final Widget? errorWidget;
-  final Widget? loadingWidget;
-  final BorderRadius? borderRadius;
-  final Duration cacheDuration;
-
-  const CachedUniversalImage({
-    Key? key,
-    required this.imageUrl,
-    this.width,
-    this.height,
-    this.fit,
-    this.errorWidget,
-    this.loadingWidget,
-    this.borderRadius,
-    this.cacheDuration = const Duration(hours: 1),
-  }) : super(key: key);
-
+class _UniversalImageState extends State<UniversalImage> with AutomaticKeepAliveClientMixin {
+  
   @override
-  _CachedUniversalImageState createState() => _CachedUniversalImageState();
-}
+  bool get wantKeepAlive => true;
 
-class _CachedUniversalImageState extends State<CachedUniversalImage> {
-  static final Map<String, Uint8List> _imageCache = {};
+  // Static cache for base64 images
+  static final Map<String, Uint8List> _base64Cache = {};
   static final Map<String, DateTime> _cacheTimestamps = {};
-
+  
+  // State variables
   Uint8List? _cachedBytes;
   bool _isLoading = false;
   bool _hasError = false;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _loadImage();
+    _initializeImage();
   }
 
   @override
-  void didUpdateWidget(CachedUniversalImage oldWidget) {
+  void didUpdateWidget(UniversalImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl) {
-      _loadImage();
+    if (oldWidget.imageUrl != widget.imageUrl && widget.imageUrl.isNotEmpty) {
+      _initializeImage();
     }
   }
 
-  Future<void> _loadImage() async {
-    if (widget.imageUrl.isEmpty) {
+  Future<void> _initializeImage() async {
+    if (_isInitialized && _cachedBytes != null) return;
+    
+    if (widget.imageUrl.isEmpty || !widget.imageUrl.isValidImageUrl) {
       setState(() {
         _hasError = true;
         _isLoading = false;
+        _isInitialized = true;
       });
       return;
     }
 
+    if (widget.imageUrl.isNetworkUrl) {
+      setState(() {
+        _isLoading = false;
+        _hasError = false;
+        _isInitialized = true;
+      });
+      return;
+    }
+
+    if (widget.imageUrl.isBase64DataUrl) {
+      await _processBase64Image();
+    }
+  }
+
+  Future<void> _processBase64Image() async {
     // Check cache first
-    if (_imageCache.containsKey(widget.imageUrl)) {
+    if (_base64Cache.containsKey(widget.imageUrl)) {
       final cacheTime = _cacheTimestamps[widget.imageUrl];
       if (cacheTime != null && 
           DateTime.now().difference(cacheTime) < widget.cacheDuration) {
         setState(() {
-          _cachedBytes = _imageCache[widget.imageUrl];
+          _cachedBytes = _base64Cache[widget.imageUrl];
           _isLoading = false;
           _hasError = false;
+          _isInitialized = true;
         });
         return;
       } else {
-        // Remove expired cache
-        _imageCache.remove(widget.imageUrl);
+        _base64Cache.remove(widget.imageUrl);
         _cacheTimestamps.remove(widget.imageUrl);
       }
     }
@@ -213,40 +113,28 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
     });
 
     try {
-      Uint8List? bytes;
+      final base64String = widget.imageUrl.split(',')[1];
+      final bytes = base64Decode(base64String);
+      
+      // Cache the result
+      _base64Cache[widget.imageUrl] = bytes;
+      _cacheTimestamps[widget.imageUrl] = DateTime.now();
 
-      if (widget.imageUrl.isBase64DataUrl) {
-        // Handle base64 data URL
-        final base64String = widget.imageUrl.split(',')[1];
-        bytes = base64Decode(base64String);
-      } else if (widget.imageUrl.isNetworkUrl) {
-        // For network images, we don't cache them here as Image.network handles its own caching
+      if (mounted) {
         setState(() {
+          _cachedBytes = bytes;
           _isLoading = false;
           _hasError = false;
+          _isInitialized = true;
         });
-        return;
-      }
-
-      if (bytes != null) {
-        // Cache the decoded bytes
-        _imageCache[widget.imageUrl] = bytes;
-        _cacheTimestamps[widget.imageUrl] = DateTime.now();
-
-        if (mounted) {
-          setState(() {
-            _cachedBytes = bytes;
-            _isLoading = false;
-            _hasError = false;
-          });
-        }
       }
     } catch (e) {
-      print('Error loading image: $e');
+      print('Error processing base64 image: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasError = true;
+          _isInitialized = true;
         });
       }
     }
@@ -254,7 +142,9 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_hasError || (!widget.imageUrl.isValidImageUrl)) {
+    super.build(context);
+    
+    if (_hasError || !widget.imageUrl.isValidImageUrl) {
       return _buildErrorWidget();
     }
 
@@ -273,6 +163,75 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
     return _buildLoadingWidget();
   }
 
+  Widget _buildNetworkImage() {
+    return ClipRRect(
+      borderRadius: widget.borderRadius ?? BorderRadius.zero,
+      child: CachedNetworkImage(
+        imageUrl: widget.imageUrl,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit ?? BoxFit.cover,
+        placeholder: (context, url) => _buildLoadingWidget(),
+        errorWidget: (context, url, error) => _buildErrorWidget(),
+        
+        // FIXED: Only set cache dimensions for high quality mode and avoid memory issues
+        memCacheWidth: widget.highQuality ? null : _getSafeMemoryCacheSize(widget.width),
+        memCacheHeight: widget.highQuality ? null : _getSafeMemoryCacheSize(widget.height),
+        
+        // IMPROVED: Better cache configuration for quality
+        cacheManager: widget.highQuality ? _getHighQualityCacheManager() : _getStandardCacheManager(),
+        
+        // IMPROVED: Better fade transitions
+        fadeInDuration: const Duration(milliseconds: 300),
+        fadeOutDuration: const Duration(milliseconds: 200),
+        
+        // IMPROVED: Filter quality for better rendering
+        filterQuality: widget.highQuality ? FilterQuality.high : FilterQuality.medium,
+      ),
+    );
+  }
+
+  // IMPROVED: Better cache size calculation
+  int? _getSafeMemoryCacheSize(double? value) {
+    if (value == null || value.isInfinite || value.isNaN) {
+      return null;
+    }
+    
+    // Cap the cache size to prevent memory issues while maintaining quality
+    final intValue = value.toInt();
+    if (intValue > 1000) {
+      return 1000; // Max cache size
+    }
+    if (intValue < 100) {
+      return null; // Let system decide for small images
+    }
+    return intValue;
+  }
+
+  // IMPROVED: High quality cache manager
+  CacheManager _getHighQualityCacheManager() {
+    return CacheManager(
+      Config(
+        'high_quality_image_cache',
+        stalePeriod: widget.cacheDuration,
+        maxNrOfCacheObjects: 200, // More cache objects
+        repo: JsonCacheInfoRepository(databaseName: 'high_quality_cache'),
+        fileService: HttpFileService(), // Use HTTP file service for better quality
+      ),
+    );
+  }
+
+  // IMPROVED: Standard cache manager
+  CacheManager _getStandardCacheManager() {
+    return CacheManager(
+      Config(
+        'standard_image_cache',
+        stalePeriod: widget.cacheDuration,
+        maxNrOfCacheObjects: 100,
+      ),
+    );
+  }
+
   Widget _buildMemoryImage(Uint8List bytes) {
     return ClipRRect(
       borderRadius: widget.borderRadius ?? BorderRadius.zero,
@@ -282,23 +241,17 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
         height: widget.height,
         fit: widget.fit ?? BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
-      ),
-    );
-  }
-
-  Widget _buildNetworkImage() {
-    return ClipRRect(
-      borderRadius: widget.borderRadius ?? BorderRadius.zero,
-      child: Image.network(
-        widget.imageUrl,
-        width: widget.width,
-        height: widget.height,
-        fit: widget.fit ?? BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return _buildLoadingWidget();
-        },
-        errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+        gaplessPlayback: true,
+        
+        // FIXED: Remove cache dimensions for memory images to preserve quality
+        // cacheWidth: _getSafeIntValue(widget.width),
+        // cacheHeight: _getSafeIntValue(widget.height),
+        
+        // IMPROVED: Better filter quality
+        filterQuality: widget.highQuality ? FilterQuality.high : FilterQuality.medium,
+        
+        // IMPROVED: Better scale handling
+        scale: 1.0, // Maintain original scale
       ),
     );
   }
@@ -315,7 +268,7 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
         Center(
           child: Icon(
             Icons.broken_image,
-            size: 40,
+            size: _getIconSize(),
             color: Colors.grey[400],
           ),
         ),
@@ -344,9 +297,17 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
     );
   }
 
+  // IMPROVED: Better icon size calculation
+  double _getIconSize() {
+    if (widget.width != null && widget.height != null) {
+      final avgSize = (widget.width! + widget.height!) / 2;
+      return (avgSize * 0.3).clamp(24.0, 80.0);
+    }
+    return 40.0;
+  }
+
   @override
   void dispose() {
-    // Clean up old cache entries periodically
     _cleanupCache();
     super.dispose();
   }
@@ -356,14 +317,227 @@ class _CachedUniversalImageState extends State<CachedUniversalImage> {
     final expiredKeys = <String>[];
     
     _cacheTimestamps.forEach((key, timestamp) {
-      if (now.difference(timestamp) > const Duration(hours: 2)) {
+      if (now.difference(timestamp) > const Duration(hours: 24)) {
         expiredKeys.add(key);
       }
     });
     
     for (final key in expiredKeys) {
-      _imageCache.remove(key);
+      _base64Cache.remove(key);
       _cacheTimestamps.remove(key);
     }
+  }
+
+  static void clearCache() {
+    _base64Cache.clear();
+    _cacheTimestamps.clear();
+  }
+}
+
+// Extension to check image URL type
+extension ImageUrlExtension on String {
+  bool get isBase64DataUrl => startsWith('data:image/');
+  bool get isNetworkUrl => startsWith('http://') || startsWith('https://');
+  bool get isValidImageUrl => isBase64DataUrl || isNetworkUrl;
+}
+
+// IMPROVED: High quality optimized image for product cards
+class ProductCardImage extends StatelessWidget {
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final BorderRadius? borderRadius;
+
+  const ProductCardImage({
+    Key? key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: UniversalImage(
+        imageUrl: imageUrl,
+        width: width,
+        height: height,
+        fit: fit ?? BoxFit.cover,
+        borderRadius: borderRadius,
+        highQuality: true, // Always use high quality for product images
+        errorWidget: Container(
+          color: Colors.grey[200],
+          child: Icon(
+            Icons.image,
+            size: 50,
+            color: Colors.grey[400],
+          ),
+        ),
+        loadingWidget: Container(
+          color: Colors.grey[100],
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// IMPROVED: Optimized version for lists with quality control
+class OptimizedUniversalImage extends StatelessWidget {
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final Widget? errorWidget;
+  final Widget? loadingWidget;
+  final BorderRadius? borderRadius;
+  final bool highQuality;
+
+  const OptimizedUniversalImage({
+    Key? key,
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit,
+    this.errorWidget,
+    this.loadingWidget,
+    this.borderRadius,
+    this.highQuality = false, // Default to standard quality for lists
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!imageUrl.isValidImageUrl) {
+      return _buildErrorWidget();
+    }
+
+    if (imageUrl.isNetworkUrl) {
+      return ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
+          width: width,
+          height: height,
+          fit: fit ?? BoxFit.cover,
+          placeholder: (context, url) => _buildLoadingWidget(),
+          errorWidget: (context, url, error) => _buildErrorWidget(),
+          
+          // IMPROVED: Quality-based cache sizing
+          memCacheWidth: highQuality ? null : _getSafeMemoryCacheSize(width),
+          memCacheHeight: highQuality ? null : _getSafeMemoryCacheSize(height),
+          
+          fadeInDuration: const Duration(milliseconds: 200),
+          fadeOutDuration: const Duration(milliseconds: 200),
+          
+          // IMPROVED: Filter quality based on highQuality flag
+          filterQuality: highQuality ? FilterQuality.high : FilterQuality.medium,
+        ),
+      );
+    }
+
+    if (imageUrl.isBase64DataUrl) {
+      return _buildBase64Image();
+    }
+
+    return _buildErrorWidget();
+  }
+
+  int? _getSafeMemoryCacheSize(double? value) {
+    if (value == null || value.isInfinite || value.isNaN) {
+      return null;
+    }
+    
+    final intValue = value.toInt();
+    if (intValue > 800) {
+      return 800;
+    }
+    if (intValue < 50) {
+      return null;
+    }
+    return intValue;
+  }
+
+  Widget _buildBase64Image() {
+    try {
+      final base64String = imageUrl.split(',')[1];
+      final bytes = base64Decode(base64String);
+      
+      return ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: Image.memory(
+          bytes,
+          width: width,
+          height: height,
+          fit: fit ?? BoxFit.cover,
+          gaplessPlayback: true,
+          filterQuality: highQuality ? FilterQuality.high : FilterQuality.medium,
+          scale: 1.0,
+          errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+        ),
+      );
+    } catch (e) {
+      return _buildErrorWidget();
+    }
+  }
+
+  Widget _buildErrorWidget() {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: borderRadius ?? BorderRadius.zero,
+      ),
+      child: errorWidget ?? 
+        Center(
+          child: Icon(
+            Icons.broken_image,
+            size: _getIconSize(),
+            color: Colors.grey[400],
+          ),
+        ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: borderRadius ?? BorderRadius.zero,
+      ),
+      child: loadingWidget ?? 
+        Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+            ),
+          ),
+        ),
+    );
+  }
+
+  double _getIconSize() {
+    if (width != null && height != null) {
+      final avgSize = (width! + height!) / 2;
+      return (avgSize * 0.3).clamp(24.0, 80.0);
+    }
+    return 40.0;
   }
 }

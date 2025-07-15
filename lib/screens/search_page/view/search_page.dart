@@ -1,11 +1,16 @@
 
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
+import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notification_saved_search_page.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/controller/search_provider.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page_filter.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:arabicmarketplace/screens/search_page/view/search_results_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({Key? key, this.isMain = false}) : super(key: key);
@@ -55,6 +60,38 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
+  void _showSaveSearchDialog() {
+  final searchProvider = Provider.of<SearchProvider>(context, listen: false);
+  
+  // Check if there's something to save
+  if (searchProvider.searchQuery.isEmpty && !searchProvider.hasFilters) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Please enter a search query or apply filters first'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  showDialog(
+    context: context,
+    builder: (context) => SaveSearchDialog(
+      currentQuery: searchProvider.searchQuery,
+      currentFilters: searchProvider.filters,
+    ),
+  ).then((result) {
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Search saved! You\'ll get notified of new matches.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  });
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,7 +109,7 @@ class _SearchPageState extends State<SearchPage> {
         ),
         
         title: Text(
-          'Search',
+         '${AppLocalizations.search.tr()}',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w500,
@@ -80,6 +117,54 @@ class _SearchPageState extends State<SearchPage> {
           ),
         ),
         centerTitle:widget.isMain,
+        actions: [
+          // Add saved searches button
+  Consumer<SavedSearchProvider>(
+    builder: (context, provider, child) {
+      final count = provider.savedSearches.length;
+      return Stack(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.bookmark_border, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SavedSearchesPage(),
+                ),
+              );
+            },
+          ),
+          if (count > 0)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                constraints: const BoxConstraints(
+                  minWidth: 16,
+                  minHeight: 16,
+                ),
+                child: Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  ),
+        ],
       ),
       body: Consumer<SearchProvider>(
         builder: (context, searchProvider, child) {
@@ -105,7 +190,7 @@ class _SearchPageState extends State<SearchPage> {
                           onChanged: _onSearchChanged,
                           onSubmitted: _performSearch,
                           decoration: InputDecoration(
-                            hintText: 'Find Cars, Mobiles and more',
+                            hintText: '${AppLocalizations.findCarsMobiles.tr()}',
                             hintStyle: GoogleFonts.poppins(
                               fontSize: 14,
                               color: Colors.grey[600],
@@ -138,20 +223,26 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                     const SizedBox(width: 12),
                     GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SearchFilterPage(
-                              onFiltersApplied: (filters) {
-                                searchProvider.updateFilters(filters);
-                                if (_searchController.text.isNotEmpty) {
-                                  _performSearch(_searchController.text);
-                                }
-                              },
-                            ),
+                      onTap: () async {
+                        final filters = await showModalBottomSheet<SearchFilters>(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                          ),
+                          builder: (context) => FractionallySizedBox(
+                            heightFactor: 0.95,
+                            child: SearchFilterPage(),
                           ),
                         );
+                        if (filters != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SearchResultsPage(filters: filters),
+                            ),
+                          );
+                        }
                       },
                       child: Container(
                         height: 48,
@@ -260,7 +351,7 @@ class _SearchPageState extends State<SearchPage> {
         // Categories section
         if (searchProvider.categoryResults.isNotEmpty) ...[
           Text(
-            'Categories',
+           '${AppLocalizations.categories.tr()}',
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -285,17 +376,34 @@ class _SearchPageState extends State<SearchPage> {
                   color: Colors.black,
                 ),
               ),
-              if (searchProvider.hasFilters)
-                TextButton(
-                  onPressed: () => searchProvider.clearFilters(),
-                  child: Text(
-                    'Clear filters',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.red,
-                    ),
+              Row(
+          children: [
+            // ADD this save search button
+            if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters)
+              TextButton.icon(
+                onPressed: _showSaveSearchDialog,
+                icon: const Icon(Icons.bookmark_add, size: 16),
+                label: const Text('Save'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF0D5E2A),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
+              ),
+            // Keep your existing clear filters button
+            if (searchProvider.hasFilters)
+              TextButton(
+                onPressed: () => searchProvider.clearFilters(),
+                child: Text(
+                  'Clear filters',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.red,
                   ),
                 ),
+              ),
+          ],
+        ),
+    
             ],
           ),
           const SizedBox(height: 12),
@@ -306,32 +414,60 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildNoResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'No results found',
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
+  return Consumer<SearchProvider>(
+    builder: (context, searchProvider, child) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No results found',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try different keywords or check your filters',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[500],
+            const SizedBox(height: 8),
+            Text(
+              'Try different keywords or check your filters',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            
+            // ADD this save search option for no results
+            if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters) ...[
+              const SizedBox(height: 24),
+              Text(
+                'Save this search to get notified when new items are added',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _showSaveSearchDialog,
+                icon: const Icon(Icons.bookmark_add, size: 18),
+                label: const Text('Save Search'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0D5E2A),
+                  side: const BorderSide(color: Color(0xFF0D5E2A)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+}
+
 
   Widget _buildDefaultContent(SearchProvider searchProvider) {
     return Column(
@@ -343,7 +479,7 @@ class _SearchPageState extends State<SearchPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Recent search',
+               '${AppLocalizations.recentSearch.tr()}',
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -353,7 +489,7 @@ class _SearchPageState extends State<SearchPage> {
               TextButton(
                 onPressed: () => searchProvider.clearRecentSearches(),
                 child: Text(
-                  'Clear all',
+              '${AppLocalizations.clearAll.tr()}',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.red,
@@ -370,7 +506,7 @@ class _SearchPageState extends State<SearchPage> {
         
         // Popular Categories section
         Text(
-          'Popular Categories',
+         '${AppLocalizations.popularCategories.tr()}',
           style: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w500,
@@ -632,7 +768,7 @@ class _SearchPageState extends State<SearchPage> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          'Negotiable',
+                         '${AppLocalizations.negotiable.tr()}',
                           style: GoogleFonts.poppins(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,

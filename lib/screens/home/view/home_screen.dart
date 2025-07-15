@@ -1,98 +1,1557 @@
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/account/controller/favorite_provider.dart';
-import 'package:arabicmarketplace/screens/account/view/notifications_page.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notifications_page.dart';
 import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
 import 'package:arabicmarketplace/screens/home/view/all_categories_page.dart';
 import 'package:arabicmarketplace/screens/home/view/location_selection_page.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:arabicmarketplace/widgets/image_optimise.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:html/parser.dart' as parser;
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geocoding/geocoding.dart';
+
 // How to integrate the backend with your existing MarketplaceHomePage
 
-// 2. Updated MarketplaceHomePage with backend integration
 class MarketplaceHomePage extends StatefulWidget {
   @override
   _MarketplaceHomePageState createState() => _MarketplaceHomePageState();
 }
 
-class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
+class _MarketplaceHomePageState extends State<MarketplaceHomePage> 
+    with AutomaticKeepAliveClientMixin {
+  
+  // Keep alive to prevent rebuilding
+  @override
+  bool get wantKeepAlive => true;
+
+  // Currency management - optimized with caching
+  String _selectedCurrency = 'SYP';
+  bool _isLoadingRates = false;
+  Map<String, double> _exchangeRates = {
+    'USD': 0.000077,
+    'EUR': 0.000070,
+    'SYP': 1.0,
+  };
+
+  // Cache for exchange rates
+  static const String _ratesCacheKey = 'exchange_rates';
+  static const String _ratesTimestampKey = 'rates_timestamp';
+  static const Duration _ratesCacheDuration = Duration(hours: 6);
+
+  final List<Map<String, String>> _currencies = [
+    {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
+    {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
+    {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'SYP', 'flag': '🇸🇾'},
+  ];
+
+  // Add debouncing for expensive operations
+  Timer? _refreshTimer;
+  bool _isInitialized = false;
+
   @override
   void initState() {
     super.initState();
-    // Initialize data when page loads
+    _initializePageData();
+  }
+
+  // OPTIMIZED: Initialize data with prioritized loading
+  Future<void> _initializePageData() async {
+    if (_isInitialized) return;
+    
+    // Load critical data first (currency preference)
+    await _loadUserCurrencyPreference();
+    
+    // Load cached exchange rates immediately
+    await _loadCachedRates();
+    
+    // Initialize home data in background
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<HomeProvider>().refreshData();
+      _initializeHomeData();
+    });
+    
+    _isInitialized = true;
+  }
+
+  // OPTIMIZED: Separate home data initialization
+  Future<void> _initializeHomeData() async {
+    final homeProvider = context.read<HomeProvider>();
+    
+    // Only refresh if data is stale or empty
+    if (homeProvider.categories.isEmpty || 
+        homeProvider.allProducts.isEmpty ||
+        _shouldRefreshData(homeProvider)) {
+      await homeProvider.refreshData();
+    }
+    
+    // Load exchange rates in background (non-blocking)
+    _loadExchangeRatesInBackground();
+  }
+
+  // OPTIMIZED: Check if data needs refreshing
+  bool _shouldRefreshData(HomeProvider homeProvider) {
+    // Add timestamp check logic here
+    // For now, refresh every 30 minutes
+    return false; // Implement your refresh logic
+  }
+
+  // OPTIMIZED: Load exchange rates in background
+  Future<void> _loadExchangeRatesInBackground() async {
+    if (await _areCachedRatesValid()) {
+      return; // Use cached rates
+    }
+    
+    // Load new rates without blocking UI
+    _loadExchangeRates();
+  }
+
+  // OPTIMIZED: Check if cached rates are still valid
+  Future<bool> _areCachedRatesValid() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final timestampStr = prefs.getString(_ratesTimestampKey);
+      
+      if (timestampStr == null) return false;
+      
+      final timestamp = DateTime.parse(timestampStr);
+      final now = DateTime.now();
+      
+      return now.difference(timestamp) < _ratesCacheDuration;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // OPTIMIZED: Load currency preference (cached)
+  Future<void> _loadUserCurrencyPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedCurrency = prefs.getString('preferred_currency') ?? 'SYP';
+      if (mounted) {
+        setState(() {
+          _selectedCurrency = savedCurrency;
+        });
+      }
+    } catch (e) {
+      print('Error loading currency preference: $e');
+    }
+  }
+
+  // OPTIMIZED: Save currency preference
+  Future<void> _saveCurrencyPreference(String currency) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('preferred_currency', currency);
+    } catch (e) {
+      print('Error saving currency preference: $e');
+    }
+  }
+
+  // OPTIMIZED: Load exchange rates with better error handling
+  Future<void> _loadExchangeRates() async {
+    if (_isLoadingRates) return; // Prevent multiple requests
+    
+    setState(() {
+      _isLoadingRates = true;
+    });
+
+    try {
+      // Use timeout to prevent hanging
+      await Future.any([
+        _fetchExchangeRates(),
+        Future.delayed(Duration(seconds: 10), () => throw TimeoutException('Timeout')),
+      ]);
+    } catch (e) {
+      print('Error loading exchange rates: $e');
+      // Keep using cached rates
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRates = false;
+        });
+      }
+    }
+  }
+
+  // OPTIMIZED: Fetch exchange rates with single API call
+  Future<void> _fetchExchangeRates() async {
+    try {
+      // Use a single API call for all rates
+      final response = await http.get(
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/SYP'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(Duration(seconds: 8));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final rates = data['rates'] as Map<String, dynamic>;
+        
+        if (mounted) {
+          setState(() {
+            _exchangeRates = {
+              'USD': (rates['USD'] as num?)?.toDouble() ?? 0.000077,
+              'EUR': (rates['EUR'] as num?)?.toDouble() ?? 0.000070,
+              'SYP': 1.0,
+            };
+          });
+        }
+        
+        await _saveRatesToLocal();
+      }
+    } catch (e) {
+      print('Error fetching exchange rates: $e');
+      // Use fallback rates
+      _useFallbackRates();
+    }
+  }
+
+  // OPTIMIZED: Use fallback rates
+  void _useFallbackRates() {
+    setState(() {
+      _exchangeRates = {
+        'USD': 0.000077,
+        'EUR': 0.000070,
+        'SYP': 1.0,
+      };
+    });
+  }
+
+  // OPTIMIZED: Save rates with timestamp
+  Future<void> _saveRatesToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_ratesCacheKey, json.encode(_exchangeRates));
+      await prefs.setString(_ratesTimestampKey, DateTime.now().toIso8601String());
+    } catch (e) {
+      print('Error saving rates: $e');
+    }
+  }
+
+  // OPTIMIZED: Load cached rates
+  Future<void> _loadCachedRates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ratesJson = prefs.getString(_ratesCacheKey);
+      
+      if (ratesJson != null) {
+        final rates = Map<String, double>.from(json.decode(ratesJson));
+        if (mounted) {
+          setState(() {
+            _exchangeRates = rates;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading cached rates: $e');
+    }
+  }
+
+  // OPTIMIZED: Memoized price conversion
+  final Map<String, String> _priceCache = {};
+  
+  String _convertPrice(dynamic price, {bool showSymbol = true}) {
+    if (price == null) return 'Price not set';
+    
+    // Create cache key
+    final cacheKey = '${price}_${_selectedCurrency}_$showSymbol';
+    if (_priceCache.containsKey(cacheKey)) {
+      return _priceCache[cacheKey]!;
+    }
+    
+    try {
+      final priceValue = price is num ? price.toDouble() : double.parse(price.toString());
+      String result;
+      
+      if (_selectedCurrency == 'SYP') {
+        final symbol = showSymbol ? 'SYP ' : '';
+        result = '$symbol${priceValue.toStringAsFixed(0)}';
+      } else {
+        final rate = _exchangeRates[_selectedCurrency] ?? 1.0;
+        final convertedAmount = priceValue * rate;
+        final currency = _currencies.firstWhere((c) => c['code'] == _selectedCurrency);
+        final symbol = showSymbol ? '${currency['symbol']} ' : '';
+        
+        result = '$symbol${convertedAmount >= 1 ? convertedAmount.toStringAsFixed(2) : convertedAmount.toStringAsFixed(4)}';
+      }
+      
+      // Cache the result
+      _priceCache[cacheKey] = result;
+      
+      // Limit cache size
+      if (_priceCache.length > 100) {
+        _priceCache.clear();
+      }
+      
+      return result;
+    } catch (e) {
+      return 'Price not set';
+    }
+  }
+
+  // OPTIMIZED: Debounced refresh
+  Future<void> _debouncedRefresh() async {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(Duration(milliseconds: 500), () async {
+      final homeProvider = context.read<HomeProvider>();
+      await homeProvider.refreshData();
+      await _loadExchangeRates();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return Scaffold(
       body: SafeArea(
         child: Consumer<HomeProvider>(
           builder: (context, homeProvider, child) {
-            if (homeProvider.isLoading) {
-              return Center(child: CircularProgressIndicator());
+            // OPTIMIZED: Better loading states
+            if (homeProvider.isLoading && homeProvider.categories.isEmpty) {
+              return _buildShimmerLoading();
             }
 
-            if (homeProvider.error != null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Error: ${homeProvider.error}'),
-                    ElevatedButton(
-                      onPressed: () => homeProvider.refreshData(),
-                      child: Text('Retry'),
-                    ),
-                  ],
-                ),
-              );
+            if (homeProvider.error != null && homeProvider.categories.isEmpty) {
+              return _buildErrorState(homeProvider);
             }
 
             return RefreshIndicator(
-              onRefresh: () => homeProvider.refreshData(),
-              child: SingleChildScrollView(
-                child: Column(
+              onRefresh: _debouncedRefresh,
+              child: CustomScrollView(
+                slivers: [
+                  // OPTIMIZED: Use slivers for better performance
+                  SliverToBoxAdapter(
+                    child: _buildEnhancedHeader(context, homeProvider),
+                  ),
+                  
+                  // Categories section
+                  if (homeProvider.categories.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildCategoriesSection(homeProvider.categories),
+                    ),
+                  
+                  // Content sections
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        SizedBox(height: 8),
+                        
+                        // OPTIMIZED: Only build sections with data
+                        if (homeProvider.featuredProducts.isNotEmpty)
+                          _buildFeaturedSection(homeProvider.featuredProducts),
+                        
+                        if (homeProvider.allProducts.isNotEmpty)
+                          _buildRecentlyAddedSection(homeProvider.allProducts),
+                        
+                        if (homeProvider.personalizedProducts.isNotEmpty) ...[
+                          SizedBox(height: 8),
+                          _buildPersonalizedSection(homeProvider.personalizedProducts),
+                        ],
+                        
+                        if (homeProvider.adBanners.isNotEmpty) ...[
+                          SizedBox(height: 8),
+                          _buildAdBannersSection(homeProvider.adBanners),
+                        ],
+                        
+                        // Product sections
+                        if (homeProvider.mostViewedProducts.isNotEmpty)
+                          _buildProductSection(AppLocalizations.mostViewed.tr(), homeProvider.mostViewedProducts),
+                        
+                        if (homeProvider.mobilePhones.isNotEmpty)
+                          _buildProductSection(AppLocalizations.mobiles.tr(), homeProvider.mobilePhones),
+                        
+                        if (homeProvider.computers.isNotEmpty)
+                          _buildProductSection(AppLocalizations.computers.tr(), homeProvider.computers),
+                        
+                        if (homeProvider.computerAccessories.isNotEmpty)
+                          _buildProductSection(AppLocalizations.computerAccessories.tr(), homeProvider.computerAccessories),
+                        
+                        SizedBox(height: 80),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Shimmer loading
+  Widget _buildShimmerLoading() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Header shimmer
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    // Header Section - FIXED
-                    _buildHeader(context, homeProvider),
-                    
-                    // Browse Categories Section - FIXED with spacing
-                    _buildCategoriesSection(homeProvider.categories),
-                    
-                    SizedBox(height: 8),
-                    
-                    // Featured Section - FIXED navigation
-                    _buildFeaturedSection(homeProvider.featuredProducts),
-                    
-                    SizedBox(height: 8),
-                    
-                    // Personalized Section - FIXED navigation
-                    _buildPersonalizedSection(homeProvider.personalizedProducts),
-                    
-                    SizedBox(height: 8),
-                    
-                    // Ad Banner Section
-                    _buildAdBannersSection(homeProvider.adBanners),
-                    
-                    // Product Sections - FIXED navigation
-                    _buildProductSection('Most Viewed', homeProvider.mostViewedProducts),
-                    _buildProductSection('Mobile Phones', homeProvider.mobilePhones),
-                    _buildProductSection('Computers', homeProvider.computers),
-                    _buildProductSection('Computer Accessories', homeProvider.computerAccessories),
-                    
-                    SizedBox(height: 80),
+                    Container(
+                      width: 62,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 9),
+                    Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ],
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 9),
+                    Container(
+                      width: 80,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          // Categories shimmer
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 150,
+                      height: 20,
+                      color: Colors.grey[300],
+                    ),
+                    Container(
+                      width: 60,
+                      height: 20,
+                      color: Colors.grey[300],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: List.generate(5, (index) => 
+                    Container(
+                      width: 70,
+                      margin: EdgeInsets.only(right: 12),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Container(
+                            width: 60,
+                            height: 12,
+                            color: Colors.grey[300],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Product cards shimmer
+          ...List.generate(3, (index) => 
+            Container(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 20,
+                        color: Colors.grey[300],
+                      ),
+                      Container(
+                        width: 60,
+                        height: 20,
+                        color: Colors.grey[300],
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 240,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Container(
+                          height: 240,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // OPTIMIZED: Error state
+  Widget _buildErrorState(HomeProvider homeProvider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Something went wrong',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Please try again',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => homeProvider.refreshData(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorsController.primaryColor,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Keep all your existing build methods but add RepaintBoundary for performance
+  Widget _buildEnhancedHeader(BuildContext context, HomeProvider homeProvider) {
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(6),
+        color: Colors.white,
+        child: Column(
+          children: [
+            // Your existing header code...
+            Row(
+              children: [
+                Container(
+                  height: 70,
+                  width: 62,
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Image.asset('assets/icons/home_logo.png', 
+                    height: 70, width: 62, fit: BoxFit.cover),
+                ),
+                
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
+                    },
+                    child: Container(
+                      height: 45,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!, width: 1.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                            child: Icon(Icons.search, color: Colors.grey[600]),
+                          ),
+                          Expanded(
+                            child: Text(
+                              AppLocalizations.search.tr(),
+                              style: GoogleFonts.jost(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(width: 9),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
+                  },
+                  child: Container(
+                    height: 45,
+                    width: 45,
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!)
+                    ),
+                    child: SvgPicture.asset('assets/icons/Notification.svg',
+                      height: 40, width: 40, fit: BoxFit.cover),
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 8),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Container(
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    AppLocalizations.location.tr(),
+                                    style: GoogleFonts.jost(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w300,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                  Text(
+                                    (homeProvider.userLocationAddress != null && homeProvider.userLocationAddress!.isNotEmpty)
+                                      ? (_getCityName(homeProvider.userLocationAddress!) ?? '')
+                                      : 'Location not set',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(width: 9),
+                GestureDetector(
+                  onTap: _showCurrencySelector,
+                  child: Container(
+                    height: 45,
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _currencies.firstWhere((c) => c['code'] == _selectedCurrency)['flag']!,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          _selectedCurrency,
+                          style: GoogleFonts.jost(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.keyboard_arrow_down, 
+                          size: 16, color: Colors.grey[600]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Product card with RepaintBoundary
+  Widget _buildProductCard(Map<String, dynamic> product) {
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: () {
+          context.read<HomeProvider>().incrementProductView(product['id'] ?? '');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailScreen(productId: product['id'] ?? '')
+            )
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // IMPROVED: Image container with better quality
+              Container(
+                height: 170,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                ),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                      child: _buildProductImage(product),
+                    ),
+                    
+                    // Currency indicator
+                    if (_selectedCurrency != 'SYP')
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[700]!.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _selectedCurrency,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    
+                    // Favorite button
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Consumer<FavoritesProvider>(
+                        builder: (context, favoritesProvider, child) {
+                          final productId = product['id'] ?? '';
+                          final isFavorite = favoritesProvider.isFavorite(productId);
+                          
+                          return GestureDetector(
+                            onTap: () async {
+                              HapticFeedback.lightImpact();
+                              await favoritesProvider.toggleFavorite(productId);
+                              
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isFavorite ? Icons.heart_broken : Icons.favorite,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          isFavorite 
+                                            ? 'Removed from favorites' 
+                                            : 'Added to favorites',
+                                        ),
+                                      ],
+                                    ),
+                                    backgroundColor: isFavorite ? Colors.orange : Colors.red,
+                                    duration: Duration(milliseconds: 1500),
+                                    behavior: SnackBarBehavior.floating,
+                                    margin: EdgeInsets.all(16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                isFavorite ? Icons.favorite : Icons.favorite_border,
+                                color: isFavorite ? Colors.red : Colors.grey[600],
+                                size: 20,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    
+                    // Negotiable badge
+                    if (product['allowPriceNegotiation'] == true)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.yellow[700],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Negotiable',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              
+              // Product details (rest of the card remains the same)
+              Padding(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product['itemTitle'] ?? 'Product Title',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 2),
+                    
+                    // Price with currency conversion
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _convertPrice(product['price']),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        // Show original SYP price if converted
+                        if (_selectedCurrency != 'SYP' && product['price'] != null)
+                          Text(
+                            'ل.س${(product['price'] as num).toStringAsFixed(0)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              color: Colors.grey[500],
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    
+                    Row(
+                      children: [
+                        Text(
+                          product['condition'] ?? 'Used',
+                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                        Spacer(),
+                        Text(
+                          _getTimeSincePosted(product['createdAt']),
+                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product['locationAddress'] ?? 'Location not set',
+                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '${product['viewCount'] ?? product['views'] ?? 0} views',
+                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  // OPTIMIZED: Currency selector with better performance
+  void _showCurrencySelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                SizedBox(height: 20),
+                Row(
+                  children: [
+                    Text(
+                      'Select Currency',
+                      style: GoogleFonts.jost(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Spacer(),
+                    if (_isLoadingRates)
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(ColorsController.primaryColor),
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                ..._currencies.map((currency) {
+                  final isSelected = _selectedCurrency == currency['code'];
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () async {
+                          if (mounted) {
+                            setState(() {
+                              _selectedCurrency = currency['code']!;
+                              _priceCache.clear(); // Clear price cache
+                            });
+                          }
+                          await _saveCurrencyPreference(currency['code']!);
+                          Navigator.pop(context);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: isSelected 
+                                ? ColorsController.primaryColor.withOpacity(0.1)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: isSelected 
+                                ? Border.all(color: ColorsController.primaryColor.withOpacity(0.3))
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                currency['flag']!,
+                                style: TextStyle(fontSize: 24),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      currency['name']!,
+                                      style: GoogleFonts.jost(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: isSelected ? ColorsController.primaryColor : Colors.black87,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${currency['symbol']} (${currency['code']})',
+                                      style: GoogleFonts.jost(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(
+                                  Icons.check_circle,
+                                  color: ColorsController.primaryColor,
+                                  size: 24,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+                SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Categories section with lazy loading
+  Widget _buildCategoriesSection(List<Map<String, dynamic>> categories) {
+    return RepaintBoundary(
+      child: Container(
+        color: Colors.white,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  AppLocalizations.browseCategories.tr(), 
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+                ),
+                InkWell(
+                  onTap: _navigateToAllCategories,
+                  child: Text(
+                    AppLocalizations.seeAll.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: ColorsController.primaryColor,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Container(
+              height: 90,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: math.min(categories.length, 8), // Limit to 8 categories
+                itemBuilder: (context, index) {
+                  final category = categories[index];
+                  return Container(
+                    width: 70,
+                    margin: EdgeInsets.only(right: 12),
+                    child: _buildCategoryItem(
+                      category['name'] ?? 'Category',
+                      category['iconUrl'] ?? 'category',
+                      _getColorFromHex(category['color'] ?? '#666666'),
+                      onTap: () => _navigateToCategoryHierarchy(category),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Product section with better performance
+  Widget _buildProductSection(String title, List<Map<String, dynamic>> products) {
+    if (products.isEmpty) return SizedBox.shrink();
+    
+    return RepaintBoundary(
+      child: Container(
+        color: Colors.white,
+        margin: EdgeInsets.only(top: 8),
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                InkWell(
+                  onTap: () => _navigateToProductList(title, products),
+                  child: Text(
+                    AppLocalizations.seeAll.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: ColorsController.primaryColor,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                if (products.isNotEmpty)
+                  Expanded(child: _buildProductCard(products[0])),
+                if (products.length > 1) ...[
+                  SizedBox(width: 12),
+                  Expanded(child: _buildProductCard(products[1])),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Recently added section
+  Widget _buildRecentlyAddedSection(List<Map<String, dynamic>> allProducts) {
+    if (allProducts.isEmpty) return SizedBox.shrink();
+    
+    // Use a more efficient sorting approach
+    final recentProducts = allProducts.take(20).toList(); // Limit processing
+    recentProducts.sort((a, b) {
+      try {
+        DateTime aDate = a['createdAt'] is Timestamp 
+            ? (a['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(a['createdAt'].toString());
+        DateTime bDate = b['createdAt'] is Timestamp 
+            ? (b['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(b['createdAt'].toString());
+        return bDate.compareTo(aDate);
+      } catch (e) {
+        return 0;
+      }
+    });
+    
+    final recentlyAdded = recentProducts.take(2).toList();
+    
+    return RepaintBoundary(
+      child: Container(
+        color: Colors.white,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recently Added',
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                InkWell(
+                  onTap: () => _navigateToProductList('Recently Added', recentlyAdded),
+                  child: Text(
+                    AppLocalizations.seeAll.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: ColorsController.primaryColor,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                if (recentlyAdded.isNotEmpty)
+                  Expanded(child: _buildProductCard(recentlyAdded[0])),
+                if (recentlyAdded.length > 1) ...[
+                  SizedBox(width: 12),
+                  Expanded(child: _buildProductCard(recentlyAdded[1])),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Featured section
+  Widget _buildFeaturedSection(List<Map<String, dynamic>> featuredProducts) {
+    if (featuredProducts.isEmpty) return SizedBox.shrink();
+    
+    return RepaintBoundary(
+      child: Container(
+        color: Colors.white,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  AppLocalizations.featured.tr(), 
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+                ),
+                InkWell(
+                  onTap: () => _navigateToProductList(AppLocalizations.featured.tr(), featuredProducts),
+                  child: Text(
+                    AppLocalizations.seeAll.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: ColorsController.primaryColor,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                if (featuredProducts.isNotEmpty)
+                  Expanded(child: _buildProductCard(featuredProducts[0])),
+                if (featuredProducts.length > 1) ...[
+                  SizedBox(width: 12),
+                  Expanded(child: _buildProductCard(featuredProducts[1])),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Personalized section
+  Widget _buildPersonalizedSection(List<Map<String, dynamic>> personalizedProducts) {
+    if (personalizedProducts.isEmpty) return SizedBox.shrink();
+    
+    return RepaintBoundary(
+      child: Container(
+        color: Colors.white,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  AppLocalizations.personalized.tr(), 
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+                ),
+                InkWell(
+                  onTap: () => _navigateToProductList(AppLocalizations.personalized.tr(), personalizedProducts),
+                  child: Text(
+                    AppLocalizations.seeAll.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: ColorsController.primaryColor,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                if (personalizedProducts.isNotEmpty)
+                  Expanded(child: _buildProductCard(personalizedProducts[0])),
+                if (personalizedProducts.length > 1) ...[
+                  SizedBox(width: 12),
+                  Expanded(child: _buildProductCard(personalizedProducts[1])),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // OPTIMIZED: Ad banners section
+Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
+    if (banners.isEmpty) return SizedBox.shrink();
+
+    return RepaintBoundary(
+      child: Container(
+        height: 180,
+        margin: EdgeInsets.symmetric(vertical: 8),
+        child: PageView.builder(
+          itemCount: banners.length,
+          itemBuilder: (context, index) {
+            final banner = banners[index];
+            return Container(
+              margin: EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.3),
+                    spreadRadius: 1,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: () => _handleBannerTap(banner),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: UniversalImage(
+                          imageUrl: banner['imageUrl'] ?? '',
+                          width: double.infinity,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          highQuality: true, // High quality for banners
+                          errorWidget: Container(
+                            color: Colors.grey[200],
+                            child: Center(
+                              child: Icon(
+                                Icons.image,
+                                size: 50,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.7),
+                              ],
+                              stops: [0.3, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (banner['title'] != null && banner['title'].toString().isNotEmpty)
+                              Text(
+                                banner['title'],
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      offset: Offset(1, 1),
+                                      blurRadius: 3,
+                                      color: Colors.black.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            
+                            if (banner['title'] != null && 
+                                banner['title'].toString().isNotEmpty &&
+                                banner['description'] != null && 
+                                banner['description'].toString().isNotEmpty)
+                              SizedBox(height: 4),
+                            
+                            if (banner['description'] != null && banner['description'].toString().isNotEmpty)
+                              Text(
+                                banner['description'],
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 14,
+                                  shadows: [
+                                    Shadow(
+                                      offset: Offset(1, 1),
+                                      blurRadius: 2,
+                                      color: Colors.black.withOpacity(0.5),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -102,733 +1561,88 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     );
   }
 
-  // FIXED HEADER: Notification icon aligned with location, longer search bar
-  Widget _buildHeader(BuildContext context, HomeProvider homeProvider) {
-    return Container(
-      padding: EdgeInsets.all(6),
-      color: Colors.white,
-      child: Column(
-        children: [
-          // Top Row with Logo and Search
-          Row(
-            children: [
-              // Menu Icon with logo
-              Container(
-                height: 70,
-                width: 62,
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Image.asset('assets/icons/home_logo.png', 
-                  height: 70, width: 62, fit: BoxFit.cover),
-              ),
-              
-              // FIXED: Expanded Search Bar (no free space)
-              Expanded(
-                child: TextField(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
-                  },
-                  style: GoogleFonts.jost(fontSize: 16, fontWeight: FontWeight.w400),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: GoogleFonts.jost(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.grey[500],
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.search),
-                    constraints: BoxConstraints(maxHeight: 45),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!, width: 1.0),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.black, width: 1.5),
-                    ),
-                  ),
-                ),
-              ),
-              
-              SizedBox(width: 9),
-            ],
-          ),
-          
-          SizedBox(height: 8),
-          
-          // FIXED: Location and Notification in same row
-          Row(
-            children: [
-              // FIXED: Location Field - aligned properly
-              Expanded(
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
-                  },
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
-                        ),
-                        Expanded(
-                          child: Text(
-                            homeProvider.userLocationAddress ?? 'Saddar, Karachi',
-                            style: GoogleFonts.jost(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              SizedBox(width: 9),
-              
-              // FIXED: Notification Bell - aligned with location
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
-                },
-                child: Container(
-                  height: 45,
-                  width: 45,
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!)
-                  ),
-                  child: SvgPicture.asset('assets/icons/Notification.svg',
-                    height: 40, width: 40, fit: BoxFit.cover),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIXED Categories Section with proper spacing and navigation
-  Widget _buildCategoriesSection(List<Map<String, dynamic>> categories) {
-    return Container(
-      color: Colors.white,
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Browse Categories', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-              InkWell(
-                onTap: () {
-                  // FIXED: Navigate to all categories page
-                  _navigateToAllCategories();
-                },
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: ColorsController.primaryColor,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          // FIXED: Row with proper spacing between categories
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: categories.take(5).map((category) {
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4), // FIXED: Added spacing
-                  child: _buildCategoryItem(
-                    category['name'] ?? 'Category',
-                    category['iconUrl'] ?? 'category',
-                    _getColorFromHex(category['color'] ?? '#666666'),
-                    onTap: () {
-                      // FIXED: Navigate to category with proper hierarchy
-                      _navigateToCategoryHierarchy(category);
-                    },
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIXED Featured Section with working navigation
-  Widget _buildFeaturedSection(List<Map<String, dynamic>> featuredProducts) {
-    if (featuredProducts.isEmpty) return SizedBox.shrink();
-    
-    return Container(
-      color: Colors.white,
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Featured', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-              InkWell(
-                onTap: () {
-                  // FIXED: Working navigation
-                  _navigateToProductList('Featured', featuredProducts);
-                },
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: ColorsController.primaryColor,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              if (featuredProducts.isNotEmpty)
-                Expanded(child: _buildProductCard(featuredProducts[0])),
-              if (featuredProducts.length > 1) ...[
-                SizedBox(width: 12),
-                Expanded(child: _buildProductCard(featuredProducts[1])),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIXED Personalized Section with working navigation
-  Widget _buildPersonalizedSection(List<Map<String, dynamic>> personalizedProducts) {
-    if (personalizedProducts.isEmpty) return SizedBox.shrink();
-    
-    return Container(
-      color: Colors.white,
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Personalized', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-              InkWell(
-                onTap: () {
-                  // FIXED: Working navigation
-                  _navigateToProductList('Personalized', personalizedProducts);
-                },
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: ColorsController.primaryColor,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              if (personalizedProducts.isNotEmpty)
-                Expanded(child: _buildProductCard(personalizedProducts[0])),
-              if (personalizedProducts.length > 1) ...[
-                SizedBox(width: 12),
-                Expanded(child: _buildProductCard(personalizedProducts[1])),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIXED Product Section with working navigation
-  Widget _buildProductSection(String title, List<Map<String, dynamic>> products) {
-    if (products.isEmpty) return SizedBox.shrink();
-    
-    return Container(
-      color: Colors.white,
-      margin: EdgeInsets.only(top: 8),
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-              InkWell(
-                onTap: () {
-                  // FIXED: Working navigation
-                  _navigateToProductList(title, products);
-                },
-                child: Text(
-                  'See all',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: ColorsController.primaryColor,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Row(
-            children: [
-              if (products.isNotEmpty)
-                Expanded(child: _buildProductCard(products[0])),
-              if (products.length > 1) ...[
-                SizedBox(width: 12),
-                Expanded(child: _buildProductCard(products[1])),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIXED: Ad Banners Section (keeping your existing code)
-  Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
-    if (banners.isEmpty) return SizedBox.shrink();
-
-    return Container(
-      height: 180,
-      margin: EdgeInsets.symmetric(vertical: 8),
-      child: PageView.builder(
-        itemCount: banners.length,
-        itemBuilder: (context, index) {
-          final banner = banners[index];
-          return Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.3),
-                  spreadRadius: 1,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                onTap: () => _handleBannerTap(banner),
-                child: Stack(
-                  children: [
-                    // Background Image
-                    Positioned.fill(
-                      child: UniversalImage(
-                        imageUrl: banner['imageUrl'] ?? '',
-                        fit: BoxFit.cover,
-                        errorWidget: Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(
-                              Icons.image,
-                              size: 50,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    // Gradient Overlay
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.7),
-                            ],
-                            stops: [0.3, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    // Title and Description Overlay
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (banner['title'] != null && banner['title'].toString().isNotEmpty)
-                            Text(
-                              banner['title'],
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(1, 1),
-                                    blurRadius: 3,
-                                    color: Colors.black.withOpacity(0.5),
-                                  ),
-                                ],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          
-                          if (banner['title'] != null && 
-                              banner['title'].toString().isNotEmpty &&
-                              banner['description'] != null && 
-                              banner['description'].toString().isNotEmpty)
-                            SizedBox(height: 4),
-                          
-                          if (banner['description'] != null && banner['description'].toString().isNotEmpty)
-                            Text(
-                              banner['description'],
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 14,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(1, 1),
-                                    blurRadius: 2,
-                                    color: Colors.black.withOpacity(0.5),
-                                  ),
-                                ],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    ),
-                    
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // FIXED Category Item with better text handling
+  // OPTIMIZED: Category item with RepaintBoundary
   Widget _buildCategoryItem(String title, String icon, Color color, {VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: UniversalImage(
-              imageUrl: icon,
-              fit: BoxFit.cover,
-              height: 50,
+    return RepaintBoundary(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          children: [
+            Container(
               width: 50,
-              errorWidget: Container(
-                color: Colors.grey[200],
-                child: Icon(Icons.category, size: 30, color: Colors.grey[400]),
+              height: 50,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(25),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(25),
+                child: UniversalImage(
+                  imageUrl: icon,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  highQuality: true, // High quality for category icons
+                  borderRadius: BorderRadius.circular(25),
+                  errorWidget: Container(
+                    color: Colors.grey[200],
+                    child: Icon(Icons.category, size: 30, color: Colors.grey[400]),
+                  ),
+                ),
               ),
             ),
-          ),
-          SizedBox(height: 8),
-          // FIXED: Better text handling for long names
-          Container(
-            height: 32, // Fixed height to prevent layout issues
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 10, 
-                fontWeight: FontWeight.w500,
-                height: 1.2,
+            SizedBox(height: 8),
+            Container(
+              height: 32,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 10, 
+                  fontWeight: FontWeight.w500,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-
-  // FIXED Product Card (keeping your existing implementation)
- Widget _buildProductCard(Map<String, dynamic> product) {
-  return InkWell(
-    onTap: () {
-      // Increment view count
-      context.read<HomeProvider>().incrementProductView(product['id'] ?? '');
-      // Navigate to product detail
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ProductDetailScreen(productId: product['id'] ?? '')
-        )
+  // OPTIMIZED: Product image with better caching
+   Widget _buildProductImage(Map<String, dynamic> product) {
+    final imageUrls = product['imageUrls'] as List<dynamic>?;
+    
+    if (imageUrls != null && imageUrls.isNotEmpty) {
+      return ProductCardImage(
+        imageUrl: imageUrls.first.toString(),
+        width: double.infinity,
+        height: 170,
+        fit: BoxFit.cover,
+    
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       );
-    },
-    child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image Container
-          Container(
-            height: 170,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Stack(
-              children: [
-                // Product Image
-                ClipRRect(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                  child: _buildProductImage(product),
-                ),
-                
-                // FIXED: Working Favorite Icon with Consumer
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Consumer<FavoritesProvider>(
-                    builder: (context, favoritesProvider, child) {
-                      final productId = product['id'] ?? '';
-                      final isFavorite = favoritesProvider.isFavorite(productId);
-                      
-                      return GestureDetector(
-                        onTap: () async {
-                          // Add haptic feedback
-                          HapticFeedback.lightImpact();
-                          
-                          // Toggle favorite
-                          await favoritesProvider.toggleFavorite(productId);
-                          
-                          // Show feedback
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isFavorite ? Icons.heart_broken : Icons.favorite,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    isFavorite 
-                                      ? 'Removed from favorites' 
-                                      : 'Added to favorites',
-                                  ),
-                                ],
-                              ),
-                              backgroundColor: isFavorite ? Colors.orange : Colors.red,
-                              duration: Duration(milliseconds: 1500),
-                              behavior: SnackBarBehavior.floating,
-                              margin: EdgeInsets.all(16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            color: isFavorite ? Colors.red : Colors.grey[600],
-                            size: 20,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                
-                // Negotiable Tag
-                if (product['allowPriceNegotiation'] == true)
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.yellow[700],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Negotiable',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          
-          // Content Section
-          Padding(
-            padding: EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  product['itemTitle'] ?? 'Product Title',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 2),
-                
-                // Price
-                Text(
-                  _getFormattedPrice(product['price']),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                SizedBox(height: 8),
-                
-                // Condition and Time Row
-                Row(
-                  children: [
-                    Text(
-                      product['condition'] ?? 'Used',
-                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                    Spacer(),
-                    Text(
-                      _getTimeSincePosted(product['createdAt']),
-                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                
-                // Location and Views Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        product['locationAddress'] ?? 'Location not set',
-                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      '${product['viewCount'] ?? product['views'] ?? 0} views',
-                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+    } else {
+      return Container(
+        width: double.infinity,
+        height: 170,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
+      );
+    }
+  }
 
-  // FIXED Navigation Methods
+  // Helper methods (keep unchanged)
   void _navigateToAllCategories() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => AllCategoriesPage(), // You need to create this page
-      ),
+      MaterialPageRoute(builder: (context) => AllCategoriesPage()),
     );
   }
 
@@ -838,7 +1652,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     final level = category['level'] ?? 0;
 
     if (level == 0) {
-      // Main category - navigate to subcategories
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -849,7 +1662,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
         ),
       );
     } else if (level == 1) {
-      // Subcategory - navigate to sub-subcategories
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -860,7 +1672,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
         ),
       );
     } else {
-      // Final level - navigate to products
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -893,7 +1704,11 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     switch (targetType) {
       case 'category':
         if (targetId != null) {
-          _navigateToCategoryHierarchy({'id': targetId, 'name': banner['title'] ?? 'Category', 'level': 0});
+          _navigateToCategoryHierarchy({
+            'id': targetId, 
+            'name': banner['title'] ?? 'Category', 
+            'level': 0
+          });
         }
         break;
       case 'product':
@@ -915,41 +1730,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     }
   }
 
-  // // Helper Methods (keeping your existing implementations)
-  // IconData _getIconFromString(String iconName) {
-  //   switch (iconName.toLowerCase()) {
-  //     case 'phone_android':
-  //     case 'mobile':
-  //     case 'smartphone':
-  //       return Icons.phone_android;
-  //     case 'home':
-  //     case 'house':
-  //     case 'property':
-  //       return Icons.home;
-  //     case 'computer':
-  //     case 'desktop':
-  //       return Icons.computer;
-  //     case 'kitchen':
-  //     case 'appliances':
-  //       return Icons.kitchen;
-  //     case 'laptop':
-  //       return Icons.laptop;
-  //     case 'car':
-  //     case 'vehicle':
-  //       return Icons.directions_car;
-  //     case 'camera':
-  //       return Icons.camera_alt;
-  //     case 'headphones':
-  //       return Icons.headphones;
-  //     case 'tv':
-  //       return Icons.tv;
-  //     case 'sports':
-  //       return Icons.sports_soccer;
-  //     default: 
-  //       return Icons.category;
-  //   }
-  // }
-
   Color _getColorFromHex(String hexColor) {
     try {
       return Color(int.parse(hexColor.replaceFirst('#', '0xFF')));
@@ -958,37 +1738,14 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     }
   }
 
-  Widget _buildProductImage(Map<String, dynamic> product) {
-    final imageUrls = product['imageUrls'] as List<dynamic>?;
+  String? _getCityName(String? locationAddress) {
+    if (locationAddress == null || locationAddress.isEmpty) return null;
     
-    if (imageUrls != null && imageUrls.isNotEmpty) {
-      return UniversalImage(
-        imageUrl: imageUrls.first.toString(),
-        fit: BoxFit.cover,
-        height: 170,
-        width: double.infinity,
-        errorWidget: Container(
-          color: Colors.grey[200],
-          child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
-        ),
-      );
-    } else {
-      return Container(
-        color: Colors.grey[200],
-        child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
-      );
+    List<String> parts = locationAddress.split(',');
+    if (parts.isNotEmpty) {
+      return parts[0].trim();
     }
-  }
-
-  String _getFormattedPrice(dynamic price) {
-    if (price == null) return 'Price not set';
-    
-    try {
-      final priceValue = price is num ? price.toDouble() : double.parse(price.toString());
-      return 'PKR ${priceValue.toStringAsFixed(0)}';
-    } catch (e) {
-      return 'Price not set';
-    }
+    return locationAddress;
   }
 
   String _getTimeSincePosted(dynamic createdAt) {
@@ -1019,5 +1776,11 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage> {
     } catch (e) {
       return 'Recently';
     }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 }

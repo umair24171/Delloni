@@ -43,19 +43,68 @@ class ProductDetailProvider with ChangeNotifier {
 
   // Initialize product detail with real-time updates
   Future<void> initializeProduct(String productId) async {
-    try {
-      _setLoading(true);
-      _setError(null);
-      
-      // Setup real-time listeners
-      _setupProductListener(productId);
-      await _incrementViewCount(productId);
-      
-    } catch (e) {
-      _setError('Failed to load product: $e');
-      log('ProductDetailProvider initialization error: $e');
-    }
+  try {
+    _setLoading(true);
+    _setError(null);
+    
+    // Add debugging
+    await debugFirestoreData(productId);
+    
+    // Setup real-time listeners
+    _setupProductListener(productId);
+    await _incrementViewCount(productId);
+    
+  } catch (e) {
+    _setError('Failed to load product: $e');
+    log('ProductDetailProvider initialization error: $e');
   }
+}
+// NEW: Debug method to check Firestore data structure
+Future<void> debugFirestoreData(String productId) async {
+  try {
+    print('=== FIRESTORE DEBUG ===');
+    final doc = await FirebaseFirestore.instance.collection('items').doc(productId).get();
+    
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      print('Firestore document data:');
+      
+      data.forEach((key, value) {
+        print('  $key: $value (${value.runtimeType})');
+      });
+      
+      // Specifically check for category fields
+      if (data.containsKey('categorySpecificFields')) {
+        print('categorySpecificFields found:');
+        final categoryFields = data['categorySpecificFields'];
+        if (categoryFields is Map) {
+          categoryFields.forEach((key, value) {
+            print('    $key: $value (${value.runtimeType})');
+          });
+        }
+      } else {
+        print('categorySpecificFields NOT found in Firestore');
+      }
+      
+      if (data.containsKey('flattenedFields')) {
+        print('flattenedFields found:');
+        final flattenedFields = data['flattenedFields'];
+        if (flattenedFields is Map) {
+          flattenedFields.forEach((key, value) {
+            print('    $key: $value (${value.runtimeType})');
+          });
+        }
+      }
+      
+    } else {
+      print('Document does not exist');
+    }
+    print('=== END FIRESTORE DEBUG ===');
+  } catch (e) {
+    print('Error debugging Firestore: $e');
+  }
+}
+
 
   void _setLoading(bool loading) {
     _isLoading = loading;
@@ -943,8 +992,8 @@ Check out this amazing product on our marketplace!
     _favoriteSubscription?.cancel();
     super.dispose();
   }
-
-  Future<void> chatWithSeller(BuildContext context) async {
+// FIXED: chatWithSeller function
+Future<void> chatWithSeller(BuildContext context) async {
   if (_seller == null || _product == null) {
     _setError('Seller or product information not available');
     return;
@@ -999,7 +1048,7 @@ Check out this amazing product on our marketplace!
                            currentUser.displayName ?? 
                            'User';
 
-    // Create or get existing chat using the ChatSetupService method
+    // Create or get existing chat using the enhanced method
     final chatId = await _createOrGetChat(
       currentUserId: currentUser.uid,
       currentUserName: currentUserName,
@@ -1014,7 +1063,9 @@ Check out this amazing product on our marketplace!
     );
 
     // Close loading dialog
-    Navigator.pop(context);
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
 
     if (chatId != null) {
       // Navigate to MessagesPage
@@ -1038,7 +1089,7 @@ Check out this amazing product on our marketplace!
   }
 }
 
-// Helper method to create or get existing chat
+// FIXED: _createOrGetChat function with proper deletion handling
 Future<String?> _createOrGetChat({
   required String currentUserId,
   required String currentUserName,
@@ -1058,20 +1109,43 @@ Future<String?> _createOrGetChat({
     final existingChat = await _firestore.collection('chats').doc(chatId).get();
     
     if (existingChat.exists) {
-      // Update the chat with current product info if it's different
       final chatData = existingChat.data() as Map<String, dynamic>;
-      if (chatData['productId'] != productId) {
+      
+      // FIXED: Check if user has deleted this chat
+      final deletedBy = List<String>.from(chatData['deletedBy'] ?? []);
+      if (deletedBy.contains(currentUserId)) {
+        // Remove user from deletedBy array to reactivate chat
         await _firestore.collection('chats').doc(chatId).update({
-          'productId': productId,
-          'productTitle': productTitle,
-          'productImage': productImage,
-          'productPrice': productPrice,
+          'deletedBy': FieldValue.arrayRemove([currentUserId]),
+          'isActive': true,
+          'lastMessageTime': FieldValue.serverTimestamp(),
         });
       }
+      
+      // FIXED: Update chat with current product info and ensure proper fields
+      Map<String, dynamic> updateData = {
+        'productId': productId,
+        'productTitle': productTitle,
+        'productImage': productImage,
+        'productPrice': productPrice,
+        'productOwnerId': sellerId, // CRUCIAL: Always set the seller as product owner
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'isActive': true,
+        'chatType': 'buying', // FIXED: Current user is buying from seller
+      };
+      
+      // FIXED: Ensure participant info is up to date
+      updateData['participantNames.$currentUserId'] = currentUserName;
+      updateData['participantNames.$sellerId'] = sellerName;
+      updateData['participantImages.$currentUserId'] = currentUserImage;
+      updateData['participantImages.$sellerId'] = sellerImage;
+      
+      await _firestore.collection('chats').doc(chatId).update(updateData);
+      
       return chatId;
     }
 
-    // Create new chat
+    // FIXED: Create new chat with all required fields
     await _firestore.collection('chats').doc(chatId).set({
       'participants': [currentUserId, sellerId],
       'participantNames': {
@@ -1089,6 +1163,7 @@ Future<String?> _createOrGetChat({
       'productTitle': productTitle,
       'productImage': productImage,
       'productPrice': productPrice,
+      'productOwnerId': sellerId, // CRUCIAL: The seller is the product owner
       'unreadCount': {
         currentUserId: 0,
         sellerId: 0,
@@ -1099,23 +1174,8 @@ Future<String?> _createOrGetChat({
       },
       'createdAt': FieldValue.serverTimestamp(),
       'isActive': true,
-      'chatType': 'buying', // Current user is buying from seller
-    });
-
-    // Send an initial system message (optional)
-    await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .add({
-      'chatId': chatId,
-      'senderId': 'system',
-      'senderName': 'System',
-      'message': 'Chat started about: $productTitle',
-      'type': 'system',
-      'timestamp': FieldValue.serverTimestamp(),
-      'isRead': false,
-      'status': 'sent',
+      'chatType': 'buying', // FIXED: Current user is buying from seller
+      'deletedBy': [], // FIXED: Initialize deletedBy field
     });
 
     return chatId;
@@ -1124,6 +1184,8 @@ Future<String?> _createOrGetChat({
     return null;
   }
 }
+
+
 
 // Generate consistent chat ID
 String _generateChatId(String userId1, String userId2) {

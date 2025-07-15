@@ -8,8 +8,10 @@ import 'package:arabicmarketplace/screens/product_detail/controller/product_deta
 import 'package:arabicmarketplace/screens/product_detail/model/product_detail_model.dart';
 import 'package:arabicmarketplace/screens/reviews_page/model/review_model.dart';
 import 'package:arabicmarketplace/screens/reviews_page/view/reviews_page.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:arabicmarketplace/widgets/image_optimise.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -180,135 +182,621 @@ Check out this amazing product on our marketplace!
     _pageController.dispose();
     super.dispose();
   }
+  // ENHANCED: Category-specific Stats Section (Top row with icons)
+  Widget _buildCategoryStatsSection(ProductDetailModel product) {
+    // Get category-specific fields from the product
+    final categoryFields = _getCategorySpecificFields(product);
+    if (categoryFields.isEmpty) return SizedBox.shrink();
 
- @override
-Widget build(BuildContext context) {
-  return ChangeNotifierProvider.value(
-    value: _provider,
-    child: Scaffold(
-      backgroundColor: Colors.white,
-      // Remove the appBar and make it part of the body
-      extendBodyBehindAppBar: true,
-      body: Consumer<ProductDetailProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return Center(child: CircularProgressIndicator());
-          }
+    // Get the most important fields for stats display
+    List<Widget> statItems = [];
+    
+    // Priority fields for stats display
+    final priorityFields = {
+      'year': {'icon': Icons.calendar_today, 'suffix': ''},
+      'kilometers': {'icon': Icons.speed, 'suffix': ' km'},
+      'mileage': {'icon': Icons.speed, 'suffix': ' km'},
+      'fuel_type': {'icon': Icons.local_gas_station, 'suffix': ''},
+      'transmission': {'icon': Icons.settings, 'suffix': ''},
+      'storage': {'icon': Icons.storage, 'suffix': ''},
+      'ram': {'icon': Icons.memory, 'suffix': ''},
+      'area': {'icon': Icons.square_foot, 'suffix': ' sq ft'},
+      'bedrooms': {'icon': Icons.bed, 'suffix': ' bed'},
+    };
 
-          if (provider.error != null) {
-            return Center(
+    // Build stat items from category fields
+    for (final fieldName in priorityFields.keys) {
+      if (categoryFields.containsKey(fieldName) && categoryFields[fieldName] != null) {
+        final value = categoryFields[fieldName];
+        final config = priorityFields[fieldName]!;
+        
+        if (value != null && value.toString().isNotEmpty && value.toString() != 'null') {
+          statItems.add(_buildStatItem(
+            config['icon'] as IconData,
+            '${value.toString()}${config['suffix']}',
+          ));
+        }
+      }
+    }
+
+    // Fallback to legacy stats if no category fields
+    if (statItems.isEmpty) {
+      final stats = product.stats;
+      if (stats.year != null) {
+        statItems.add(_buildStatItem(Icons.calendar_today, stats.year!));
+      }
+      if (stats.mileage != null) {
+        statItems.add(_buildStatItem(Icons.speed, stats.mileage!));
+      }
+      if (stats.fuelType != null) {
+        statItems.add(_buildStatItem(Icons.local_gas_station, stats.fuelType!));
+      }
+      if (stats.transmission != null) {
+        statItems.add(_buildStatItem(Icons.settings, stats.transmission!));
+      }
+    }
+
+    if (statItems.isEmpty) return SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: statItems.take(4).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: _provider,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        extendBodyBehindAppBar: true,
+        body: Consumer<ProductDetailProvider>(
+          builder: (context, provider, child) {
+            if (provider.isLoading) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (provider.error != null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(provider.error!, style: TextStyle(color: Colors.red)),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => provider.refreshData(),
+                      child: Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (provider.product == null) {
+              return Center(child: Text('Product not found'));
+            }
+
+            return SingleChildScrollView(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(provider.error!, style: TextStyle(color: Colors.red)),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => provider.refreshData(),
-                    child: Text('Retry'),
+                  // Product Images with Overlay AppBar
+                  _buildImageSectionWithOverlay(provider.product!, provider),
+                  
+                  // Content Section
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title and Price
+                        _buildTitlePriceSection(provider.product!),
+                        
+                        SizedBox(height: 25),
+                        
+                        // Action Buttons
+                        _buildActionButtons(provider),
+                        
+                        SizedBox(height: 30),
+                        
+                        // ENHANCED: Category-specific Stats Row
+                        _buildCategoryStatsSection(provider.product!),
+                        
+                        SizedBox(height: 30),
+                        
+                        // ENHANCED: Category-specific Details Section
+                        _buildCategoryDetailsSection(provider.product!),
+                        
+                        SizedBox(height: 30),
+                        
+                        // Description
+                        _buildDescriptionSection(provider.product!),
+                        
+                        SizedBox(height: 30),
+                        
+                        // ENHANCED: Category-specific Features
+                        _buildCategoryFeaturesSection(provider.product!),
+                        
+                        SizedBox(height: 30),
+                        
+                        // Seller Detail with Rating
+                        _buildSellerSection(provider.seller, provider),
+                        
+                        SizedBox(height: 30),
+                        
+                        // Seller Reviews Section
+                        _buildSellerReviewsSection(provider.seller),
+                        
+                        SizedBox(height: 30),
+                        
+                        // Related Products
+                        _buildRelatedProductsSection(provider.relatedProducts),
+                        
+                        SizedBox(height: 30),
+                      ],
+                    ),
                   ),
                 ],
               ),
             );
-          }
-
-          if (provider.product == null) {
-            return Center(child: Text('Product not found'));
-          }
-
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Product Images with Overlay AppBar
-                _buildImageSectionWithOverlay(provider.product!, provider),
-                
-                // Content Section
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title and Price
-                      _buildTitlePriceSection(provider.product!),
-                      
-                      SizedBox(height: 25),
-                      
-                      // Action Buttons
-                      _buildActionButtons(provider),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Stats Row (if available)
-                      _buildStatsSection(provider.product!),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Details Section
-                      _buildDetailsSection(provider.product!),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Description
-                      _buildDescriptionSection(provider.product!),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Features (if available)
-                      _buildFeaturesSection(provider.product!),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Seller Detail with Rating
-                      _buildSellerSection(provider.seller, provider),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Seller Reviews Section
-                      _buildSellerReviewsSection(provider.seller),
-                      
-                      SizedBox(height: 30),
-                      
-                      // Related Products
-                      _buildRelatedProductsSection(provider.relatedProducts),
-                      
-                      SizedBox(height: 30),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      // Floating Action Button for Quick Review
-      floatingActionButton: Consumer<ProductDetailProvider>(
-        builder: (context, provider, child) {
-          if (provider.product == null || provider.seller == null) {
-            return SizedBox.shrink();
-          }
-          
-          // Only show if user can leave a review (not their own product)
-          return _canUserReview(provider.seller!.id) 
-              ? FloatingActionButton.extended(
-                  onPressed: () => _showQuickReviewDialog(provider.product!, provider.seller!),
-                  backgroundColor: Color(0xFF2D5016),
-                  icon: Icon(Icons.star_outline, color: Colors.white),
-                  label: Text(
-                    'Review Seller',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+          },
+        ),
+        floatingActionButton: Consumer<ProductDetailProvider>(
+          builder: (context, provider, child) {
+            if (provider.product == null || provider.seller == null) {
+              return SizedBox.shrink();
+            }
+            
+            return _canUserReview(provider.seller!.id) 
+                ? FloatingActionButton.extended(
+                    onPressed: () => _showQuickReviewDialog(provider.product!, provider.seller!),
+                    backgroundColor: Color(0xFF2D5016),
+                    icon: Icon(Icons.star_outline, color: Colors.white),
+                    label: Text(
+                      'Review Seller',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                )
-              : SizedBox.shrink();
-        },
+                  )
+                : SizedBox.shrink();
+          },
+        ),
       ),
-    ),
+    );
+  }
+  Widget _buildCategoryDetailsSection(ProductDetailModel product) {
+  print('Building category details section for: ${product.title}');
+  
+  final categoryFields = _getCategorySpecificFields(product);
+  print('Category fields for UI: $categoryFields');
+  
+  List<Widget> details = [];
+
+  // Add category-specific fields first
+  if (categoryFields.isNotEmpty) {
+    print('Found ${categoryFields.length} category fields');
+    
+    // Organize fields by category for better display
+    final organizedFields = _organizeFieldsByCategory(categoryFields, product);
+    print('Organized fields: $organizedFields');
+    
+    for (final categoryEntry in organizedFields.entries) {
+      print('Processing category: ${categoryEntry.key} with ${categoryEntry.value.length} fields');
+      
+      // Add category header if multiple categories
+      if (organizedFields.keys.length > 1) {
+        details.add(
+          Padding(
+            padding: EdgeInsets.only(top: 16, bottom: 8),
+            child: Text(
+              _getCategoryDisplayName(categoryEntry.key),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2D5016),
+              ),
+            ),
+          ),
+        );
+      }
+      
+      // Add fields in this category
+      for (final field in categoryEntry.value) {
+        final label = field['label'] as String? ?? '';
+        final value = field['value'] as String? ?? '';
+        print('Adding field: $label = $value');
+        if (label.isNotEmpty && value.isNotEmpty) {
+          details.add(_buildDetailRow(label, value));
+        }
+      }
+    }
+  } else {
+    print('No category fields found');
+  }
+
+  // Add standard fields that aren't in category fields
+  final standardFields = _getStandardFields(product, categoryFields);
+  print('Standard fields: ${standardFields.length}');
+  for (final field in standardFields) {
+    final label = field['label'] as String? ?? '';
+    final value = field['value'] as String? ?? '';
+    if (label.isNotEmpty && value.isNotEmpty) {
+      details.add(_buildDetailRow(label, value));
+      print('Added standard field: $label = $value');
+    }
+  }
+
+  // Always add Ad ID and Views
+  details.add(_buildDetailRow('Ad ID', product.id.substring(0, 8).toUpperCase()));
+  details.add(_buildDetailRow('Views', product.viewCount.toString()));
+
+  if (details.isEmpty) {
+    print('No details to show');
+    return SizedBox.shrink();
+  }
+
+  print('Rendering ${details.length} detail items');
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Specifications',
+        style: GoogleFonts.outfit(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: Colors.black,
+        ),
+      ),
+      SizedBox(height: 15),
+      Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+        ),
+        child: Column(children: details),
+      ),
+    ],
   );
 }
+
+  Widget _buildCategoryFeaturesSection(ProductDetailModel product) {
+    final categoryFields = _getCategorySpecificFields(product);
+    List<String> features = [];
+
+    // Extract boolean features from category fields
+    final booleanFeatures = _extractBooleanFeatures(categoryFields);
+    features.addAll(booleanFeatures);
+
+    // Add legacy features
+    features.addAll(product.features);
+
+    if (features.isEmpty) return SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Features',
+          style: GoogleFonts.outfit(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(height: 15),
+        Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+          ),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 4,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: features.length,
+            itemBuilder: (context, index) {
+              return _buildFeatureItem(
+                _getFeatureIcon(features[index]),
+                features[index],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+  String _getCategoryDisplayName(String categoryKey) {
+    final categoryNames = {
+      'basic_info': 'Basic Information',
+      'technical': 'Technical Specifications',
+      'appearance': 'Appearance',
+      'design': 'Design',
+      'features': 'Features',
+      'classification': 'Classification',
+      'size': 'Size & Dimensions',
+      'layout': 'Layout',
+      'connectivity': 'Connectivity',
+      'software': 'Software',
+      'quality': 'Quality',
+      'condition': 'Condition',
+      'amenities': 'Amenities',
+      'service': 'Service',
+      'sizing': 'Sizing',
+    };
+    
+    return categoryNames[categoryKey] ?? categoryKey.replaceAll('_', ' ').toUpperCase();
+  }
+  // Helper method to get category-specific fields from product
+ Map<String, dynamic> _getCategorySpecificFields(ProductDetailModel product) {
+  print('=== DEBUG: Getting Category Specific Fields ===');
+  print('Product ID: ${product.id}');
+  print('Product title: ${product.title}');
+  print('Product category: ${product.category}');
+  
+  // Debug: Print all specifications
+  print('All product specifications:');
+  product.specifications.forEach((key, value) {
+    print('  $key: $value (${value.runtimeType})');
+  });
+  
+  final categoryFields = <String, dynamic>{};
+  
+  // Method 1: Try to get from product's categorySpecificFields
+  if (product.specifications.containsKey('categorySpecificFields')) {
+    final fields = product.specifications['categorySpecificFields'];
+    print('Found categorySpecificFields: $fields (${fields.runtimeType})');
+    
+    if (fields is Map<String, dynamic>) {
+      print('categorySpecificFields is Map<String, dynamic>');
+      final extractedFields = Map<String, dynamic>.from(fields);
+      print('Extracted fields: $extractedFields');
+      categoryFields.addAll(extractedFields);
+    } else if (fields is Map) {
+      print('categorySpecificFields is generic Map, converting...');
+      fields.forEach((key, value) {
+        if (key is String) {
+          categoryFields[key] = value;
+          print('  Added: $key = $value');
+        }
+      });
+    }
+  } else {
+    print('No categorySpecificFields found in specifications');
+  }
+  
+  // Method 2: Try to get from flattenedFields
+  if (product.specifications.containsKey('flattenedFields')) {
+    final flattenedFields = product.specifications['flattenedFields'];
+    print('Found flattenedFields: $flattenedFields');
+    
+    if (flattenedFields is Map) {
+      flattenedFields.forEach((key, value) {
+        if (key is String && key.startsWith('cf_')) {
+          // Remove 'cf_' prefix
+          final fieldName = key.substring(3);
+          categoryFields[fieldName] = value;
+          print('  Added from flattened: $fieldName = $value');
+        }
+      });
+    }
+  }
+  
+  // Method 3: Direct field extraction (fallback)
+  final knownCategoryFields = {
+    'year', 'kilometers', 'mileage', 'fuel_type', 'transmission', 'engine_capacity',
+    'body_type', 'car_type', 'doors', 'seating_capacity', 'power_steering',
+    'air_conditioning', 'bike_type', 'engine_type', 'storage', 'ram',
+    'screen_size', 'battery_capacity', 'network_type', 'dual_sim',
+    'processor', 'storage_type', 'storage_capacity', 'graphics_card',
+    'operating_system', 'property_type', 'area', 'bedrooms', 'bathrooms',
+    'furnished', 'parking', 'purpose', 'size', 'material', 'gender',
+    'room_type', 'assembly_required', 'sport_type', 'suitable_for'
+  };
+
+  print('Checking known category fields...');
+  for (final fieldName in knownCategoryFields) {
+    if (product.specifications.containsKey(fieldName)) {
+      if (!categoryFields.containsKey(fieldName)) {
+        categoryFields[fieldName] = product.specifications[fieldName];
+        print('  Added known field: $fieldName = ${product.specifications[fieldName]}');
+      }
+    }
+  }
+  
+  print('Final category fields: $categoryFields');
+  print('=== END DEBUG ===');
+  
+  return categoryFields;
+}
+  // Helper method to organize fields by category
+  Map<String, List<Map<String, String>>> _organizeFieldsByCategory(
+    Map<String, dynamic> fields, 
+    ProductDetailModel product
+  ) {
+    final organized = <String, List<Map<String, String>>>{};
+    
+    // Field category mapping
+    final fieldCategories = {
+      'basic_info': ['year', 'kilometers', 'mileage'],
+      'technical': ['fuel_type', 'transmission', 'engine_capacity', 'processor', 'ram', 'storage_type', 'storage_capacity'],
+      'appearance': ['color', 'body_type', 'car_type'],
+      'design': ['doors', 'seating_capacity', 'screen_size'],
+      'features': ['power_steering', 'air_conditioning', 'dual_sim'],
+      'classification': ['property_type', 'bike_type', 'gender', 'sport_type'],
+      'size': ['area', 'size'],
+      'layout': ['bedrooms', 'bathrooms'],
+      'connectivity': ['network_type'],
+      'software': ['operating_system'],
+      'quality': ['material'],
+      'condition': ['furnished'],
+      'amenities': ['parking'],
+      'service': ['assembly_required'],
+      'sizing': ['suitable_for'],
+    };
+
+    // Categorize fields
+    for (final entry in fields.entries) {
+      final fieldName = entry.key;
+      final fieldValue = entry.value;
+      
+      if (fieldValue == null || fieldValue.toString().isEmpty || fieldValue.toString() == 'null') {
+        continue;
+      }
+
+      String category = 'general';
+      for (final catEntry in fieldCategories.entries) {
+        if (catEntry.value.contains(fieldName)) {
+          category = catEntry.key;
+          break;
+        }
+      }
+
+      organized.putIfAbsent(category, () => []).add({
+        'label': _getFieldDisplayName(fieldName),
+        'value': _formatFieldValue(fieldValue, fieldName),
+      });
+    }
+
+    return organized;
+  }
+  String _getFieldDisplayName(String fieldName) {
+    final displayNames = {
+      'year': 'Year',
+      'kilometers': 'Mileage',
+      'mileage': 'Mileage',
+      'fuel_type': 'Fuel Type',
+      'transmission': 'Transmission',
+      'engine_capacity': 'Engine Capacity',
+      'body_type': 'Body Type',
+      'car_type': 'Car Type',
+      'doors': 'Doors',
+      'seating_capacity': 'Seating',
+      'power_steering': 'Power Steering',
+      'air_conditioning': 'Air Conditioning',
+      'bike_type': 'Bike Type',
+      'engine_type': 'Engine Type',
+      'storage': 'Storage',
+      'ram': 'RAM',
+      'screen_size': 'Screen Size',
+      'battery_capacity': 'Battery',
+      'network_type': 'Network',
+      'dual_sim': 'Dual SIM',
+      'processor': 'Processor',
+      'storage_type': 'Storage Type',
+      'storage_capacity': 'Storage Capacity',
+      'graphics_card': 'Graphics Card',
+      'operating_system': 'Operating System',
+      'property_type': 'Property Type',
+      'area': 'Area',
+      'bedrooms': 'Bedrooms',
+      'bathrooms': 'Bathrooms',
+      'furnished': 'Furnished',
+      'parking': 'Parking',
+      'purpose': 'Purpose',
+      'size': 'Size',
+      'material': 'Material',
+      'gender': 'Gender',
+      'room_type': 'Room Type',
+      'assembly_required': 'Assembly Required',
+      'sport_type': 'Sport Type',
+      'suitable_for': 'Suitable For',
+    };
+    
+    return displayNames[fieldName] ?? fieldName.replaceAll('_', ' ').split(' ')
+        .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
+  // Helper method to format field values
+  String _formatFieldValue(dynamic value, String fieldName) {
+    if (value == null) return 'N/A';
+    
+    // Add units/suffixes based on field type
+    final fieldUnits = {
+      'kilometers': ' km',
+      'mileage': ' km',
+      'engine_capacity': ' CC',
+      'area': ' sq ft',
+      'battery_capacity': ' mAh',
+      'screen_size': '"',
+    };
+    
+    if (value is bool) {
+      return value ? 'Yes' : 'No';
+    }
+    
+    final unit = fieldUnits[fieldName] ?? '';
+    return '${value.toString()}$unit';
+  }
+  // Helper method to get standard fields not in category fields
+  List<Map<String, String>> _getStandardFields(
+    ProductDetailModel product, 
+    Map<String, dynamic> categoryFields
+  ) {
+    final standardFields = <Map<String, String>>[];
+    
+    // Only add standard fields if they're not already in category fields
+    if (!categoryFields.containsKey('color') && product.color != null && product.color!.isNotEmpty) {
+      standardFields.add({'label': 'Color', 'value': product.color!});
+    }
+    
+    if (product.brand != null && product.brand!.isNotEmpty) {
+      standardFields.add({'label': 'Brand', 'value': product.brand!});
+    }
+    
+    if (product.dimensions != null && product.dimensions!.isNotEmpty) {
+      standardFields.add({'label': 'Dimensions', 'value': product.dimensions!});
+    }
+
+    // Add legacy specifications that aren't category fields
+    final specs = product.specifications;
+    final stats = product.stats;
+    
+    if (stats.registeredIn != null && !categoryFields.containsKey('registered_in')) {
+      standardFields.add({'label': 'Registered in', 'value': stats.registeredIn!});
+    }
+    
+    if (stats.assembly != null && !categoryFields.containsKey('assembly')) {
+      standardFields.add({'label': 'Assembly', 'value': stats.assembly!});
+    }
+
+    return standardFields;
+  }
+
+  // Helper method to extract boolean features
+  List<String> _extractBooleanFeatures(Map<String, dynamic> fields) {
+    final features = <String>[];
+    
+    for (final entry in fields.entries) {
+      if (entry.value is bool && entry.value == true) {
+        features.add(_getFieldDisplayName(entry.key));
+      }
+    }
+    
+    return features;
+  }
 
 Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailProvider provider) {
   return Stack(
@@ -606,7 +1094,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
             onPressed: () => provider.chatWithSeller(context),
             icon: Icon(Icons.chat_outlined, color: Colors.white),
             label: Text(
-              'Chat',
+             '${AppLocalizations.chat.tr()}',
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontSize: 16,
@@ -635,7 +1123,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
               color: Colors.white,
             ),
             label: Text(
-              provider.sellerHasPhoneNumber ? 'Call' : 'No Number',
+              provider.sellerHasPhoneNumber ? '${AppLocalizations.call.tr()}' : 'No Number',
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontSize: 16,
@@ -728,7 +1216,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Description',
+        AppLocalizations.description.tr(),
           style: GoogleFonts.outfit(
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -791,7 +1279,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'Seller Detail',
+        AppLocalizations.sellerDetail.tr(),
         style: GoogleFonts.outfit(
           fontSize: 20,
           fontWeight: FontWeight.w700,
@@ -835,7 +1323,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                         ),
                         SizedBox(height: 3),
                         Text(
-                          'Member Since: ${seller.getMemberSinceFormatted()}',
+                          '${ AppLocalizations.memberSince.tr()}: ${seller.getMemberSinceFormatted()}',
                           style: GoogleFonts.outfit(
                             fontSize: 13,
                             color: Colors.grey[600],
@@ -864,7 +1352,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                             SizedBox(width: 4),
                             Text(
                               provider.sellerHasPhoneNumber
-                                ? 'Phone available'
+                                ? '${AppLocalizations.phoneAvailable.tr()}'
                                 : 'No phone number',
                               style: GoogleFonts.outfit(
                                 fontSize: 11,
@@ -963,7 +1451,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                     onPressed: () => _showQuickReviewDialog(provider.product!, seller),
                     icon: Icon(Icons.star_outline, size: 18),
                     label: Text(
-                      'Leave Review',
+                     '${AppLocalizations.leaveReview.tr()}',
                       style: GoogleFonts.outfit(fontSize: 14),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -978,7 +1466,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                     onPressed: () => _navigateToSellerReviews(seller.id),
                     icon: Icon(Icons.reviews_outlined, size: 18),
                     label: Text(
-                      'All Reviews',
+                 '${AppLocalizations.allReviews.tr()}',
                       style: GoogleFonts.outfit(fontSize: 14),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -1007,7 +1495,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Recent Reviews',
+             '${AppLocalizations.recentReviews.tr()}',
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -1150,39 +1638,63 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
 
   // Helper methods
   Widget _buildStatItem(IconData icon, String text) {
-    return Column(
-      children: [
-        Icon(icon, size: 28, color: Colors.grey[600]),
-        SizedBox(height: 8),
-        Text(
-          text,
-          style: GoogleFonts.outfit(
-            fontSize: 13,
-            color: Colors.grey[700],
-            fontWeight: FontWeight.w500,
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color(0xFF2D5016).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon, 
+              size: 24, 
+              color: Color(0xFF2D5016),
+            ),
           ),
-        ),
-      ],
+          SizedBox(height: 8),
+          Text(
+            text,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
-
-  Widget _buildDetailRow(String label, String value) {
+   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.outfit(fontSize: 15, color: Colors.grey[600]),
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-          Flexible(
+          Expanded(
+            flex: 3,
             child: Text(
               value,
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 color: Colors.black,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
               textAlign: TextAlign.right,
             ),
@@ -1192,25 +1704,39 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
     );
   }
 
+
   Widget _buildFeatureItem(IconData icon, String text) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 15),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Color(0xFFF8F9FA),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Color(0xFFE9ECEF), width: 1),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 22, color: Colors.grey[600]),
-          SizedBox(width: 12),
+          Container(
+            padding: EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Color(0xFF2D5016).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon, 
+              size: 18, 
+              color: Color(0xFF2D5016),
+            ),
+          ),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
               style: GoogleFonts.outfit(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.grey[700],
                 fontWeight: FontWeight.w500,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1524,20 +2050,22 @@ Future<void> _submitQuickReviewWithDebug(
     }
   }
 
-  IconData _getFeatureIcon(String feature) {
+ IconData _getFeatureIcon(String feature) {
     String lowerFeature = feature.toLowerCase();
+    if (lowerFeature.contains('power steering')) return Icons.casino;
+    if (lowerFeature.contains('air conditioning') || lowerFeature.contains('ac')) return Icons.ac_unit;
     if (lowerFeature.contains('lock')) return Icons.lock_outline;
     if (lowerFeature.contains('seat')) return Icons.airline_seat_recline_normal;
-    if (lowerFeature.contains('air') || lowerFeature.contains('ac')) return Icons.ac_unit;
     if (lowerFeature.contains('automatic') || lowerFeature.contains('gear')) return Icons.settings;
     if (lowerFeature.contains('speed')) return Icons.speed;
-    if (lowerFeature.contains('steering')) return Icons.casino;
     if (lowerFeature.contains('bluetooth')) return Icons.bluetooth;
     if (lowerFeature.contains('camera')) return Icons.camera_alt;
     if (lowerFeature.contains('gps') || lowerFeature.contains('navigation')) return Icons.navigation;
+    if (lowerFeature.contains('dual sim')) return Icons.sim_card;
+    if (lowerFeature.contains('parking')) return Icons.local_parking;
+    if (lowerFeature.contains('furnished')) return Icons.chair;
     return Icons.check_circle_outline;
   }
-
   String _formatSpecKey(String key) {
     return key.split('_').map((word) => 
       word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : word

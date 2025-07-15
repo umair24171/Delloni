@@ -1,8 +1,13 @@
 // 1. Profile Service - Backend API calls
+import 'dart:developer';
+
+import 'package:arabicmarketplace/controller/user_report_service.dart';
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
 import 'package:arabicmarketplace/screens/chat/view/messages_screen.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
@@ -290,6 +295,7 @@ class AccountProfileProvider with ChangeNotifier {
     notifyListeners();
   }
 }
+
 class AccountProfilePage extends StatefulWidget {
   final String userId;
   final bool isMyProfile; // true if viewing own profile
@@ -305,9 +311,11 @@ class AccountProfilePage extends StatefulWidget {
 }
 
 class _AccountProfilePageState extends State<AccountProfilePage> {
+   final UserReportService _reportService = UserReportService();
   bool _showMyAds = true;
   final TextEditingController _aboutController = TextEditingController();
   bool _isEditingAbout = false;
+  bool _hasUserReported = false;
 
   @override
   void initState() {
@@ -316,7 +324,25 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
       final profileProvider = Provider.of<AccountProfileProvider>(context, listen: false);
       profileProvider.loadUserProfile(widget.userId);
       profileProvider.loadUserAds(widget.userId);
+      
+      // Check if user has already reported this profile
+      if (!widget.isMyProfile) {
+        _checkIfUserReported();
+      }
     });
+  }
+
+  Future<void> _checkIfUserReported() async {
+    try {
+      final hasReported = await _reportService.hasUserReportedProfile(widget.userId);
+      if (mounted) {
+        setState(() {
+          _hasUserReported = hasReported;
+        });
+      }
+    } catch (e) {
+      log('Error checking report status: $e');
+    }
   }
 
   @override
@@ -324,6 +350,125 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
     _aboutController.dispose();
     super.dispose();
   }
+
+  Future<void> _showReportDialog() async {
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => UserReportDialog(
+          reportedUserId: widget.userId,
+          reportedUserName: context.read<AccountProfileProvider>().displayName,
+        ),
+      );
+
+      if (result == true && mounted) {
+        setState(() {
+          _hasUserReported = true;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                
+                Text('User reported successfully.'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+             
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      log('Error showing report dialog: $e');
+    }
+  }
+
+  Future<void> _showReportBottomSheet() async {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            
+            Row(
+              children: [
+                Icon(Icons.report, color: Colors.red, size: 24),
+                SizedBox(width: 12),
+                Text(
+                  'Report User',
+                  style: GoogleFonts.nunito(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            
+            Text(
+              'Are you sure you want to report this user? This action will help us maintain a safe community.',
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+            SizedBox(height: 20),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancel'),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showReportDialog();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text('Report'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // @override
+  // void dispose() {
+  //   _aboutController.dispose();
+  //   super.dispose();
+  // }
 
   Future<void> _pickAndUpdateProfileImage() async {
     final ImagePicker picker = ImagePicker();
@@ -487,23 +632,65 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.pop(context),
-          child: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          child: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
         ),
         title: Text(
-          'Account',
+          AppLocalizations.account.tr(),
           style: GoogleFonts.nunito(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         centerTitle: false,
+        // ADDED: Report button in AppBar for other users' profiles
+        actions: [
+          if (!widget.isMyProfile)
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'report') {
+                  if (_hasUserReported) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('You have already reported this user'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  } else {
+                    _showReportBottomSheet();
+                  }
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.report,
+                        color: _hasUserReported ? Colors.grey : Colors.red,
+                        size: 20,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        _hasUserReported ? 'Already Reported' : 'Report User',
+                        style: TextStyle(
+                          color: _hasUserReported ? Colors.grey : Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              icon: Icon(Icons.more_vert, color: Colors.black),
+            ),
+        ],
       ),
       body: Consumer<AccountProfileProvider>(
         builder: (context, profileProvider, child) {
@@ -572,23 +759,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                                               Icons.person,
                                               size: 40,
                                               color: Colors.grey[400],
-                                            ),
-                                          );
-                                        },
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) return child;
-                                          return Container(
-                                            width: 80,
-                                            height: 80,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.grey[100],
-                                            ),
-                                            child: Center(
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
-                                              ),
                                             ),
                                           );
                                         },
@@ -672,7 +842,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                             ),
                             const SizedBox(height: 4),
                             
-                            // FIXED: Add location for companies under company name
+                            // Location for companies
                             if (profileProvider.isCompany && profileProvider.userProfile!['address'] != null) ...[
                               Row(
                                 children: [
@@ -730,13 +900,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                             ),
                             Text(
                               'Active since ${profileProvider.memberSince}',
-                              style: GoogleFonts.nunito(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            Text(
-                              profileProvider.responseTime,
                               style: GoogleFonts.nunito(
                                 fontSize: 14,
                                 color: Colors.grey[600],
@@ -822,17 +985,48 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                       ),
                     ],
                   ),
+                  
+                  // ADDED: Report button row (alternative placement)
+                  SizedBox(height: 12),
+                  if (!_hasUserReported)
+                    GestureDetector(
+                      onTap: _showReportBottomSheet,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.red[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.report, color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Report User',
+                              style: GoogleFonts.nunito(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  
                   const SizedBox(height: 30),
                 ],
                 
-                // FIXED: Navigation Tabs - Show appropriate labels
+                // Navigation Tabs
                 if (profileProvider.isCompany || (widget.isMyProfile && profileProvider.isIndividual)) ...[
                   Row(
                     children: [
                       GestureDetector(
                         onTap: () => setState(() => _showMyAds = true),
                         child: Text(
-                          widget.isMyProfile ? 'My ads' : 'Ads', // FIXED: Show "Ads" when viewing someone else's profile
+                          widget.isMyProfile ? 'My ads' : 'Ads',
                           style: GoogleFonts.nunito(
                             fontSize: 16,
                             fontWeight: _showMyAds ? FontWeight.w600 : FontWeight.w400,
@@ -841,7 +1035,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                         ),
                       ),
                       const Spacer(),
-                      // Only show Details tab for companies OR individual's own profile
                       if (profileProvider.isCompany || (widget.isMyProfile && profileProvider.isIndividual))
                         GestureDetector(
                           onTap: () => setState(() => _showMyAds = false),
@@ -858,7 +1051,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                   ),
                   const SizedBox(height: 20),
                 ] else if (!widget.isMyProfile && profileProvider.isIndividual) ...[
-                  // FIXED: For individual sellers (not own profile), show "Ads" instead of "My ads"
                   Text(
                     'Ads',
                     style: GoogleFonts.nunito(
@@ -870,7 +1062,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                   const SizedBox(height: 20),
                 ],
                 
-                // Content based on selected tab or default to ads for individuals
+                // Content
                 Expanded(
                   child: _buildContent(profileProvider),
                 ),

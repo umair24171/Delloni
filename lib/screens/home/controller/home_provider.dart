@@ -4,6 +4,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class HomeProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -97,9 +98,21 @@ class HomeProvider with ChangeNotifier {
 
       _userLatitude = position.latitude;
       _userLongitude = position.longitude;
-      _userLocationAddress = 'Current Location';
+
+      // Reverse geocode to get city name
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(_userLatitude!, _userLongitude!);
+        if (placemarks.isNotEmpty) {
+          _userLocationAddress = placemarks.first.locality ?? placemarks.first.subAdministrativeArea ?? placemarks.first.administrativeArea ?? 'Unknown location';
+        } else {
+          _userLocationAddress = 'Unknown location';
+        }
+      } catch (e) {
+        _userLocationAddress = 'Unknown location';
+      }
       
-      log('User location obtained: $_userLatitude, $_userLongitude');
+      log('User location obtained: $_userLatitude, $_userLongitude, address: $_userLocationAddress');
+      notifyListeners();
     } catch (e) {
       log('Error getting user location: $e');
     }
@@ -585,6 +598,14 @@ class HomeProvider with ChangeNotifier {
     } catch (e) {
       return null;
     }
+  }
+
+  // Public method to set user location from UI
+  void setUserLocation(double latitude, double longitude, String address) {
+    _userLatitude = latitude;
+    _userLongitude = longitude;
+    _userLocationAddress = address;
+    notifyListeners();
   }
 
   @override

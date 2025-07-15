@@ -64,39 +64,160 @@ class ProductDetailModel {
     required this.stats,
   });
 
-  factory ProductDetailModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return ProductDetailModel(
-      id: doc.id,
-      sellerId: data['sellerId'] ?? '',
-      sellerName: data['sellerName'] ?? '',
-      sellerType: data['sellerType'] ?? 'individual',
-      title: data['title'] ?? '',
-      description: data['description'] ?? '',
-      category: data['category'] ?? '',
-      condition: data['condition'] ?? 'Used',
-      price: (data['price'] ?? 0.0).toDouble(),
-      allowPriceNegotiation: data['allowPriceNegotiation'] ?? true,
-      shippingOption: data['shippingOption'] ?? 'Both',
-      imageUrls: List<String>.from(data['imageUrls'] ?? []),
-      brand: data['brand'],
-      dimensions: data['dimensions'],
-      color: data['color'],
-      latitude: data['latitude']?.toDouble(),
-      longitude: data['longitude']?.toDouble(),
-      locationAddress: data['locationAddress'],
-      status: data['status'] ?? 'active',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-      viewCount: data['viewCount'] ?? 0,
-      favoriteCount: data['favoriteCount'] ?? 0,
-      isFeatured: data['isFeatured'] ?? false,
-      isPromoted: data['isPromoted'] ?? false,
-      specifications: Map<String, dynamic>.from(data['specifications'] ?? {}),
-      features: List<String>.from(data['features'] ?? []),
-      stats: ProductStats.fromMap(data['stats'] ?? {}),
-    );
+ factory ProductDetailModel.fromFirestore(DocumentSnapshot doc) {
+  Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  
+  print('=== ProductDetailModel.fromFirestore DEBUG ===');
+  print('Document ID: ${doc.id}');
+  
+  // Debug key fields
+  print('itemTitle: ${data['itemTitle']}');
+  print('title: ${data['title']}');
+  print('categorySpecificFields: ${data['categorySpecificFields']}');
+  print('flattenedFields: ${data['flattenedFields']}');
+  
+  // FIXED: Build specifications from multiple sources
+  Map<String, dynamic> specifications = {};
+  
+  // Method 1: Get categorySpecificFields (this is where your mobile fields are!)
+  if (data['categorySpecificFields'] != null) {
+    final categoryFields = data['categorySpecificFields'];
+    print('Found categorySpecificFields: $categoryFields');
+    
+    if (categoryFields is Map) {
+      categoryFields.forEach((key, value) {
+        if (key is String && value != null) {
+          specifications[key] = value;
+          print('Added category field: $key = $value');
+        }
+      });
+    }
   }
+  
+  // Method 2: Get from flattenedFields (backup)
+  if (data['flattenedFields'] != null) {
+    final flattenedFields = data['flattenedFields'];
+    if (flattenedFields is Map) {
+      flattenedFields.forEach((key, value) {
+        if (key is String && value != null) {
+          if (key.startsWith('cf_')) {
+            // Remove 'cf_' prefix
+            final fieldName = key.substring(3);
+            if (!specifications.containsKey(fieldName)) {
+              specifications[fieldName] = value;
+              print('Added flattened field: $fieldName = $value');
+            }
+          } else {
+            specifications[key] = value;
+          }
+        }
+      });
+    }
+  }
+  
+  // Method 3: Direct fields (for any fields stored directly)
+  final directFields = [
+    'storage', 'ram', 'screen_size', 'battery_capacity', 'network_type', 'dual_sim',
+    'year', 'kilometers', 'mileage', 'fuel_type', 'transmission', 'engine_capacity',
+    'processor', 'storage_type', 'storage_capacity', 'graphics_card', 'operating_system',
+    'property_type', 'area', 'bedrooms', 'bathrooms', 'furnished', 'parking'
+  ];
+  
+  for (final field in directFields) {
+    if (data[field] != null && !specifications.containsKey(field)) {
+      specifications[field] = data[field];
+      print('Added direct field: $field = ${data[field]}');
+    }
+  }
+  
+  print('Final specifications: $specifications');
+  
+  // FIXED: Build features from category fields + legacy
+  List<String> features = [];
+  
+  // Add legacy features if they exist
+  if (data['features'] is List) {
+    features.addAll(List<String>.from(data['features']));
+  }
+  
+  // Extract boolean features from categorySpecificFields
+  if (data['categorySpecificFields'] is Map) {
+    final categoryFields = data['categorySpecificFields'] as Map;
+    categoryFields.forEach((key, value) {
+      if (value is bool && value == true) {
+        final featureName = _formatFieldName(key.toString());
+        if (!features.contains(featureName)) {
+          features.add(featureName);
+        }
+      }
+    });
+  }
+  
+  print('Final features: $features');
+  
+  // FIXED: Build stats from specifications and direct data
+  Map<String, dynamic> statsData = {};
+  
+  // Legacy stats
+  if (data['stats'] is Map) {
+    statsData.addAll(Map<String, dynamic>.from(data['stats']));
+  }
+  
+  // Extract stats from specifications
+  final statFields = ['year', 'mileage', 'fuel_type', 'transmission', 'engine_capacity', 'body_type'];
+  for (final field in statFields) {
+    if (specifications.containsKey(field) && !statsData.containsKey(field)) {
+      statsData[field] = specifications[field];
+    }
+  }
+  
+  // Map new field names to old stat names for compatibility
+  if (specifications.containsKey('kilometers') && !statsData.containsKey('mileage')) {
+    statsData['mileage'] = specifications['kilometers'];
+  }
+  if (specifications.containsKey('fuel_type') && !statsData.containsKey('fuelType')) {
+    statsData['fuelType'] = specifications['fuel_type'];
+  }
+  
+  print('Final stats: $statsData');
+  print('=== END DEBUG ===');
+  
+  return ProductDetailModel(
+    id: doc.id,
+    sellerId: data['sellerId'] ?? '',
+    sellerName: data['sellerName'] ?? '',
+    sellerType: data['sellerType'] ?? 'individual',
+    
+    // FIXED: Use itemTitle (how ItemProvider saves it)
+    title: data['itemTitle'] ?? data['title'] ?? '',
+    
+    description: data['description'] ?? '',
+    category: data['category'] ?? '',
+    condition: data['condition'] ?? 'Used',
+    price: (data['price'] ?? 0.0).toDouble(),
+    allowPriceNegotiation: data['allowPriceNegotiation'] ?? true,
+    shippingOption: data['shippingOption'] ?? 'Both',
+    imageUrls: List<String>.from(data['imageUrls'] ?? []),
+    brand: data['brand'],
+    dimensions: data['dimensions'],
+    color: data['color'],
+    latitude: data['latitude']?.toDouble(),
+    longitude: data['longitude']?.toDouble(),
+    locationAddress: data['locationAddress'],
+    status: data['status'] ?? 'active',
+    createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+    viewCount: data['viewCount'] ?? 0,
+    favoriteCount: data['favoriteCount'] ?? 0,
+    isFeatured: data['isFeatured'] ?? false,
+    isPromoted: data['isPromoted'] ?? false,
+    
+    // FIXED: Use the built specifications (not empty map!)
+    specifications: specifications,
+    features: features,
+    stats: ProductStats.fromMap(statsData),
+  );
+}
 
   Map<String, dynamic> toJson() {
     return {
@@ -129,6 +250,12 @@ class ProductDetailModel {
       'stats': stats.toMap(),
     };
   }
+  // ADDED: Helper method to format field names
+static String _formatFieldName(String fieldName) {
+  return fieldName.split('_').map((word) => 
+    word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : word
+  ).join(' ');
+}
 
   String getFormattedPrice() {
     if (price >= 10000000) {
@@ -181,14 +308,15 @@ class ProductStats {
 
   factory ProductStats.fromMap(Map<String, dynamic> map) {
     return ProductStats(
-      year: map['year'],
-      mileage: map['mileage'],
-      fuelType: map['fuelType'],
-      transmission: map['transmission'],
-      engineCapacity: map['engineCapacity'],
-      bodyType: map['bodyType'],
-      assembly: map['assembly'],
-      registeredIn: map['registeredIn'],
+      // Handle both old and new field names
+      year: map['year']?.toString(),
+      mileage: map['mileage']?.toString() ?? map['kilometers']?.toString(),
+      fuelType: map['fuelType']?.toString() ?? map['fuel_type']?.toString(),
+      transmission: map['transmission']?.toString(),
+      engineCapacity: map['engineCapacity']?.toString() ?? map['engine_capacity']?.toString(),
+      bodyType: map['bodyType']?.toString() ?? map['body_type']?.toString(),
+      assembly: map['assembly']?.toString(),
+      registeredIn: map['registeredIn']?.toString() ?? map['registered_in']?.toString(),
     );
   }
 
@@ -205,7 +333,6 @@ class ProductStats {
     };
   }
 }
-
 // models/seller_model.dart
 class SellerModel {
   final String id;

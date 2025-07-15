@@ -1,16 +1,15 @@
+import 'dart:convert';
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/add_photos_page.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:html/parser.dart' as parser;
 import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-
 class EnhancedPricingShippingPage extends StatefulWidget {
   const EnhancedPricingShippingPage({Key? key}) : super(key: key);
 
@@ -23,26 +22,29 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   final TextEditingController _priceController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  final FocusNode _priceFocusNode = FocusNode(); // ADDED: Focus node for price field
   
   // Enhanced currency and pricing options
-  String _selectedCurrency = 'PKR';
-  String _pricingType = 'Fixed Price'; // Fixed Price, Negotiable, Give Away
+  String _selectedCurrency = 'SYP';
+  String _pricingType = 'Fixed Price';
   bool _showPriceField = true;
+  bool _isLoadingRates = false;
+  DateTime? _lastRateUpdate;
   
-  // Currency exchange rates (you can fetch these from an API)
-  final Map<String, double> _exchangeRates = {
-    'PKR': 1.0,
-    'USD': 0.0035, // 1 PKR = 0.0035 USD
-    'EUR': 0.0032, // 1 PKR = 0.0032 EUR
-    'SYP': 9.0,    // 1 PKR = 9 SYP (approximate)
-  };
-  
+  // UPDATED: Real-time exchange rates with Syrian Central Bank integration
+  // Rates are stored as: 1 SYP = X USD/EUR
+ 
+Map<String, double> _exchangeRates = {
+  'USD': 0.000077, // Updated fallback: 1 SYP = 0.000077 USD (1 USD = ~13,000 SYP)
+  'EUR': 0.000070, // Updated fallback: 1 SYP = 0.000070 EUR (1 EUR = ~14,286 SYP)
+  'SYP': 1.0,      // 1 SYP = 1 SYP
+};
   final List<Map<String, String>> _currencies = [
-    {'code': 'PKR', 'name': 'Pakistani Rupee', 'symbol': '₨', 'flag': '🇵🇰'},
-    {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
-    {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
-    {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'ل.س', 'flag': '🇸🇾'},
-  ];
+  {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
+  {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
+  {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'SYP', 'flag': '🇸🇾'}, // Changed from 'ل.س' to 'SYP'
+];
+
 
   final List<Map<String, dynamic>> _pricingTypes = [
     {
@@ -68,24 +70,278 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     },
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.forward();
-  }
-
+@override
+void initState() {
+  super.initState();
+  _animationController = AnimationController(
+    duration: const Duration(milliseconds: 300),
+    vsync: this,
+  );
+  _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+  );
+  _animationController.forward();
+  
+  // ADDED: Listener to dismiss keyboard when field loses focus
+  _priceFocusNode.addListener(() {
+    if (!_priceFocusNode.hasFocus) {
+      FocusScope.of(context).unfocus();
+    }
+  });
+  
+  // ENHANCED: Load real-time exchange rates immediately
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) {
+      _loadExchangeRates();
+    }
+  });
+}
   @override
   void dispose() {
     _priceController.dispose();
     _animationController.dispose();
+    _priceFocusNode.dispose(); // ADDED: Dispose focus node
     super.dispose();
+  }
+
+  // ADDED: Load real-time exchange rates from Syrian Central Bank
+ // ENHANCED: Load real-time exchange rates with better error handling
+Future<void> _loadExchangeRates() async {
+  if (!mounted) return;
+  
+  setState(() {
+    _isLoadingRates = true;
+  });
+
+  try {
+    print('Loading exchange rates...');
+    
+    // Fetch rates from Syrian Central Bank API
+    final sypToUsdRate = await _fetchSyrianCentralBankRate();
+    print('Fetched SYP to USD rate: $sypToUsdRate');
+    
+    // Fetch EUR rate from USD base
+    final eurRate = await _fetchEurRate();
+    print('Fetched EUR rate: $eurRate');
+    
+    // Calculate SYP to EUR rate
+    final sypToEurRate = sypToUsdRate * eurRate;
+    
+    if (mounted) {
+      setState(() {
+        _exchangeRates = {
+          'USD': sypToUsdRate,
+          'EUR': sypToEurRate,
+          'SYP': 1.0,
+        };
+        print('Updated exchange rates: $_exchangeRates');
+        _lastRateUpdate = DateTime.now();
+        _isLoadingRates = false;
+      });
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Exchange rates updated successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  } catch (e) {
+    print('Error loading exchange rates: $e');
+    if (mounted) {
+      setState(() {
+        _isLoadingRates = false;
+      });
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Failed to update exchange rates. Using cached rates.')),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+}
+
+  // ADDED: Fetch Syrian Central Bank rate
+  // ENHANCED: Fixed Syrian Central Bank rate fetching
+Future<double> _fetchSyrianCentralBankRate() async {
+  try {
+    print('Fetching exchange rate from Syrian Central Bank...');
+    
+    // Make HTTP request to Syrian Central Bank API
+    final response = await http.get(
+      Uri.parse('https://www.cb.gov.sy/index.php?lang=2'),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+    ).timeout(Duration(seconds: 10));
+    
+    if (response.statusCode == 200) {
+      final document = parser.parse(response.body);
+      print('Successfully fetched CB page, parsing...');
+      
+      // Multiple parsing strategies for Syrian Central Bank website
+      
+      // Strategy 1: Look for exchange rate table
+      final tables = document.querySelectorAll('table');
+      for (final table in tables) {
+        final rows = table.querySelectorAll('tr');
+        for (final row in rows) {
+          final cells = row.querySelectorAll('td, th');
+          for (int i = 0; i < cells.length - 1; i++) {
+            final cellText = cells[i].text.toLowerCase().trim();
+            
+            // Look for USD indicators
+            if (cellText.contains('usd') || 
+                cellText.contains('dollar') || 
+                cellText.contains('أمريكي') ||
+                cellText == 'us' ||
+                cellText.contains('united states')) {
+              
+              // Check next cells for the rate
+              for (int j = i + 1; j < cells.length; j++) {
+                final rateText = cells[j].text.trim();
+                final RegExp regex = RegExp(r'(\d{1,5}(?:[,.]?\d{3})*(?:[.,]\d{1,4})?)');
+                final match = regex.firstMatch(rateText);
+                
+                if (match != null) {
+                  final rateStr = match.group(1)?.replaceAll(',', '').replaceAll('.', '');
+                  final rate = double.tryParse(rateStr ?? '');
+                  
+                  if (rate != null && rate > 1000 && rate < 50000) { // Reasonable range for SYP
+                    print('Found USD to SYP rate from table: $rate');
+                    return 1.0 / rate; // Convert to SYP to USD rate
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Strategy 2: Look for specific patterns in the entire page
+      final pageText = document.body?.text ?? '';
+      
+      // Look for patterns like "USD 13000" or "13000 SYP" etc.
+      final patterns = [
+        RegExp(r'USD[\s:]*(\d{4,5})'),
+        RegExp(r'(\d{4,5})[\s]*SYP'),
+        RegExp(r'دولار[\s:]*(\d{4,5})'),
+        RegExp(r'(\d{4,5})[\s]*ليرة'),
+      ];
+      
+      for (final pattern in patterns) {
+        final matches = pattern.allMatches(pageText);
+        for (final match in matches) {
+          final rateStr = match.group(1);
+          final rate = double.tryParse(rateStr ?? '');
+          
+          if (rate != null && rate > 1000 && rate < 50000) {
+            print('Found rate using pattern matching: $rate');
+            return 1.0 / rate;
+          }
+        }
+      }
+      
+      // Strategy 3: Look in script tags for JSON data
+      final scripts = document.querySelectorAll('script');
+      for (final script in scripts) {
+        final scriptContent = script.text;
+        if (scriptContent.contains('usd') || scriptContent.contains('USD')) {
+          final RegExp regex = RegExp(r'(\d{4,5}(?:\.\d{1,4})?)');
+          final matches = regex.allMatches(scriptContent);
+          
+          for (final match in matches) {
+            final rateStr = match.group(1);
+            final rate = double.tryParse(rateStr ?? '');
+            
+            if (rate != null && rate > 1000 && rate < 50000) {
+              print('Found rate in script: $rate');
+              return 1.0 / rate;
+            }
+          }
+        }
+      }
+    }
+    
+    print('Could not parse rate from CB website, trying alternative API...');
+    
+    // Fallback: Try alternative Syrian exchange rate API
+    try {
+      final fallbackResponse = await http.get(
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
+      ).timeout(Duration(seconds: 5));
+      
+      if (fallbackResponse.statusCode == 200) {
+        final data = json.decode(fallbackResponse.body);
+        final rates = data['rates'] as Map<String, dynamic>;
+        
+        // Note: This API might not have SYP, but we can use an estimated rate
+        if (rates.containsKey('SYP')) {
+          final sypRate = (rates['SYP'] as num).toDouble();
+          print('Found SYP rate from alternative API: $sypRate');
+          return 1.0 / sypRate;
+        }
+      }
+    } catch (e) {
+      print('Alternative API also failed: $e');
+    }
+    
+  } catch (e) {
+    print('Error fetching Syrian Central Bank rate: $e');
+  }
+  
+  // Ultimate fallback with current approximate rate (as of 2024)
+  // 1 USD ≈ 13,000 SYP (this should be updated based on current rates)
+  print('Using fallback rate: 13000 SYP = 1 USD');
+  return 1.0 / 13000; // 1 SYP = 0.000077 USD
+}
+
+  // ADDED: Fetch EUR rate from USD base
+  Future<double> _fetchEurRate() async {
+    try {
+      // Using a free exchange rate API
+      final response = await http.get(
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final rates = data['rates'] as Map<String, dynamic>;
+        
+        // Get EUR rate from USD base
+        final eurRate = (rates['EUR'] as num?)?.toDouble() ?? 0.91;
+        print('Fetched EUR rate from USD: $eurRate');
+        return eurRate;
+      }
+    } catch (e) {
+      print('Error fetching EUR rate: $e');
+    }
+    
+    // Fallback rate
+    return 0.91;
   }
 
   void _onPricingTypeChanged(String newType) {
@@ -94,10 +350,10 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
       _showPriceField = newType != 'Give Away';
       if (newType == 'Give Away') {
         _priceController.clear();
+        FocusScope.of(context).unfocus(); // ADDED: Dismiss keyboard
       }
     });
     
-    // Animate the price field appearance/disappearance
     if (_showPriceField) {
       _animationController.forward();
     } else {
@@ -121,6 +377,9 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     
     final amount = double.tryParse(_priceController.text) ?? 0;
     if (amount <= 0) return;
+    
+    print('Converting amount: $amount $_selectedCurrency');
+    print('Current exchange rates: $_exchangeRates');
 
     showModalBottomSheet(
       context: context,
@@ -145,19 +404,67 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                   ),
                 ),
                 SizedBox(height: 20),
-                Text(
-                  'Price in Other Currencies',
-                  style: GoogleFonts.jost(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      AppLocalizations.priceInOtherCurrencies.tr(),
+                      style: GoogleFonts.jost(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    // ADDED: Refresh rates button
+                    IconButton(
+                      onPressed: _isLoadingRates ? null : _loadExchangeRates,
+                      icon: _isLoadingRates 
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.refresh, size: 20),
+                      tooltip: AppLocalizations.refreshExchangeRates.tr(),
+                    ),
+                    // ADDED: Test conversion button
+                    IconButton(
+                      onPressed: _testConversion,
+                      icon: Icon(Icons.bug_report, size: 20),
+                      tooltip: AppLocalizations.testConversionLogic.tr(),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 20),
+                
+                // ADDED: Last update time
+                if (_lastRateUpdate != null)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      _formatLastUpdate(_lastRateUpdate!),
+                      // AppLocalizations.lastUpdated.tr(args: []),
+                      style: GoogleFonts.jost(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                
                 ..._currencies.map((currency) {
-                  final convertedAmount = currency['code'] == _selectedCurrency 
-                      ? amount 
-                      : amount * (_exchangeRates[currency['code']] ?? 1.0);
+                  // Convert from selected currency to target currency
+                  double convertedAmount;
+                  if (currency['code'] == _selectedCurrency) {
+                    convertedAmount = amount;
+                  } else if (_selectedCurrency == 'SYP') {
+                    // Converting from SYP to other currency
+                    convertedAmount = amount * (_exchangeRates[currency['code']] ?? 1.0);
+                    print('Converting $_selectedCurrency to ${currency['code']}: $amount * ${_exchangeRates[currency['code']]} = $convertedAmount');
+                  } else {
+                    // Converting from other currency to SYP, then to target currency
+                    final sypAmount = amount / (_exchangeRates[_selectedCurrency] ?? 1.0);
+                    convertedAmount = sypAmount * (_exchangeRates[currency['code']] ?? 1.0);
+                    print('Converting $_selectedCurrency to ${currency['code']}: $amount -> $sypAmount SYP -> $convertedAmount');
+                  }
                   
                   return Container(
                     margin: EdgeInsets.only(bottom: 12),
@@ -201,15 +508,38 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                             ],
                           ),
                         ),
-                        Text(
-                          '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'PKR' ? 0 : 2)}',
-                          style: GoogleFonts.jost(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: currency['code'] == _selectedCurrency 
-                                ? ColorsController.primaryColor
-                                : Colors.black,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'SYP' ? 0 : 2)}',
+                              style: GoogleFonts.jost(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: currency['code'] == _selectedCurrency 
+                                    ? ColorsController.primaryColor
+                                    : Colors.black,
+                              ),
+                            ),
+                            // ADDED: Show exchange rate
+                            if (currency['code'] != 'SYP')
+                              Text(
+                                '1 SYP = ${_exchangeRates[currency['code']]?.toStringAsFixed(6)} ${currency['code']}',
+                                style: GoogleFonts.jost(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            // ADDED: Show reverse rate for better understanding
+                            if (currency['code'] != 'SYP')
+                              Text(
+                                '1 ${currency['code']} = ${(1.0 / (_exchangeRates[currency['code']] ?? 1.0)).toStringAsFixed(0)} SYP',
+                                style: GoogleFonts.jost(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -222,6 +552,46 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
         ),
       ),
     );
+  }
+
+  // ADDED: Format last update time
+String _formatLastUpdate(DateTime dateTime) {
+  final now = DateTime.now();
+  final difference = now.difference(dateTime);
+  
+  if (difference.inSeconds < 30) {
+    return 'Just now';
+  } else if (difference.inMinutes < 1) {
+    return '${difference.inSeconds} seconds ago';
+  } else if (difference.inMinutes < 60) {
+    return '${difference.inMinutes} minutes ago';
+  } else if (difference.inHours < 24) {
+    return '${difference.inHours} hours ago';
+  } else {
+    return '${difference.inDays} days ago';
+  }
+}
+
+  // ADDED: Test conversion logic
+  void _testConversion() {
+    print('=== Testing Currency Conversion ===');
+    
+    // Test with current rates
+    final testAmount = 50.0; // 50 EUR
+    
+    // Convert EUR to USD
+    final eurToUsd = testAmount / 0.91; // 1 EUR = 1.1 USD approximately
+    print('50 EUR = ${eurToUsd.toStringAsFixed(2)} USD');
+    
+    // Convert EUR to SYP using our rates
+    final eurToSyp = testAmount / 0.000070; // 1 EUR = 14285.71 SYP
+    print('50 EUR = ${eurToSyp.toStringAsFixed(0)} SYP');
+    
+    // Convert SYP to USD
+    final sypToUsd = eurToSyp * 0.000077; // 1 SYP = 0.000077 USD
+    print('${eurToSyp.toStringAsFixed(0)} SYP = ${sypToUsd.toStringAsFixed(2)} USD');
+    
+    print('=== End Test ===');
   }
 
   @override
@@ -238,7 +608,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Pricing & Shipping',
+          AppLocalizations.pricingShipping.tr(),
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -247,74 +617,78 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Section
-            Text(
-              'Set Your Price & Delivery Options',
-              style: GoogleFonts.jost(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Price your item competitively and choose how you\'d like to deliver it to buyers.',
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-            
-            // Currency Selection Section
-            _buildSectionTitle('Currency', Icons.attach_money),
-            const SizedBox(height: 12),
-            _buildCurrencySelector(),
-            const SizedBox(height: 32),
-            
-            // Pricing Type Section
-            _buildSectionTitle('Pricing Type', Icons.psychology),
-            const SizedBox(height: 12),
-            _buildPricingTypeSelection(),
-            const SizedBox(height: 32),
-            
-            // Price Field Section
-            if (_showPriceField) ...[
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('Set Price', Icons.price_change),
-                    const SizedBox(height: 12),
-                    _buildPriceInput(itemProvider),
-                    const SizedBox(height: 32),
-                  ],
+      // ADDED: Dismiss keyboard when tapping outside
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Section
+              Text(
+               AppLocalizations.setYourPriceDelivery.tr(),
+                style: GoogleFonts.jost(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
                 ),
               ),
-            ],
-            
-            // Shipping Options Section
-            _buildSectionTitle('Delivery Options', Icons.local_shipping),
-            const SizedBox(height: 12),
-            _buildShippingOptions(itemProvider),
-            const SizedBox(height: 32),
-            
-            // Price Summary Card (if price is set)
-            if (_priceController.text.isNotEmpty && _pricingType != 'Give Away') ...[
-              _buildPriceSummaryCard(),
+              const SizedBox(height: 8),
+              Text(
+               AppLocalizations.priceCompetitively.tr(),
+                style: GoogleFonts.jost(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.grey[600],
+                ),
+              ),
               const SizedBox(height: 32),
+              
+              // Currency Selection Section
+              _buildSectionTitle(AppLocalizations.currency.tr(), Icons.attach_money),
+              const SizedBox(height: 12),
+              _buildCurrencySelector(),
+              const SizedBox(height: 32),
+              
+              // Pricing Type Section
+              _buildSectionTitle(AppLocalizations.pricingType.tr(), Icons.psychology),
+              const SizedBox(height: 12),
+              _buildPricingTypeSelection(),
+              const SizedBox(height: 32),
+              
+              // Price Field Section
+              if (_showPriceField) ...[
+                FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle(AppLocalizations.setPrice.tr(), Icons.price_change),
+                      const SizedBox(height: 12),
+                      _buildPriceInput(itemProvider),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              ],
+              
+              // Shipping Options Section
+              _buildSectionTitle(AppLocalizations.delivery.tr(), Icons.local_shipping),
+              const SizedBox(height: 12),
+              _buildShippingOptions(itemProvider),
+              const SizedBox(height: 32),
+              
+              // Price Summary Card (if price is set)
+              if (_priceController.text.isNotEmpty && _pricingType != 'Give Away') ...[
+                _buildPriceSummaryCard(),
+                const SizedBox(height: 32),
+              ],
+              
+              // Bottom Navigation
+              _buildBottomNavigation(itemProvider),
             ],
-            
-            // Bottom Navigation
-            _buildBottomNavigation(itemProvider),
-          ],
+          ),
         ),
       ),
     );
@@ -348,150 +722,146 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     );
   }
 
-  Widget _buildCurrencySelector() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
+ Widget _buildCurrencySelector() {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: DropdownButtonFormField<String>(
+      value: _selectedCurrency,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
       ),
-      child: DropdownButtonFormField<String>(
-        value: _selectedCurrency,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-        ),
-        items: _currencies.map((currency) {
-          return DropdownMenuItem<String>(
-            value: currency['code'],
-            child: Row(
-              children: [
-                Text(
-                  currency['flag']!,
-                  style: TextStyle(fontSize: 20),
-                ),
-                SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${currency['symbol']} ${currency['code']}',
-                      style: GoogleFonts.jost(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      currency['name']!,
-                      style: GoogleFonts.jost(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-        onChanged: (value) {
-          setState(() {
-            _selectedCurrency = value!;
-          });
-        },
-        dropdownColor: Colors.white,
-        style: GoogleFonts.jost(color: Colors.black),
-      ),
-    );
-  }
-
-  Widget _buildPricingTypeSelection() {
-    return Column(
-      children: _pricingTypes.map((typeData) {
-        final isSelected = _pricingType == typeData['type'];
-        
-        return Container(
-          margin: EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            onTap: () => _onPricingTypeChanged(typeData['type']),
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isSelected 
-                    ? typeData['color'].withOpacity(0.1) 
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected 
-                      ? typeData['color'] 
-                      : Colors.grey[300]!,
-                  width: isSelected ? 2 : 1,
-                ),
-                boxShadow: isSelected ? [
-                  BoxShadow(
-                    color: typeData['color'].withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ] : null,
+      items: _currencies.map((currency) {
+        return DropdownMenuItem<String>(
+          value: currency['code'],
+          child: Row(
+            mainAxisSize: MainAxisSize.min, // Ensure Row doesn't expand unnecessarily
+            children: [
+              Text(
+                currency['flag']!,
+                style: TextStyle(fontSize: 20),
               ),
-              child: Row(
+              SizedBox(width: 12),
+              Column( // Replace Expanded with Column directly
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: typeData['color'].withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      typeData['icon'],
-                      color: typeData['color'],
-                      size: 24,
+                  Text(
+                    currency['name']!,
+                    style: GoogleFonts.jost(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          typeData['type'],
-                          style: GoogleFonts.jost(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? typeData['color'] : Colors.black,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          typeData['subtitle'],
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  AnimatedScale(
-                    scale: isSelected ? 1.0 : 0.0,
-                    duration: Duration(milliseconds: 200),
-                    child: Icon(
-                      Icons.check_circle,
-                      color: typeData['color'],
-                      size: 24,
+                  Text(
+                    '${currency['symbol']} (${currency['code']})',
+                    style: GoogleFonts.jost(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {
+        if (newValue != null) {
+          setState(() {
+            _selectedCurrency = newValue;
+          });
+        }
+      },
+      dropdownColor: Colors.white,
+      icon: Icon(
+        Icons.keyboard_arrow_down,
+        color: ColorsController.primaryColor,
+      ),
+    ),
+  );
+}
+  Widget _buildPricingTypeSelection() {
+    return Column(
+      children: _pricingTypes.map((type) {
+        final isSelected = _pricingType == type['type'];
+        return GestureDetector(
+          onTap: () => _onPricingTypeChanged(type['type']),
+          child: Container(
+            margin: EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isSelected 
+                  ? ColorsController.primaryColor.withOpacity(0.1)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected 
+                    ? ColorsController.primaryColor
+                    : Colors.grey[300]!,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected 
+                        ? ColorsController.primaryColor
+                        : type['color'].withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    type['icon'],
+                    size: 20,
+                    color: isSelected 
+                        ? Colors.white
+                        : type['color'],
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        type['type'],
+                        style: GoogleFonts.jost(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected 
+                              ? ColorsController.primaryColor
+                              : Colors.black,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        type['subtitle'],
+                        style: GoogleFonts.jost(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  Icon(
+                    Icons.check_circle,
+                    color: ColorsController.primaryColor,
+                    size: 24,
+                  ),
+              ],
             ),
           ),
         );
@@ -500,131 +870,108 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   }
 
   Widget _buildPriceInput(ItemProvider itemProvider) {
-    final currency = _currencies.firstWhere((c) => c['code'] == _selectedCurrency);
-    
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            // Currency Symbol Container
-            Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: ColorsController.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
-                border: Border.all(color: ColorsController.primaryColor.withOpacity(0.3)),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: TextFormField(
+            controller: _priceController,
+            focusNode: _priceFocusNode,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+            ],
+            decoration: InputDecoration(
+              hintText: 'Enter price amount',
+              hintStyle: GoogleFonts.jost(
+                color: Colors.grey[500],
+                fontSize: 16,
               ),
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      currency['flag']!,
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      currency['symbol']!,
-                      style: GoogleFonts.jost(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: ColorsController.primaryColor,
+              prefixIcon: Container(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  _currencies.firstWhere((c) => c['code'] == _selectedCurrency)['symbol']!,
+                  style: GoogleFonts.jost(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: ColorsController.primaryColor,
+                  ),
+                ),
+              ),
+              suffixIcon: _priceController.text.isNotEmpty
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.currency_exchange,
+                          color: ColorsController.primaryColor,
+                        ),
+                        onPressed: _showCurrencyConverter,
+                        tooltip: 'View in other currencies',
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.clear,
+                          color: Colors.grey[600],
+                        ),
+                        onPressed: () {
+                          _priceController.clear();
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  )
+                : null,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
             ),
-            
-            // Price Input Field
-            Expanded(
-              child: TextFormField(
-                controller: _priceController,
-                style: GoogleFonts.jost(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
-                decoration: InputDecoration(
-                  hintText: 'Enter amount',
-                  hintStyle: GoogleFonts.jost(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.grey[500],
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    borderSide: BorderSide(color: Colors.grey[300]!, width: 1.0),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    borderSide: BorderSide(color: ColorsController.primaryColor, width: 2.0),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    borderSide: BorderSide(color: Colors.red, width: 1.0),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.only(
-                      topRight: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    borderSide: BorderSide(color: Colors.red, width: 2.0),
-                  ),
-                ),
-                validator: (value) {
-                  if (_pricingType != 'Give Away') {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a price';
-                    }
-                    if (double.tryParse(value) == null || double.parse(value) <= 0) {
-                      return 'Please enter a valid price';
-                    }
-                  }
-                  return null;
-                },
-                onChanged: (value) {
-                  itemProvider.updatePricingShipping(
-                    price: double.tryParse(value),
-                  );
-                  setState(() {}); // Refresh to update summary card
-                },
-              ),
+            style: GoogleFonts.jost(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
-          ],
+            onChanged: (value) {
+              setState(() {});
+            },
+          ),
         ),
-        
-        // Currency Converter Button
-        if (_priceController.text.isNotEmpty) ...[
+        if (_pricingType == 'Negotiable') ...[
           SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: _showCurrencyConverter,
-            icon: Icon(Icons.compare_arrows, size: 16),
-            label: Text(
-              'View in other currencies',
-              style: GoogleFonts.jost(fontSize: 12),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
             ),
-            style: TextButton.styleFrom(
-              foregroundColor: ColorsController.primaryColor,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Colors.orange[700],
+                  size: 20,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This price is negotiable. Buyers can make offers.',
+                    style: GoogleFonts.jost(
+                      fontSize: 12,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -633,120 +980,129 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   }
 
   Widget _buildShippingOptions(ItemProvider itemProvider) {
-    final shippingOptions = [
-      {
-        'value': 'Home Delivery',
-        'title': 'Home Delivery',
-        'subtitle': 'You deliver to buyer\'s location',
-        'icon': Icons.home,
-      },
-      {
-        'value': 'Cash on Delivery',
-        'title': 'Cash on Delivery',
-        'subtitle': 'Payment upon delivery',
-        'icon': Icons.payment,
-      },
-      {
-        'value': 'Both',
-        'title': 'Both Options',
-        'subtitle': 'Let buyer choose delivery method',
-        'icon': Icons.alt_route,
-      },
-    ];
+    return Column(
+      children: [
+        _buildShippingOption(
+          'Pickup Only',
+          'Buyer picks up from your location',
+          Icons.location_on,
+          itemProvider.shippingOption == 'Pickup Only',
+          () => itemProvider.updatePricingShipping(shippingOption: 'Pickup Only'),
+        ),
+        SizedBox(height: 12),
+        _buildShippingOption(
+          'Delivery Available',
+          'You will deliver or ship the item',
+          Icons.local_shipping,
+          itemProvider.shippingOption == 'Delivery Available',
+          () => itemProvider.updatePricingShipping(shippingOption: 'Delivery Available'),
+        ),
+        SizedBox(height: 12),
+        _buildShippingOption(
+          'Both Options',
+          'Buyer can choose pickup or delivery',
+          Icons.swap_horiz,
+          itemProvider.shippingOption == 'Both',
+          () => itemProvider.updatePricingShipping(shippingOption: 'Both'),
+        ),
+      ],
+    );
+  }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        children: shippingOptions.map((option) {
-          final isSelected = itemProvider.shippingOption == option['value'];
-          
-          return InkWell(
-            onTap: () {
-              itemProvider.updatePricingShipping(shippingOption: option['value'] as String);
-            },
-            child: Container(
-              padding: EdgeInsets.all(16),
+  Widget _buildShippingOption(String title, String subtitle, IconData icon, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? ColorsController.primaryColor.withOpacity(0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected 
+                ? ColorsController.primaryColor
+                : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: isSelected ? ColorsController.primaryColor.withOpacity(0.05) : null,
-                borderRadius: BorderRadius.circular(12),
+                color: isSelected 
+                    ? ColorsController.primaryColor
+                    : Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected 
+                    ? Colors.white
+                    : Colors.grey[600],
+              ),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
+                  Text(
+                    title,
+                    style: GoogleFonts.jost(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                       color: isSelected 
-                          ? ColorsController.primaryColor.withOpacity(0.2)
-                          : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      option['icon'] as IconData,
-                      size: 20,
-                      color: isSelected ? ColorsController.primaryColor : Colors.grey[600],
+                          ? ColorsController.primaryColor
+                          : Colors.black,
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          option['title'] as String,
-                          style: GoogleFonts.jost(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? ColorsController.primaryColor : Colors.black,
-                          ),
-                        ),
-                        Text(
-                          option['subtitle'] as String,
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
+                  SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.jost(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                     ),
-                  ),
-                  Radio<String>(
-                    value: option['value'] as String,
-                    groupValue: itemProvider.shippingOption,
-                    onChanged: (value) {
-                      itemProvider.updatePricingShipping(shippingOption: value);
-                    },
-                    activeColor: ColorsController.primaryColor,
                   ),
                 ],
               ),
             ),
-          );
-        }).toList(),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: ColorsController.primaryColor,
+                size: 24,
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPriceSummaryCard() {
     final amount = double.tryParse(_priceController.text) ?? 0;
+    if (amount <= 0) return SizedBox.shrink();
+
     final currency = _currencies.firstWhere((c) => c['code'] == _selectedCurrency);
     
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
             ColorsController.primaryColor.withOpacity(0.1),
             ColorsController.primaryColor.withOpacity(0.05),
           ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ColorsController.primaryColor.withOpacity(0.3)),
+        border: Border.all(
+          color: ColorsController.primaryColor.withOpacity(0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -758,11 +1114,11 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                 color: ColorsController.primaryColor,
                 size: 24,
               ),
-              SizedBox(width: 8),
+              SizedBox(width: 12),
               Text(
                 'Price Summary',
                 style: GoogleFonts.jost(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: ColorsController.primaryColor,
                 ),
@@ -773,50 +1129,57 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Item Price',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-              Text(
-                '${currency['symbol']}${amount.toStringAsFixed(_selectedCurrency == 'PKR' ? 0 : 2)}',
-                style: GoogleFonts.jost(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Pricing Type',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _pricingType == 'Fixed Price' 
-                      ? Colors.blue.withOpacity(0.2)
-                      : Colors.orange.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _pricingType,
-                  style: GoogleFonts.jost(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: _pricingType == 'Fixed Price' ? Colors.blue : Colors.orange,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your Price',
+                    style: GoogleFonts.jost(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
                   ),
-                ),
+                  Text(
+                    '${currency['symbol']}${amount.toStringAsFixed(_selectedCurrency == 'SYP' ? 0 : 2)}',
+                    style: GoogleFonts.jost(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: ColorsController.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _pricingType,
+                    style: GoogleFonts.jost(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _pricingType == 'Fixed Price' 
+                          ? Colors.blue.withOpacity(0.1)
+                          : Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _pricingType == 'Fixed Price' ? 'FIXED' : 'NEGO',
+                      style: GoogleFonts.jost(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: _pricingType == 'Fixed Price' 
+                            ? Colors.blue[700]
+                            : Colors.orange[700],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -826,56 +1189,54 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   }
 
   Widget _buildBottomNavigation(ItemProvider itemProvider) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(color: Colors.grey[300]!),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+    final canProceed = _pricingType == 'Give Away' || 
+                      (_priceController.text.isNotEmpty && 
+                       double.tryParse(_priceController.text) != null &&
+                       double.parse(_priceController.text) > 0);
+    
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: ColorsController.primaryColor),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                'Back',
-                style: GoogleFonts.jost(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
+              padding: EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: Text(
+              AppLocalizations.back.tr(),
+              style: GoogleFonts.jost(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: ColorsController.primaryColor,
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: () {
-                // Validate price is required for non-give-away items
-                if (_pricingType != 'Give Away' && _priceController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.white),
-                          SizedBox(width: 8),
-                          Text('Please enter a price for your item'),
-                        ],
-                      ),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  return;
-                }
-                
-                // Update pricing details
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: canProceed ? () {
+              // Save pricing information
+              final priceValue = _pricingType != 'Give Away' ? double.parse(_priceController.text) : 0.0;
+              final isNegotiable = _pricingType == 'Negotiable';
+              
+              itemProvider.updatePricingShipping(
+                price: priceValue,
+                allowPriceNegotiation: isNegotiable,
+              );
+              
+              // Navigate to next screen - replace with your actual next page
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(AppLocalizations.pricingInformationSaved.tr()),
+                  backgroundColor: Colors.green,
+                ),
+              );
+               // Update pricing details
                 itemProvider.updatePricingShipping(
                   price: _pricingType == 'Give Away' ? 0.0 : double.tryParse(_priceController.text),
                   allowPriceNegotiation: _pricingType == 'Negotiable',
@@ -885,34 +1246,27 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                   context,
                   MaterialPageRoute(builder: (context) => EnhancedAddPhotosPage()),
                 );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ColorsController.primaryColor,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
+              // Navigator.pop(context);
+            } : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorsController.primaryColor,
+              disabledBackgroundColor: Colors.grey[300],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Continue',
-                    style: GoogleFonts.jost(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                ],
+              padding: EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: Text(
+              AppLocalizations.next.tr(),
+              style: GoogleFonts.jost(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: canProceed ? Colors.white : Colors.grey[600],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

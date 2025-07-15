@@ -2,10 +2,14 @@
 import 'package:arabicmarketplace/screens/account/controller/my_ads_provider.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
+import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/item_details_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
 class MyAdsPage extends StatefulWidget {
   const MyAdsPage({Key? key}) : super(key: key);
 
@@ -17,12 +21,16 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
   late MyAdsProvider _adsProvider;
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  
 
   @override
   void initState() {
     super.initState();
     _adsProvider = MyAdsProvider();
     _tabController = TabController(length: 4, vsync: this);
+       // NEW: Load edit data if in edit mode
+       
+   
   }
 
   @override
@@ -38,20 +46,20 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     return ChangeNotifierProvider.value(
       value: _adsProvider,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'My Ads',
+            AppLocalizations.myAds.tr(),
             style: GoogleFonts.jost(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           centerTitle: false,
@@ -61,11 +69,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                 return Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.search, color: Colors.black),
+                      icon: Icon(Icons.search, color: Theme.of(context).colorScheme.onBackground),
                       onPressed: () => _showSearchDialog(provider),
                     ),
                     IconButton(
-                      icon: Icon(Icons.refresh, color: Colors.black),
+                      icon: Icon(Icons.refresh, color: Theme.of(context).colorScheme.onBackground),
                       onPressed: provider.isLoading ? null : () => provider.refreshAds(),
                     ),
                   ],
@@ -84,10 +92,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
                     Text(
-                      'Loading your ads...',
+                      AppLocalizations.loadingYourAds.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 16,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                   ],
@@ -100,17 +108,17 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
                     SizedBox(height: 16),
                     Text(
                       provider.error!,
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => provider.refreshAds(),
-                      child: Text('Retry'),
+                      child: Text(AppLocalizations.retry.tr()),
                     ),
                   ],
                 ),
@@ -139,10 +147,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => ItemDetailsPage()));
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ItemDetailsPage(productToEdit:null,)));
           },
-          backgroundColor: Colors.green[700],
-          child: Icon(Icons.add, color: Colors.white),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          child: Icon(Icons.add, color: Theme.of(context).colorScheme.onPrimary),
         ),
       ),
     );
@@ -165,7 +173,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   child: Icon(
                     Icons.directions_bike,
                     size: 120,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                   ),
                 ),
                 // Orange house
@@ -176,7 +184,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     width: 30,
                     height: 30,
                     decoration: BoxDecoration(
-                      color: Colors.orange,
+                      color: Theme.of(context).colorScheme.secondary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(
@@ -194,7 +202,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     width: 25,
                     height: 25,
                     decoration: BoxDecoration(
-                      color: Colors.cyan,
+                      color: Theme.of(context).colorScheme.primary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -206,7 +214,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     width: 35,
                     height: 35,
                     decoration: BoxDecoration(
-                      color: Colors.cyan,
+                      color: Theme.of(context).colorScheme.primary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -218,8 +226,8 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   child: Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.error,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -230,21 +238,21 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           const SizedBox(height: 40),
           // Main text
           Text(
-            'you haven\'t listed anything yet',
+            AppLocalizations.noAdsYet.tr(),
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           const SizedBox(height: 12),
           // Subtitle
           Text(
-            'let go of what you don\'t use anymore',
+            AppLocalizations.letGoUnused.tr(),
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w300,
-              color: Colors.grey[600],
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 30),
@@ -254,9 +262,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                Navigator.push(context, MaterialPageRoute(builder: (context) => ItemDetailsPage()));
             },
             icon: Icon(Icons.add),
-            label: Text('List Your First Item'),
+            label: Text(AppLocalizations.listFirstItem.tr()),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green[700],
+              backgroundColor: Theme.of(context).colorScheme.primary,
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
@@ -272,27 +280,27 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       margin: EdgeInsets.all(16),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: Theme.of(context).colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
           Text(
-            'My Ads Overview',
+           AppLocalizations.myAdsOverview.tr(),
             style: GoogleFonts.jost(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('Total', stats['total']!, Colors.blue),
-              _buildStatItem('Active', stats['active']!, Colors.green),
-              _buildStatItem('Sold', stats['sold']!, Colors.orange),
-              _buildStatItem('Views', stats['totalViews']!, Colors.purple),
+              _buildStatItem(AppLocalizations.total.tr(), stats['total']!, Theme.of(context).colorScheme.primary),
+              _buildStatItem(AppLocalizations.active.tr(), stats['active']!, Theme.of(context).colorScheme.primary),
+              _buildStatItem(AppLocalizations.sold.tr(), stats['sold']!, Theme.of(context).colorScheme.error),
+              _buildStatItem(AppLocalizations.views.tr(), stats['totalViews']!, Theme.of(context).colorScheme.secondary),
             ],
           ),
         ],
@@ -315,7 +323,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           label,
           style: GoogleFonts.jost(
             fontSize: 12,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
           ),
         ),
       ],
@@ -327,10 +335,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       padding: EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _buildTabButton('All', 0, provider),
-          _buildTabButton('Active', 1, provider),
-          _buildTabButton('Sold', 2, provider),
-          _buildTabButton('Inactive', 3, provider),
+          _buildTabButton(AppLocalizations.all.tr(), 0, provider),
+          _buildTabButton(AppLocalizations.active.tr(), 1, provider),
+          _buildTabButton(AppLocalizations.sold.tr(), 2, provider),
+          _buildTabButton(AppLocalizations.inactive.tr(), 3, provider),
         ],
       ),
     );
@@ -347,7 +355,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: isSelected ? Colors.green[700]! : Colors.transparent,
+                color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -358,7 +366,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
             style: GoogleFonts.jost(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: isSelected ? Colors.green[700] : Colors.grey[600],
+              color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
         ),
@@ -374,13 +382,13 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[400]),
+            Icon(Icons.inventory_2_outlined, size: 64, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
             SizedBox(height: 16),
             Text(
-              'No ads in this category',
+              AppLocalizations.noAdsInCategory.tr(),
               style: GoogleFonts.jost(
                 fontSize: 16,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ],
@@ -405,11 +413,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: Offset(0, 2),
@@ -438,7 +446,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     height: 80,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      color: Colors.grey[200],
+                      color: Theme.of(context).colorScheme.surfaceVariant,
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
@@ -447,10 +455,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                               ad.imageUrls.first,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                return Icon(Icons.image, color: Colors.grey[400]);
+                                return Icon(Icons.image, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
                               },
                             )
-                          : Icon(Icons.image, color: Colors.grey[400]),
+                          : Icon(Icons.image, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                     ),
                   ),
                   SizedBox(width: 12),
@@ -465,7 +473,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.black,
+                            color: Theme.of(context).colorScheme.onBackground,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -476,61 +484,35 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           style: GoogleFonts.jost(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green[700],
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         SizedBox(height: 4),
                         Row(
                           children: [
                             _buildStatusChip(ad.status),
-                            if (ad.isPromoted) ...[
-                              SizedBox(width: 8),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.amber.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.amber),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.star, size: 10, color: Colors.amber),
-                                    SizedBox(width: 2),
-                                    Text(
-                                      'PROMOTED',
-                                      style: GoogleFonts.jost(
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.amber[700],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                         SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.visibility, size: 14, color: Colors.grey[600]),
+                            Icon(Icons.visibility, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                             SizedBox(width: 4),
                             Text(
                               ad.viewCount.toString(),
                               style: GoogleFonts.jost(
                                 fontSize: 12,
-                                color: Colors.grey[600],
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                               ),
                             ),
                             SizedBox(width: 8),
-                            Icon(Icons.favorite, size: 14, color: Colors.grey[600]),
+                            Icon(Icons.favorite, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                             SizedBox(width: 4),
                             Text(
                               ad.favoriteCount.toString(),
                               style: GoogleFonts.jost(
                                 fontSize: 12,
-                                color: Colors.grey[600],
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                               ),
                             ),
                             Spacer(),
@@ -538,7 +520,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                               ad.getTimeSincePosted(),
                               style: GoogleFonts.jost(
                                 fontSize: 12,
-                                color: Colors.grey[500],
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                               ),
                             ),
                           ],
@@ -549,7 +531,8 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   
                   // Actions Menu
                   PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                    icon: Icon(Icons.more_vert, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
+                    color: Theme.of(context).colorScheme.surface,
                     onSelected: (value) => _handleAdAction(value, ad, provider),
                     itemBuilder: (context) => [
                       if (ad.status == 'active') ...[
@@ -557,9 +540,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           value: 'sold', 
                           child: Row(
                             children: [
-                              Icon(Icons.check_circle, size: 18, color: Colors.orange),
+                              Icon(Icons.check_circle, size: 18, color: Theme.of(context).colorScheme.error),
                               SizedBox(width: 8),
-                              Text('Mark as Sold'),
+                              Text(AppLocalizations.markAsSold.tr()),
                             ],
                           ),
                         ),
@@ -567,9 +550,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           value: 'inactive', 
                           child: Row(
                             children: [
-                              Icon(Icons.pause_circle, size: 18, color: Colors.grey),
+                              Icon(Icons.pause_circle, size: 18, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                               SizedBox(width: 8),
-                              Text('Mark as Inactive'),
+                              Text(AppLocalizations.markAsInactive.tr()),
                             ],
                           ),
                         ),
@@ -579,9 +562,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           value: 'active', 
                           child: Row(
                             children: [
-                              Icon(Icons.play_circle, size: 18, color: Colors.green),
+                              Icon(Icons.play_circle, size: 18, color: Theme.of(context).colorScheme.primary),
                               SizedBox(width: 8),
-                              Text('Mark as Active'),
+                              Text(AppLocalizations.markAsActive.tr()),
                             ],
                           ),
                         ),
@@ -591,28 +574,16 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                           value: 'active', 
                           child: Row(
                             children: [
-                              Icon(Icons.play_circle, size: 18, color: Colors.green),
+                              Icon(Icons.play_circle, size: 18, color: Theme.of(context).colorScheme.primary),
                               SizedBox(width: 8),
-                              Text('Mark as Active'),
+                              Text(AppLocalizations.markAsActive.tr()),
                             ],
                           ),
                         ),
                       ],
+
                       PopupMenuItem(
-                        value: 'promote', 
-                        child: Row(
-                          children: [
-                            Icon(
-                              ad.isPromoted ? Icons.star : Icons.star_border,
-                              size: 18,
-                              color: Colors.amber,
-                            ),
-                            SizedBox(width: 8),
-                            Text(ad.isPromoted ? 'Remove Promotion' : 'Promote Ad'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
+                        
                         value: 'edit', 
                         child: Row(
                           children: [
@@ -626,9 +597,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                         value: 'delete',
                         child: Row(
                           children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
+                            Icon(Icons.delete, size: 18, color: Theme.of(context).colorScheme.error),
                             SizedBox(width: 8),
-                            Text('Delete Ad', style: TextStyle(color: Colors.red)),
+                            Text(AppLocalizations.deleteAd.tr(), style: TextStyle(color: Theme.of(context).colorScheme.error)),
                           ],
                         ),
                       ),
@@ -644,39 +615,17 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _showPromoteDialog(ad, provider),
-                        icon: Icon(
-                          ad.isPromoted ? Icons.star : Icons.star_border,
-                          size: 16,
-                          color: Colors.amber,
-                        ),
-                        label: Text(
-                          ad.isPromoted ? 'Promoted' : 'Promote',
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            color: Colors.amber[700],
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.amber),
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
                         onPressed: () => _editAd(ad),
-                        icon: Icon(Icons.edit, size: 16, color: Colors.blue),
+                        icon: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.primary),
                         label: Text(
-                          'Edit',
+                          AppLocalizations.edit.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 12,
-                            color: Colors.blue,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.blue),
+                          side: BorderSide(color: Theme.of(context).colorScheme.primary),
                           padding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
@@ -691,25 +640,27 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     );
   }
 
+
+
   Widget _buildStatusChip(String status) {
     Color color;
     String text;
     
     switch (status) {
       case 'active':
-        color = Colors.green;
-        text = 'Active';
+        color = Theme.of(context).colorScheme.primary;
+        text = AppLocalizations.active.tr();
         break;
       case 'sold':
-        color = Colors.orange;
-        text = 'Sold';
+        color = Theme.of(context).colorScheme.error;
+        text = AppLocalizations.sold.tr();
         break;
       case 'inactive':
-        color = Colors.grey;
-        text = 'Inactive';
+        color = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+        text = AppLocalizations.inactive.tr();
         break;
       default:
-        color = Colors.grey;
+        color = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
         text = status;
     }
 
@@ -731,199 +682,29 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     );
   }
 
-  // Enhanced promote dialog
-  void _showPromoteDialog(ProductModel ad, MyAdsProvider provider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.star, color: Colors.amber, size: 24),
-            SizedBox(width: 8),
-            Text(
-              ad.isPromoted ? 'Remove Promotion' : 'Promote Your Ad',
-              style: GoogleFonts.jost(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!ad.isPromoted) ...[
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '✨ Promotion Benefits:',
-                      style: GoogleFonts.jost(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber[800],
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '• Your ad will appear at the top of search results\n'
-                      '• Increased visibility to potential buyers\n'
-                      '• Higher chance of quick sale\n'
-                      '• Promotion lasts for 30 days',
-                      style: GoogleFonts.jost(
-                        fontSize: 12,
-                        color: Colors.amber[700],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Promote "${ad.title}" for better visibility?',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-            ] else ...[
-              Text(
-                'Remove promotion for "${ad.title}"?',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Your ad will return to normal listing position.',
-                style: GoogleFonts.jost(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              bool success;
-              if (ad.isPromoted) {
-                success = await provider.removePromotion(ad.id);
-                _showActionResult(success, 'Promotion removed successfully');
-              } else {
-                success = await provider.promoteAd(ad.id);
-                _showActionResult(success, 'Ad promoted successfully');
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ad.isPromoted ? Colors.grey[600] : Colors.amber,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              ad.isPromoted ? 'Remove' : 'Promote',
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // Edit ad functionality
-  void _editAd(ProductModel ad) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.edit, color: Colors.blue, size: 24),
-            SizedBox(width: 8),
-            Text(
-              'Edit Options',
-              style: GoogleFonts.jost(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
-            ),
-          ],
+  // ENHANCED: Edit ad functionality - Navigate to ItemDetailsPage
+void _editAd(ProductModel ad) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ChangeNotifierProvider(
+        create: (context) => ItemProvider(),
+        child: ItemDetailsPage(
+          productToEdit: ad, // Pass the product to edit
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(Icons.title, color: Colors.blue),
-              title: Text('Edit Title & Description', style: GoogleFonts.jost()),
-              subtitle: Text('Update basic information', style: GoogleFonts.jost(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _editBasicInfo(ad);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.attach_money, color: Colors.green),
-              title: Text('Edit Price', style: GoogleFonts.jost()),
-              subtitle: Text('Update pricing and negotiation', style: GoogleFonts.jost(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _editPrice(ad);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.photo_library, color: Colors.orange),
-              title: Text('Edit Photos', style: GoogleFonts.jost()),
-              subtitle: Text('Add or remove images', style: GoogleFonts.jost(fontSize: 12)),
-              onTap: () {
-                Navigator.pop(context);
-                _editPhotos(ad);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-        ],
       ),
-    );
-  }
+    ),
+  ).then((result) {
+    // If edit was successful, refresh the ads list
+    if (result == true) {
+      _adsProvider.refreshAds();
+    }
+  });
+}
+
 
   void _editBasicInfo(ProductModel ad) {
     final titleController = TextEditingController(text: ad.title);
@@ -934,11 +715,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Edit Basic Information',
+          AppLocalizations.editBasicInfo.tr(),
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         content: Column(
@@ -948,7 +729,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
               controller: titleController,
               style: GoogleFonts.jost(fontSize: 14),
               decoration: InputDecoration(
-                labelText: 'Title',
+                labelText:AppLocalizations.itemTitle.tr(),
                 labelStyle: GoogleFonts.jost(fontSize: 14),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -959,7 +740,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
               style: GoogleFonts.jost(fontSize: 14),
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: 'Description',
+                labelText:AppLocalizations.description.tr(),
                 labelStyle: GoogleFonts.jost(fontSize: 14),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -969,7 +750,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.jost(color: Colors.grey[600])),
+            child: Text(AppLocalizations.cancel.tr(), style: GoogleFonts.jost(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -979,9 +760,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                 titleController.text,
                 descriptionController.text,
               );
-              _showActionResult(success, 'Ad information updated successfully');
+              _showActionResult(success, AppLocalizations.adInfoUpdatedSuccessfully.tr());
             },
-            child: Text('Save', style: GoogleFonts.jost()),
+            child: Text(AppLocalizations.save.tr()),
           ),
         ],
       ),
@@ -998,11 +779,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         builder: (context, setState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
-            'Edit Price',
+            AppLocalizations.editItem.tr(), // Fallback to 'editItem' if 'editPrice' does not exist
             style: GoogleFonts.jost(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           content: Column(
@@ -1013,7 +794,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                 style: GoogleFonts.jost(fontSize: 14),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: 'Price',
+                  labelText: AppLocalizations.price.tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixText: 'Rs ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -1021,7 +802,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
               ),
               SizedBox(height: 16),
               CheckboxListTile(
-                title: Text('Allow Price Negotiation', style: GoogleFonts.jost(fontSize: 14)),
+                title: Text(AppLocalizations.allowPriceNegotiation.tr(), style: GoogleFonts.jost(fontSize: 14)),
                 value: allowNegotiation,
                 onChanged: (value) => setState(() => allowNegotiation = value ?? false),
                 controlAffinity: ListTileControlAffinity.leading,
@@ -1031,7 +812,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.jost(color: Colors.grey[600])),
+              child: Text(AppLocalizations.cancel.tr(), style: GoogleFonts.jost(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1041,9 +822,9 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   double.tryParse(priceController.text) ?? ad.price,
                   allowNegotiation,
                 );
-                _showActionResult(success, 'Price updated successfully');
+                _showActionResult(success, AppLocalizations.priceUpdatedSuccessfully.tr());
               },
-              child: Text('Save', style: GoogleFonts.jost()),
+              child: Text(AppLocalizations.save.tr()),
             ),
           ],
         ),
@@ -1057,21 +838,21 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Edit Photos',
+          AppLocalizations.photos.tr(), // Fallback to 'photos' if 'editPhotos' does not exist
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         content: Text(
-          'Photo editing functionality will open the full edit screen where you can add, remove, or reorder photos.',
+          AppLocalizations.photoEditingFeatureComingSoon.tr(),
           style: GoogleFonts.jost(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: GoogleFonts.jost(color: Colors.grey[600])),
+            child: Text(AppLocalizations.cancel.tr(), style: GoogleFonts.jost(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1080,12 +861,12 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
               // You can create a dedicated photo editing page
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Photo editing feature coming soon!'),
-                  backgroundColor: Colors.blue,
+                  content: Text(AppLocalizations.photoEditingFeatureComingSoon.tr()),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                 ),
               );
             },
-            child: Text('Edit Photos', style: GoogleFonts.jost()),
+            child: Text(AppLocalizations.photos.tr()),
           ),
         ],
       ),
@@ -1096,19 +877,17 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     switch (action) {
       case 'sold':
         final success = await provider.markAsSold(ad.id);
-        _showActionResult(success, 'Ad marked as sold');
+        _showActionResult(success, AppLocalizations.adMarkedSold.tr());
         break;
       case 'active':
         final success = await provider.markAsActive(ad.id);
-        _showActionResult(success, 'Ad marked as active');
+        _showActionResult(success, AppLocalizations.adMarkedActive.tr());
         break;
       case 'inactive':
         final success = await provider.markAsInactive(ad.id);
-        _showActionResult(success, 'Ad marked as inactive');
+        _showActionResult(success, AppLocalizations.adMarkedInactive.tr());
         break;
-      case 'promote':
-        _showPromoteDialog(ad, provider);
-        break;
+
       case 'edit':
         _editAd(ad);
         break;
@@ -1125,14 +904,14 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           children: [
             Icon(
               success ? Icons.check_circle : Icons.error,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               size: 20,
             ),
             SizedBox(width: 8),
-            Text(success ? message : 'Action failed'),
+            Text(success ? message : AppLocalizations.actionFailed.tr()),
           ],
         ),
-        backgroundColor: success ? Colors.green : Colors.red,
+        backgroundColor: success ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -1146,14 +925,14 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
-            Icon(Icons.warning, color: Colors.red, size: 24),
+            Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 24),
             SizedBox(width: 8),
             Text(
-              'Delete Ad',
+              AppLocalizations.deleteAd.tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: Theme.of(context).colorScheme.onBackground,
               ),
             ),
           ],
@@ -1163,10 +942,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to delete "${ad.title}"?',
+              AppLocalizations.areYouSureDelete.tr(), // Use generic confirmation
               style: GoogleFonts.jost(
                 fontSize: 14,
-                color: Colors.grey[700],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1174,20 +953,20 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
             Container(
               padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red[50],
+                color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red[200]!),
+                border: Border.all(color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.5)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.red[600], size: 20),
+                  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.error, size: 20),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This action cannot be undone. All associated data will be permanently removed.',
+                      AppLocalizations.thisActionCannotBeUndone.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 12,
-                        color: Colors.red[700],
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
                   ),
@@ -1200,11 +979,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),
@@ -1212,14 +991,14 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
             onPressed: () async {
               Navigator.pop(context);
               final success = await provider.deleteAd(ad.id);
-              _showActionResult(success, 'Ad deleted successfully');
+              _showActionResult(success, AppLocalizations.adDeletedSuccessfully.tr());
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: Text(
-              'Delete',
+              AppLocalizations.delete.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -1237,18 +1016,18 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Search My Ads',
+          AppLocalizations.searchMyAds.tr(),
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         content: TextField(
           controller: _searchController,
           style: GoogleFonts.jost(fontSize: 14),
           decoration: InputDecoration(
-            hintText: 'Enter search terms...',
+            hintText: AppLocalizations.enterSearchTerms.tr(),
             hintStyle: GoogleFonts.jost(fontSize: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1258,11 +1037,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),
@@ -1273,11 +1052,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
               _showSearchResults(results);
             },
             child: Text(
-              'Search',
+              AppLocalizations.search.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.green[700],
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ),
@@ -1292,11 +1071,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Search Results (${results.length})',
+          '${AppLocalizations.searchResults.tr()} (${results.length})',
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         content: Container(
@@ -1307,13 +1086,13 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                      Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                       SizedBox(height: 16),
                       Text(
-                        'No ads found',
+                        AppLocalizations.noAdsFound.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 16,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -1329,7 +1108,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                         height: 40,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
-                          color: Colors.grey[200],
+                          color: Theme.of(context).colorScheme.surfaceVariant,
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -1338,10 +1117,10 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                                   ad.imageUrls.first,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    return Icon(Icons.image, size: 20, color: Colors.grey[400]);
+                                    return Icon(Icons.image, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
                                   },
                                 )
-                              : Icon(Icons.image, size: 20, color: Colors.grey[400]),
+                              : Icon(Icons.image, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                         ),
                       ),
                       title: Text(
@@ -1357,7 +1136,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                         ad.getFormattedPrice(),
                         style: GoogleFonts.jost(
                           fontSize: 12,
-                          color: Colors.green[700],
+                          color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1378,11 +1157,11 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Close',
+              AppLocalizations.close.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),

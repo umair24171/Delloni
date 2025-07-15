@@ -42,7 +42,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -63,13 +63,13 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.security_rounded,
                   size: 40,
-                  color: Colors.orange[700],
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               
@@ -81,7 +81,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                 style: GoogleFonts.jost(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  color: Theme.of(context).colorScheme.onBackground,
                 ),
               ),
               
@@ -93,7 +93,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                 style: GoogleFonts.jost(
                   fontSize: 16,
                   fontWeight: FontWeight.w400,
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -108,17 +108,17 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                 decoration: InputDecoration(
                   labelText: 'Email Address',
                   labelStyle: GoogleFonts.jost(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
-                  prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[600]),
+                  prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.orange[700]!, width: 2),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
@@ -141,14 +141,14 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                 decoration: InputDecoration(
                   labelText: 'Password',
                   labelStyle: GoogleFonts.jost(
-                    color: Colors.grey[600],
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
-                  prefixIcon: Icon(Icons.lock_outlined, color: Colors.grey[600]),
+                  prefixIcon: Icon(Icons.lock_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      color: Colors.grey[600],
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     onPressed: () {
                       setState(() {
@@ -158,11 +158,11 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.orange[700]!, width: 2),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
@@ -178,20 +178,20 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue[50],
+                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
+                  border: Border.all(color: Theme.of(context).colorScheme.primaryContainer),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'This verification is required for sensitive operations.',
                         style: GoogleFonts.jost(
                           fontSize: 12,
-                          color: Colors.blue[700],
+                          color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -212,7 +212,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey[300]!),
+                          side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         ),
                       ),
                       child: Text(
@@ -220,7 +220,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                         style: GoogleFonts.jost(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -232,7 +232,7 @@ class _ReAuthDialogState extends State<ReAuthDialog> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _handleReauth,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[700],
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

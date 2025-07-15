@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
+import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
 import 'dart:developer' as developer;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LocationsPage extends StatefulWidget {
   const LocationsPage({Key? key}) : super(key: key);
@@ -16,29 +18,18 @@ class LocationsPage extends StatefulWidget {
 class _LocationsPageState extends State<LocationsPage> {
   final TextEditingController _searchController = TextEditingController();
   List<String> _lastSearches = [];
-  List<String> _searchResults = [];
+  List<Map<String, dynamic>> _cities = [];
+  List<Map<String, dynamic>> _filteredCities = [];
+  bool _isLoadingCities = true;
   bool _isLoadingCurrentLocation = false;
   bool _isSearching = false;
   String? _error;
-
-  // Predefined regions for Pakistan
-  final List<Map<String, dynamic>> _regions = [
-    {'name': 'Karachi, Sindh', 'lat': 24.8607, 'lng': 67.0011},
-    {'name': 'Lahore, Punjab', 'lat': 31.5204, 'lng': 74.3587},
-    {'name': 'Islamabad, Capital', 'lat': 33.6844, 'lng': 73.0479},
-    {'name': 'Rawalpindi, Punjab', 'lat': 33.5651, 'lng': 73.0169},
-    {'name': 'Faisalabad, Punjab', 'lat': 31.4504, 'lng': 73.1350},
-    {'name': 'Multan, Punjab', 'lat': 30.1575, 'lng': 71.5249},
-    {'name': 'Hyderabad, Sindh', 'lat': 25.3960, 'lng': 68.3578},
-    {'name': 'Peshawar, KPK', 'lat': 34.0151, 'lng': 71.5249},
-    {'name': 'Quetta, Balochistan', 'lat': 30.1798, 'lng': 66.9750},
-    {'name': 'Sialkot, Punjab', 'lat': 32.4945, 'lng': 74.5229},
-  ];
 
   @override
   void initState() {
     super.initState();
     _loadLastSearches();
+    _loadCities();
   }
 
   @override
@@ -122,6 +113,7 @@ class _LocationsPageState extends State<LocationsPage> {
 
       // Update user location
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
       bool success = await userProvider.updateUserLocation(
         position.latitude,
         position.longitude,
@@ -129,6 +121,7 @@ class _LocationsPageState extends State<LocationsPage> {
       );
 
       if (success) {
+        homeProvider.setUserLocation(position.latitude, position.longitude, address);
         _saveLastSearch(address);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -154,101 +147,70 @@ class _LocationsPageState extends State<LocationsPage> {
     }
   }
 
-  Future<void> _searchLocations(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() {
-        _searchResults.clear();
-      });
-      return;
-    }
-
+  Future<void> _loadCities() async {
     setState(() {
-      _isSearching = true;
-      _error = null;
+      _isLoadingCities = true;
     });
-
     try {
-      // Search in predefined regions
-      List<String> results = _regions
-          .where((region) => region['name']
-              .toString()
-              .toLowerCase()
-              .contains(query.toLowerCase()))
-          .map((region) => region['name'].toString())
-          .toList();
-
-      // Try geocoding for more results
-      try {
-        List<Location> locations = await locationFromAddress(query);
-        if (locations.isNotEmpty) {
-          List<Placemark> placemarks = await placemarkFromCoordinates(
-            locations.first.latitude,
-            locations.first.longitude,
-          );
-          if (placemarks.isNotEmpty) {
-            Placemark place = placemarks.first;
-            String geocodedAddress = '${place.locality}, ${place.administrativeArea}';
-            if (!results.contains(geocodedAddress)) {
-              results.insert(0, geocodedAddress);
-            }
-          }
-        }
-      } catch (e) {
-        developer.log('Geocoding failed: $e');
-      }
-
-      setState(() {
-        _searchResults = results;
-      });
-
+      final snapshot = await FirebaseFirestore.instance
+          .collection('cities')
+          .where('isActive', isEqualTo: true)
+          .orderBy('name')
+          .get();
+      _cities = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+      _filteredCities = List.from(_cities);
     } catch (e) {
       setState(() {
-        _error = 'Search failed: $e';
+        _error = 'Failed to load cities: $e';
       });
     } finally {
       setState(() {
-        _isSearching = false;
+        _isLoadingCities = false;
       });
     }
   }
 
-  Future<void> _selectLocation(String locationName) async {
+  void _searchLocations(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _filteredCities = List.from(_cities);
+      });
+      return;
+    }
+    setState(() {
+      _filteredCities = _cities
+          .where((city) => city['name']
+              .toString()
+              .toLowerCase()
+              .contains(query.toLowerCase()))
+          .toList();
+    });
+  }
+
+  Future<void> _selectCity(Map<String, dynamic> city) async {
     try {
-      // Find coordinates for the location
-      Map<String, dynamic>? regionData = _regions.firstWhere(
-        (region) => region['name'] == locationName,
-        orElse: () => {},
-      );
-
-      double latitude, longitude;
-
-      if (regionData.isNotEmpty) {
-        latitude = regionData['lat'];
-        longitude = regionData['lng'];
-      } else {
-        // Try geocoding
-        List<Location> locations = await locationFromAddress(locationName);
-        if (locations.isEmpty) {
-          throw Exception('Location not found');
-        }
-        latitude = locations.first.latitude;
-        longitude = locations.first.longitude;
-      }
-
+      double latitude = city['latitude'] ?? 0.0;
+      double longitude = city['longitude'] ?? 0.0;
+      String cityName = city['name'] ?? 'Unknown City';
       // Update user location
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
       bool success = await userProvider.updateUserLocation(
         latitude,
         longitude,
-        locationName,
+        cityName,
       );
-
       if (success) {
-        _saveLastSearch(locationName);
+        homeProvider.setUserLocation(latitude, longitude, cityName);
+        _saveLastSearch(cityName);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location updated to: $locationName'),
+            content: Text('Location updated to: $cityName'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -256,7 +218,6 @@ class _LocationsPageState extends State<LocationsPage> {
       } else {
         throw Exception('Failed to update location');
       }
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -311,7 +272,7 @@ class _LocationsPageState extends State<LocationsPage> {
                   _searchLocations(value);
                 },
                 decoration: InputDecoration(
-                  hintText: 'Search area, city or country',
+                  hintText: 'Search city',
                   hintStyle: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.grey[600],
@@ -335,7 +296,7 @@ class _LocationsPageState extends State<LocationsPage> {
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() {
-                                  _searchResults.clear();
+                                  _filteredCities = List.from(_cities);
                                 });
                               },
                               icon: const Icon(Icons.clear, size: 20),
@@ -422,20 +383,7 @@ class _LocationsPageState extends State<LocationsPage> {
 
             const SizedBox(height: 24),
 
-            // Search Results
-            if (_searchResults.isNotEmpty) ...[
-              Text(
-                'Search Results',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...(_searchResults.map((result) => _buildSearchResultItem(result))),
-              const SizedBox(height: 24),
-            ],
+            // Search Results (removed, now handled by filteredCities)
 
             // Last search section
             if (_lastSearches.isNotEmpty) ...[
@@ -464,7 +412,7 @@ class _LocationsPageState extends State<LocationsPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              ...(_lastSearches.map((search) => _buildLastSearchItem(search))),
+              // Remove the map call to _buildLastSearchItem since it's not compatible
               const SizedBox(height: 24),
             ],
 
@@ -480,14 +428,19 @@ class _LocationsPageState extends State<LocationsPage> {
 
             const SizedBox(height: 16),
 
-            // Region items
+            // Dynamic City items
             Expanded(
-              child: ListView.builder(
-                itemCount: _regions.length,
-                itemBuilder: (context, index) {
-                  return _buildRegionItem(_regions[index]['name']);
-                },
-              ),
+              child: _isLoadingCities
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredCities.isEmpty
+                      ? Center(child: Text('No cities found'))
+                      : ListView.builder(
+                          itemCount: _filteredCities.length,
+                          itemBuilder: (context, index) {
+                            final city = _filteredCities[index];
+                            return _buildCityItem(city);
+                          },
+                        ),
             ),
           ],
         ),
@@ -495,87 +448,11 @@ class _LocationsPageState extends State<LocationsPage> {
     );
   }
 
-  Widget _buildSearchResultItem(String text) {
+  Widget _buildCityItem(Map<String, dynamic> city) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        onTap: () => _selectLocation(text),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                size: 20,
-                color: Colors.grey[600],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  text,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.black,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: Colors.grey,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLastSearchItem(String text) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () => _selectLocation(text),
-        child: Row(
-          children: [
-            Icon(
-              Icons.access_time,
-              size: 20,
-              color: Colors.grey[600],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.black,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: () => _removeLastSearch(text),
-              icon: const Icon(
-                Icons.close,
-                size: 18,
-                color: Colors.grey,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegionItem(String text) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () => _selectLocation(text),
+        onTap: () => _selectCity(city),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
@@ -588,7 +465,7 @@ class _LocationsPageState extends State<LocationsPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  text,
+                  city['name'] ?? 'Unknown City',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.black,

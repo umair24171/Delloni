@@ -3,6 +3,8 @@ import 'package:arabicmarketplace/screens/account/controller/favorite_provider.d
 import 'package:arabicmarketplace/screens/custom_bottom_bar.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -35,20 +37,20 @@ class _FavoriteAdsState extends State<FavoriteAds> {
     return ChangeNotifierProvider.value(
       value: _favoritesProvider,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'Favourite Ads',
+           '${AppLocalizations.favouriteAds.tr()}',
             style: GoogleFonts.jost(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           centerTitle: false,
@@ -59,16 +61,16 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   children: [
                     if (provider.favoriteAds.isNotEmpty) ...[
                       IconButton(
-                        icon: Icon(Icons.search, color: Colors.black),
+                        icon: Icon(Icons.search, color: Theme.of(context).colorScheme.onBackground),
                         onPressed: () => _showSearchDialog(provider),
                       ),
                       IconButton(
-                        icon: Icon(Icons.clear_all, color: Colors.red),
+                        icon: Icon(Icons.clear_all, color: Theme.of(context).colorScheme.error),
                         onPressed: () => _showClearAllDialog(provider),
                       ),
                     ],
                     IconButton(
-                      icon: Icon(Icons.refresh, color: Colors.black),
+                      icon: Icon(Icons.refresh, color: Theme.of(context).colorScheme.onBackground),
                       onPressed: provider.isLoading ? null : () => provider.refreshFavorites(),
                     ),
                   ],
@@ -85,14 +87,14 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF1744)),
+                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.error),
                     ),
                     SizedBox(height: 16),
                     Text(
-                      'Loading your favorites...',
+                      AppLocalizations.loadingYourAds.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 16,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                   ],
@@ -105,20 +107,20 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
                     SizedBox(height: 16),
                     Text(
                       provider.error!,
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => provider.refreshFavorites(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFF1744),
+                        backgroundColor: Theme.of(context).colorScheme.error,
                       ),
-                      child: Text('Retry', style: TextStyle(color: Colors.white)),
+                      child: Text(AppLocalizations.retry.tr(), style: TextStyle(color: Theme.of(context).colorScheme.onError)),
                     ),
                   ],
                 ),
@@ -164,7 +166,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   child: Icon(
                     Icons.favorite,
                     size: 70,
-                    color: Color(0xFF7A1E2B), // Dark red/maroon
+                    color: Theme.of(context).colorScheme.error, // Dark red/maroon
                   ),
                 ),
                 // Light peach heart (top right)
@@ -174,7 +176,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   child: Icon(
                     Icons.favorite,
                     size: 70,
-                    color: Color(0xFFFFB299), // Light peach
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), // Light peach
                   ),
                 ),
                 // Bright red heart (center bottom, overlapping)
@@ -184,7 +186,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   child: Icon(
                     Icons.favorite,
                     size: 100,
-                    color: Color(0xFFFF1744), // Bright red
+                    color: Theme.of(context).colorScheme.error, // Bright red
                   ),
                 ),
               ],
@@ -193,22 +195,22 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           const SizedBox(height: 40),
           // Main text
           Text(
-            'you haven\'t liked anything yet',
+            AppLocalizations.noFavoritesYet.tr(),
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           const SizedBox(height: 12),
           // Subtitle
           Text(
-            'collect all things you like in\none place',
+            AppLocalizations.collectAllThingsYouLike.tr(),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w300,
-              color: Colors.grey[600],
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 30),
@@ -220,17 +222,17 @@ class _FavoriteAdsState extends State<FavoriteAds> {
               ));
             
             },
-            icon: Icon(Icons.shopping_bag, color: Colors.white),
+            icon: Icon(Icons.shopping_bag, color: Theme.of(context).colorScheme.onPrimary),
             label: Text(
-              'Browse Products',
+              AppLocalizations.browseCategories.tr(), // Or add a new key for 'Browse Products'
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFFF1744),
+              backgroundColor: Theme.of(context).colorScheme.error,
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(25),
@@ -309,7 +311,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           label,
           style: GoogleFonts.jost(
             fontSize: 11,
-            color: Colors.grey[600],
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
           ),
           textAlign: TextAlign.center,
         ),
@@ -332,7 +334,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
   Widget _buildFavoritesList(FavoritesProvider provider) {
     return RefreshIndicator(
       onRefresh: () => provider.refreshFavorites(),
-      color: Color(0xFFFF1744),
+      color: Theme.of(context).colorScheme.error,
       child: GridView.builder(
         padding: EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -353,11 +355,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
   Widget _buildFavoriteCard(ProductModel ad, FavoritesProvider provider) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: Offset(0, 2),
@@ -385,7 +387,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                      color: Colors.grey[200],
+                      color: Theme.of(context).colorScheme.surfaceVariant,
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -395,12 +397,12 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Center(
-                                  child: Icon(Icons.image, size: 40, color: Colors.grey[400]),
+                                  child: Icon(Icons.image, size: 40, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                                 );
                               },
                             )
                           : Center(
-                              child: Icon(Icons.image, size: 40, color: Colors.grey[400]),
+                              child: Icon(Icons.image, size: 40, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                             ),
                     ),
                   ),
@@ -411,11 +413,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                     right: 8,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).colorScheme.surface,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                             blurRadius: 4,
                             offset: Offset(0, 2),
                           ),
@@ -424,7 +426,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                       child: IconButton(
                         icon: Icon(
                           Icons.favorite,
-                          color: Color(0xFFFF1744),
+                          color: Theme.of(context).colorScheme.error,
                           size: 20,
                         ),
                         onPressed: () => _removeFavorite(ad, provider),
@@ -440,15 +442,15 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                       child: Container(
                         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.yellow[700],
+                          color: Theme.of(context).colorScheme.error,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Negotiable',
+                          AppLocalizations.negotiable.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           ),
                         ),
                       ),
@@ -468,7 +470,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                     style: GoogleFonts.jost(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black,
+                      color: Theme.of(context).colorScheme.onBackground,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -479,20 +481,20 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                     style: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green[700],
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, size: 12, color: Colors.grey[600]),
+                      Icon(Icons.location_on_outlined, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
                       SizedBox(width: 2),
                       Expanded(
                         child: Text(
-                          ad.locationAddress ?? 'Location not set',
+                          ad.locationAddress ?? AppLocalizations.locationNotSet.tr(),
                           style: GoogleFonts.jost(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -503,13 +505,13 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 12, color: Colors.grey[500]),
+                      Icon(Icons.access_time, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                       SizedBox(width: 2),
                       Text(
                         ad.getTimeSincePosted(),
                         style: GoogleFonts.jost(
                           fontSize: 11,
-                          color: Colors.grey[500],
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -529,10 +531,10 @@ class _FavoriteAdsState extends State<FavoriteAds> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Removed from favorites',
+            AppLocalizations.removedFromFavorites.tr(),
             style: GoogleFonts.jost(fontSize: 14),
           ),
-          backgroundColor: Color(0xFFFF1744),
+          backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -541,10 +543,10 @@ class _FavoriteAdsState extends State<FavoriteAds> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Failed to remove from favorites',
+            AppLocalizations.removeFavoriteFailed.tr(),
             style: GoogleFonts.jost(fontSize: 14),
           ),
-          backgroundColor: Colors.red,
+          backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -559,34 +561,34 @@ class _FavoriteAdsState extends State<FavoriteAds> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
-            Icon(Icons.warning, color: Colors.red, size: 24),
+            Icon(Icons.warning, color: Theme.of(context).colorScheme.error, size: 24),
             SizedBox(width: 8),
             Text(
-              'Clear All Favorites',
+              AppLocalizations.clearAllFavorites.tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: Theme.of(context).colorScheme.onBackground,
               ),
             ),
           ],
         ),
         content: Text(
-          'Are you sure you want to remove all items from your favorites? This action cannot be undone.',
+          AppLocalizations.areYouSureYouWantToRemoveAllItemsFromYourFavorites.tr(),
           style: GoogleFonts.jost(
             fontSize: 14,
-            color: Colors.grey[700],
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),
@@ -597,21 +599,21 @@ class _FavoriteAdsState extends State<FavoriteAds> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    success ? 'All favorites cleared' : 'Failed to clear favorites',
+                    success ? AppLocalizations.allFavoritesCleared.tr() : AppLocalizations.clearFavoritesFailed.tr(),
                     style: GoogleFonts.jost(fontSize: 14),
                   ),
-                  backgroundColor: success ? Colors.green : Colors.red,
+                  backgroundColor: success ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
             child: Text(
-              'Clear All',
+              AppLocalizations.clearAll.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.red,
+                color: Theme.of(context).colorScheme.error,
               ),
             ),
           ),
@@ -627,14 +629,14 @@ class _FavoriteAdsState extends State<FavoriteAds> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
-            Icon(Icons.search, color: Color(0xFFFF1744), size: 24),
+            Icon(Icons.search, color: Theme.of(context).colorScheme.error, size: 24),
             SizedBox(width: 8),
             Text(
-              'Search Favorites',
+              AppLocalizations.searchFavorites.tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: Theme.of(context).colorScheme.onBackground,
               ),
             ),
           ],
@@ -643,22 +645,22 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           controller: _searchController,
           style: GoogleFonts.jost(fontSize: 14),
           decoration: InputDecoration(
-            hintText: 'Search your favorite products...',
+            hintText: AppLocalizations.searchYourFavoriteProducts.tr(),
             hintStyle: GoogleFonts.jost(fontSize: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            prefixIcon: Icon(Icons.search, color: Color(0xFFFF1744)),
+            prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.error),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              AppLocalizations.cancel.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),
@@ -669,11 +671,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
               _showSearchResults(results);
             },
             child: Text(
-              'Search',
+              AppLocalizations.search.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFFFF1744),
+                color: Theme.of(context).colorScheme.error,
               ),
             ),
           ),
@@ -688,11 +690,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          'Search Results (${results.length})',
+          '${AppLocalizations.searchResults.tr()} (${results.length})',
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         content: Container(
@@ -703,13 +705,13 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                      Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                       SizedBox(height: 16),
                       Text(
-                        'No favorites found',
+                        AppLocalizations.noFavoritesFound.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 16,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -725,7 +727,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                         height: 40,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
-                          color: Colors.grey[200],
+                          color: Theme.of(context).colorScheme.surfaceVariant,
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -734,10 +736,10 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                                   ad.imageUrls.first,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    return Icon(Icons.image, size: 20, color: Colors.grey[400]);
+                                    return Icon(Icons.image, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
                                   },
                                 )
-                              : Icon(Icons.image, size: 20, color: Colors.grey[400]),
+                              : Icon(Icons.image, size: 20, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                         ),
                       ),
                       title: Text(
@@ -753,11 +755,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                         ad.getFormattedPrice(),
                         style: GoogleFonts.jost(
                           fontSize: 12,
-                          color: Colors.green[700],
+                          color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      trailing: Icon(Icons.favorite, color: Color(0xFFFF1744), size: 16),
+                      trailing: Icon(Icons.favorite, color: Theme.of(context).colorScheme.error, size: 16),
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -775,11 +777,11 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Close',
+              AppLocalizations.close.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
           ),

@@ -13,12 +13,13 @@ class EnhancedChatModel {
   final String? productTitle;
   final String? productImage;
   final double? productPrice;
-  final String? productOwnerId; // NEW: Track who owns the product
+  final String? productOwnerId;
   final Map<String, int> unreadCount;
   final Map<String, bool> isTyping;
   final DateTime createdAt;
   final bool isActive;
-  final String chatType; // 'buying', 'selling', 'general'
+  final String chatType;
+  final List<String> deletedBy; // Add this field
 
   EnhancedChatModel({
     required this.id,
@@ -32,12 +33,13 @@ class EnhancedChatModel {
     this.productTitle,
     this.productImage,
     this.productPrice,
-    this.productOwnerId, // NEW
+    this.productOwnerId,
     required this.unreadCount,
     required this.isTyping,
     required this.createdAt,
-    this.isActive = true,
+    required this.isActive,
     required this.chatType,
+    this.deletedBy = const [], // Initialize empty list
   });
 
   factory EnhancedChatModel.fromFirestore(DocumentSnapshot doc) {
@@ -49,22 +51,19 @@ class EnhancedChatModel {
       participantNames: Map<String, String>.from(data['participantNames'] ?? {}),
       participantImages: Map<String, String>.from(data['participantImages'] ?? {}),
       lastMessage: data['lastMessage'] ?? '',
-      lastMessageTime: data['lastMessageTime'] != null
-          ? (data['lastMessageTime'] as Timestamp).toDate()
-          : null,
+      lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate(),
       lastMessageSenderId: data['lastMessageSenderId'] ?? '',
       productId: data['productId'],
       productTitle: data['productTitle'],
       productImage: data['productImage'],
       productPrice: data['productPrice']?.toDouble(),
-      productOwnerId: data['productOwnerId'], // NEW
+      productOwnerId: data['productOwnerId'],
       unreadCount: Map<String, int>.from(data['unreadCount'] ?? {}),
       isTyping: Map<String, bool>.from(data['isTyping'] ?? {}),
-      createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isActive: data['isActive'] ?? true,
       chatType: data['chatType'] ?? 'general',
+      deletedBy: List<String>.from(data['deletedBy'] ?? []), // Handle deletedBy field
     );
   }
 

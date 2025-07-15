@@ -1,5 +1,7 @@
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/custom_bottom_bar.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -103,7 +105,7 @@ class SuccessPage extends StatelessWidget {
               const SizedBox(height: 60),
               // Success message
               Text(
-                'Success! Your item has been published.',
+                AppLocalizations.successItemPublished.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -114,7 +116,7 @@ class SuccessPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Keep an eye out for the payment to be processed. We\'ll notify you once the payment is complete.',
+                AppLocalizations.paymentProcessingNotification.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 16,
                   fontWeight: FontWeight.w400,
@@ -140,7 +142,7 @@ class SuccessPage extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Return To Homepage',
+                    AppLocalizations.returnToHomepage.tr(),
                     style: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

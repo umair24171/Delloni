@@ -1,10 +1,11 @@
 import 'package:arabicmarketplace/controller/review_provider.dart';
 import 'package:arabicmarketplace/screens/reviews_page/model/review_model.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-
 class ReviewsPage extends StatefulWidget {
   final String? userId; // If null, shows current user's reviews
   final bool showCreateReviewButton;
@@ -51,39 +52,39 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _isCurrentUser ? 'My Reviews' : 'Reviews',
+          _isCurrentUser ? AppLocalizations.myReviews.tr() : AppLocalizations.reviews.tr(),
           style: GoogleFonts.jost(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            color: Theme.of(context).colorScheme.onBackground,
           ),
         ),
         centerTitle: false,
         bottom: _isCurrentUser 
           ? TabBar(
               controller: _tabController,
-              labelColor: Colors.black,
-              unselectedLabelColor: Colors.grey,
+              labelColor: Theme.of(context).colorScheme.onBackground,
+              unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
               indicatorColor: const Color(0xFFEC6A5A),
-              tabs: const [
-                Tab(text: 'Received'),
-                Tab(text: 'Given'),
+              tabs: [
+                Tab(text: AppLocalizations.received.tr()),
+                Tab(text: AppLocalizations.given.tr()),
               ],
             )
           : null,
         actions: [
           if (widget.showCreateReviewButton && _isCurrentUser)
             IconButton(
-              icon: const Icon(Icons.add, color: Colors.black),
+              icon: Icon(Icons.add, color: Theme.of(context).colorScheme.onBackground),
               onPressed: () => _showCreateReviewDialog(),
             ),
         ],
@@ -126,10 +127,12 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
               // Reviews List
               if (reviewProvider.userReviews.isEmpty)
                 SliverFillRemaining(
-                  child: _buildEmptyState('No reviews yet', 
+                  child: _buildEmptyState(
+                    AppLocalizations.noReviewsYet.tr(), 
                     _isCurrentUser 
-                      ? 'Reviews from buyers and sellers will appear here' 
-                      : 'This user hasn\'t received any reviews yet'),
+                      ? AppLocalizations.reviewsFromBuyersSellers.tr()
+                      : AppLocalizations.thisUserHasntReceivedReviews.tr()
+                  ),
                 )
               else
                 SliverList(
@@ -153,8 +156,8 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
       builder: (context, reviewProvider, child) {
         if (reviewProvider.givenReviews.isEmpty) {
           return _buildEmptyState(
-            'No reviews given yet',
-            'Reviews you\'ve written will appear here',
+            AppLocalizations.noReviewsGivenYet.tr(),
+            AppLocalizations.reviewsYouveWritten.tr(),
           );
         }
 
@@ -183,11 +186,11 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Theme.of(context).colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -208,17 +211,17 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                       style: GoogleFonts.poppins(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: Theme.of(context).colorScheme.onBackground,
                       ),
                     ),
                     const SizedBox(height: 4),
                     _buildStarRating(averageRating, size: 20),
                     const SizedBox(height: 8),
                     Text(
-                      '$reviewCount ${reviewCount == 1 ? 'review' : 'reviews'}',
+                      '$reviewCount ${reviewCount == 1 ? AppLocalizations.review.tr() : AppLocalizations.reviewsPlural.tr()}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: Colors.grey[600],
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                       ),
                     ),
                   ],
@@ -263,7 +266,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
             child: Container(
               height: 8,
               decoration: BoxDecoration(
-                color: Colors.grey[200],
+                color: Theme.of(context).colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: FractionallySizedBox(
@@ -285,7 +288,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
               '$count',
               style: GoogleFonts.poppins(
                 fontSize: 12,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ),
@@ -336,7 +339,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                         review.formattedDate,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -346,9 +349,9 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                   PopupMenuButton<String>(
                     onSelected: (value) => _handleReviewAction(value, review, reviewProvider),
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'delete',
-                        child: Text('Delete Review'),
+                        child: Text(AppLocalizations.deleteReview.tr()),
                       ),
                     ],
                   ),
@@ -362,7 +365,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                 _buildStarRating(review.rating),
                 const SizedBox(width: 8),
                 Text(
-                  '${review.rating.toStringAsFixed(1)} stars',
+                  '${review.rating.toStringAsFixed(1)} ${AppLocalizations.stars.tr()}',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -376,14 +379,14 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Theme.of(context).colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                'Item: ${review.itemTitle}',
+                '${AppLocalizations.item.tr()}: ${review.itemTitle}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: Colors.grey[700],
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -414,14 +417,14 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                         Icon(
                           Icons.thumb_up_outlined,
                           size: 16,
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Helpful (${review.helpfulCount})',
+                          '${AppLocalizations.helpful.tr()} (${review.helpfulCount})',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -435,10 +438,10 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                   TextButton(
                     onPressed: () => _showReportDialog(review, reviewProvider),
                     child: Text(
-                      'Report',
+                      AppLocalizations.report.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: Colors.red[600],
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
                   ),
@@ -448,18 +451,20 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: review.transactionType == 'purchase' 
-                        ? Colors.green[100] 
-                        : Colors.blue[100],
+                        ? Theme.of(context).colorScheme.primaryContainer 
+                        : Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    review.transactionType == 'purchase' ? 'Buyer' : 'Seller',
+                    review.transactionType == 'purchase' 
+                        ? AppLocalizations.buyer.tr() 
+                        : AppLocalizations.seller.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                       color: review.transactionType == 'purchase' 
-                          ? Colors.green[800] 
-                          : Colors.blue[800],
+                          ? Theme.of(context).colorScheme.primary 
+                          : Theme.of(context).colorScheme.secondary,
                     ),
                   ),
                 ),
@@ -498,7 +503,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
             Icon(
               Icons.star_border,
               size: 64,
-              color: Colors.grey[400],
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
             ),
             const SizedBox(height: 16),
             Text(
@@ -506,7 +511,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
             const SizedBox(height: 8),
@@ -514,7 +519,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
               subtitle,
               style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: Colors.grey[500],
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
               ),
               textAlign: TextAlign.center,
             ),
@@ -537,17 +542,17 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Delete Review',
+          AppLocalizations.deleteReview.tr(),
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         content: Text(
-          'Are you sure you want to delete this review? This action cannot be undone.',
+          AppLocalizations.areYouSureDeleteReview.tr(),
           style: GoogleFonts.poppins(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.cancel.tr()),
           ),
           TextButton(
             onPressed: () async {
@@ -556,13 +561,13 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
               if (!success && mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(reviewProvider.error ?? 'Failed to delete review'),
-                    backgroundColor: Colors.red,
+                    content: Text(reviewProvider.error ?? AppLocalizations.failedToDeleteReview.tr()),
+                    backgroundColor: Theme.of(context).colorScheme.error,
                   ),
                 );
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.delete.tr(), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -570,38 +575,51 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
   }
 
   void _showReportDialog(ReviewModel review, ReviewProvider reviewProvider) {
-    String selectedReason = 'Inappropriate content';
+    String selectedReason = AppLocalizations.inappropriateContent.tr();
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Report Review',
+          AppLocalizations.reportReview.tr(),
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Why are you reporting this review?',
+              AppLocalizations.whyReportingReview.tr(),
               style: GoogleFonts.poppins(),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: selectedReason,
               items: [
-                'Inappropriate content',
-                'Spam',
-                'Fake review',
-                'Harassment',
-                'Other',
+                AppLocalizations.inappropriateContent.tr(),
+                AppLocalizations.spam.tr(),
+                AppLocalizations.fakeReview.tr(),
+                AppLocalizations.harassment.tr(),
+                AppLocalizations.other.tr(),
               ].map((reason) => DropdownMenuItem(
                 value: reason,
                 child: Text(reason, style: GoogleFonts.poppins()),
               )).toList(),
               onChanged: (value) => selectedReason = value!,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+                ),
+                labelStyle: GoogleFonts.poppins(),
+                hintStyle: GoogleFonts.poppins(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
               ),
             ),
           ],
@@ -609,7 +627,7 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.cancel.tr()),
           ),
           TextButton(
             onPressed: () async {
@@ -619,14 +637,14 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(success 
-                        ? 'Review reported successfully' 
-                        : 'Failed to report review'),
-                    backgroundColor: success ? Colors.green : Colors.red,
+                        ? AppLocalizations.reviewReportedSuccessfully.tr()
+                        : AppLocalizations.failedToReportReview.tr()),
+                    backgroundColor: success ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.error,
                   ),
                 );
               }
             },
-            child: const Text('Report', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.report.tr(), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -640,9 +658,9 @@ class _ReviewsPageState extends State<ReviewsPage> with SingleTickerProviderStat
     if (eligibleItems.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No items available for review'),
-            backgroundColor: Colors.orange,
+          SnackBar(
+            content: Text(AppLocalizations.noItemsAvailableForReview.tr()),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }

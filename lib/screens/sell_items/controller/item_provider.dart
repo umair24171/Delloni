@@ -1,6 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
+import 'package:arabicmarketplace/screens/home/model/category_model.dart';
+import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
+import 'package:arabicmarketplace/screens/search_page/city_district_selection_page.dart';
+import 'package:arabicmarketplace/screens/search_page/view/search_page_filter.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -10,8 +16,9 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'dart:ui' as ui;
 // Updated ItemProvider class - Add these changes to your existing ItemProvider
-
+// Enhanced ItemProvider with dynamic photo limits based on category
 class ItemProvider with ChangeNotifier {
   // Form data - Updated to include category ID and name
   String itemTitle = '';
@@ -31,11 +38,127 @@ class ItemProvider with ChangeNotifier {
   double? longitude;
   String? locationAddress;
 
+   String? selectedCityId;
+  String? selectedCityName;
+  String? selectedDistrictId;
+  String? selectedDistrictName;
+
   // State management
   bool _isUploading = false;
   bool _isPublishing = false;
   String? _error;
   double _uploadProgress = 0.0;
+  // NEW: Check if we're in edit mode
+bool get isEditMode => itemTitle.isNotEmpty && category.isNotEmpty;
+// NEW: Get the item ID for editing (you'll need to store this when loading)
+String? _editingItemId;
+String? get editingItemId => _editingItemId;
+void setEditingItemId(String? itemId) {
+  _editingItemId = itemId;
+  notifyListeners();
+}
+// ENHANCED: Update existing item instead of creating new one
+Future<bool> updateExistingItem(BuildContext context) async {
+  try {
+    _setPublishing(true);
+    _setError(null);
+
+    developer.log('Starting update process for item: $_editingItemId');
+
+    // Validate form data first
+    if (!_validateFormData()) {
+      _setPublishing(false);
+      return false;
+    }
+
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final user = userProvider.currentUser;
+
+    if (user == null) {
+      _setError('Please login to continue');
+      _setPublishing(false);
+      return false;
+    }
+
+    if (_editingItemId == null) {
+      _setError('Item ID not found');
+      _setPublishing(false);
+      return false;
+    }
+
+    // If new images were added, upload them
+    if (images.isNotEmpty) {
+      developer.log('Uploading ${images.length} new images...');
+      final uploadSuccess = await uploadImages(_editingItemId!);
+      
+      if (!uploadSuccess) {
+        _setPublishing(false);
+        return false;
+      }
+    }
+
+    developer.log('Updating Firestore document...');
+
+    // ENHANCED: Update item document with category-specific fields
+    Map<String, dynamic> updateData = {
+      'itemTitle': itemTitle.trim(),
+      'category': category,
+      'categoryName': categoryName,
+      'condition': condition,
+      'description': description.trim(),
+      'brand': brand.trim(),
+      'dimensions': dimensions.trim(),
+      'color': color.trim(),
+      'price': price,
+      'allowPriceNegotiation': allowPriceNegotiation,
+      'shippingOption': shippingOption,
+      'latitude': latitude,
+      'longitude': longitude,
+      'locationAddress': locationAddress,
+      'cityId': selectedCityId,
+      'cityName': selectedCityName,
+      'districtId': selectedDistrictId,
+      'districtName': selectedDistrictName,
+      'updatedAt': FieldValue.serverTimestamp(),
+      
+      // Update category-specific fields
+      'categorySpecificFields': _categorySpecificFields,
+      'categoryFieldTemplate': _categoryFieldTemplate,
+      'categoryTemplateName': _categoryTemplateName,
+      'hasCustomFields': _categorySpecificFields.isNotEmpty,
+    };
+
+    // Only update imageUrls if new images were uploaded
+    if (images.isNotEmpty) {
+      updateData['imageUrls'] = imageUrls;
+      updateData['photoCount'] = imageUrls.length;
+    }
+
+    await _firestore.collection('items').doc(_editingItemId!).update(updateData);
+
+    developer.log('Item updated successfully!');
+    _setPublishing(false);
+    
+    // Don't reset form here for edit mode - let the calling page handle navigation
+    return true;
+
+  } catch (e) {
+    _setPublishing(false);
+    _setError('Failed to update item: $e');
+    developer.log('Update failed: $e');
+    return false;
+  }
+}
+// ENHANCED: Publish method that handles both create and update
+Future<bool> publishOrUpdateItem(BuildContext context) async {
+  if (isEditMode && _editingItemId != null) {
+    return await updateExistingItem(context);
+  } else {
+    return await publishItem(context);
+  }
+}
+
+
 
   // Form controllers for validation
   final formKey = GlobalKey<FormState>();
@@ -44,6 +167,62 @@ class ItemProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  // ENHANCED: Dynamic photo limits based on category
+  static const int minImagesDefault = 2;
+  static const int maxImagesDefault = 10;
+  static const int minImagesRealEstate = 5;
+  static const int maxImagesRealEstate = 50;
+
+   Map<String, dynamic> _categorySpecificFields = {};
+  List<Map<String, dynamic>> _categoryFieldTemplate = [];
+  String? _categoryTemplateName;
+
+  // Getter for category-specific fields
+  Map<String, dynamic> get categorySpecificFields => _categorySpecificFields;
+  List<Map<String, dynamic>> get categoryFieldTemplate => _categoryFieldTemplate;
+  String? get categoryTemplateName => _categoryTemplateName;
+
+  // NEW: Update category-specific fields
+  void updateCategorySpecificFields(Map<String, dynamic> fields) {
+    _categorySpecificFields = fields;
+    notifyListeners();
+  }
+
+  // NEW: Set category template
+  void setCategoryTemplate(List<Map<String, dynamic>> template, String? templateName) {
+    _categoryFieldTemplate = template;
+    _categoryTemplateName = templateName;
+    notifyListeners();
+  }
+
+  // NEW: Update single category field
+  void updateCategoryField(String fieldName, dynamic value) {
+    _categorySpecificFields[fieldName] = value;
+    notifyListeners();
+  }
+
+  // Categories that allow unlimited photos
+  final Set<String> _unlimitedCategories = {
+    'house',
+    'houses',
+    'real estate', 
+    'property',
+    'apartment',
+    'villa',
+    'land',
+    'commercial',
+    'residential',
+    'warehouse',
+    'office',
+    'shop',
+    'building',
+    'construction',
+    'plot',
+    'farm',
+    'hotel',
+    'restaurant',
+  };
+
   // Getters
   bool get isUploading => _isUploading;
   bool get isPublishing => _isPublishing;
@@ -51,11 +230,50 @@ class ItemProvider with ChangeNotifier {
   double get uploadProgress => _uploadProgress;
   bool get canPublish => _validateFormData();
 
-  // Constants
-  static const int minImages = 2;
-  static const int maxImages = 10;
-  static const int maxImageSizeMB = 5;
-  static const List<String> allowedImageTypes = ['jpg', 'jpeg', 'png', 'webp'];
+  // ENHANCED: Dynamic photo limits
+  int get minImages {
+    if (categoryName != null) {
+      final categoryLower = categoryName!.toLowerCase();
+      if (_unlimitedCategories.any((cat) => categoryLower.contains(cat))) {
+        return minImagesRealEstate;
+      }
+    }
+    return minImagesDefault;
+  }
+
+  int get maxImages {
+    if (categoryName != null) {
+      final categoryLower = categoryName!.toLowerCase();
+      if (_unlimitedCategories.any((cat) => categoryLower.contains(cat))) {
+        return maxImagesRealEstate;
+      }
+    }
+    return maxImagesDefault;
+  }
+
+  bool get isRealEstateCategory {
+    if (categoryName != null) {
+      final categoryLower = categoryName!.toLowerCase();
+      return _unlimitedCategories.any((cat) => categoryLower.contains(cat));
+    }
+    return false;
+  }
+
+  // ENHANCED: Category-specific image type validation
+  List<String> get allowedImageTypes {
+    if (isRealEstateCategory) {
+      return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']; // More formats for real estate
+    }
+    return ['jpg', 'jpeg', 'png', 'webp'];
+  }
+
+  // ENHANCED: Category-specific max file size
+  int get maxImageSizeMB {
+    if (isRealEstateCategory) {
+      return 10; // 10MB for real estate photos
+    }
+    return 5; // 5MB for regular items
+  }
 
   void _setError(String? error) {
     _error = error;
@@ -79,7 +297,7 @@ class ItemProvider with ChangeNotifier {
   }
 
   // Reset form data
-  void resetForm() {
+ void resetForm() {
     itemTitle = '';
     category = '';
     categoryName = null;
@@ -96,29 +314,42 @@ class ItemProvider with ChangeNotifier {
     latitude = null;
     longitude = null;
     locationAddress = null;
+    selectedCityId = null;
+    selectedCityName = null;
+    selectedDistrictId = null;
+    selectedDistrictName = null;
+    
+    // NEW: Reset category-specific fields
+    _categorySpecificFields.clear();
+    _categoryFieldTemplate.clear();
+    _categoryTemplateName = null;
+    
     _error = null;
     _uploadProgress = 0.0;
     notifyListeners();
   }
 
-  // Validate form data
+  // ENHANCED: Validate form data with dynamic requirements
   bool _validateFormData() {
     List<String> errors = [];
     
-    if (itemTitle.trim().isEmpty) errors.add('Item title is required');
-    if (itemTitle.trim().length < 10) errors.add('Title must be at least 10 characters');
-    if (category.isEmpty) errors.add('Category is required');
-    if (condition.isEmpty) errors.add('Condition is required');
-    if (description.trim().isEmpty) errors.add('Description is required');
+    // Basic validations
+    if (itemTitle.trim().isEmpty) errors.add(AppLocalizations.itemTitleRequired.tr());
+    if (itemTitle.trim().length < 10) errors.add(AppLocalizations.titleTooShort.tr());
+    if (category.isEmpty) errors.add(AppLocalizations.categoryRequired.tr());
+    if (condition.isEmpty) errors.add(AppLocalizations.conditionRequired.tr());
+    if (description.trim().isEmpty) errors.add(AppLocalizations.descriptionRequired.tr());
     
-    // Check word count in description
-    List<String> words = description.trim().split(RegExp(r'\s+'));
-    words = words.where((word) => word.isNotEmpty).toList();
-    if (words.length < 10) errors.add('Description must contain at least 10 words');
+ 
     
-    if (price <= 0) errors.add('Price must be greater than 0');
-    if (images.length < minImages) errors.add('At least $minImages images are required');
-    if (latitude == null || longitude == null) errors.add('Location is required');
+    if (price <= 0) errors.add(AppLocalizations.priceInvalid.tr());
+    
+    // Dynamic image validation
+    if (images.length < minImages) {
+      errors.add(AppLocalizations.imagesRequired.tr(args: ['$minImages']));
+    }
+    
+    if (latitude == null || longitude == null) errors.add(AppLocalizations.locationRequired.tr());
     
     if (errors.isNotEmpty) {
       _setError(errors.join(', '));
@@ -170,11 +401,39 @@ class ItemProvider with ChangeNotifier {
     double? latitude,
     double? longitude,
     String? locationAddress,
+    String? cityId,        // ADD
+    String? cityName,      // ADD
+    String? districtId,    // ADD
+    String? districtName,  // ADD
   }) {
     this.latitude = latitude;
     this.longitude = longitude;
     this.locationAddress = locationAddress;
+    this.selectedCityId = cityId;           // ADD
+    this.selectedCityName = cityName;       // ADD
+    this.selectedDistrictId = districtId;   // ADD
+    this.selectedDistrictName = districtName; // ADD
     notifyListeners();
+  }
+  Future<void> selectCityDistrict(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CityDistrictSelectionPage(),
+      ),
+    );
+
+    if (result != null) {
+      updateLocation(
+        cityId: result['cityId'],
+        cityName: result['cityName'],
+        districtId: result['districtId'],
+        districtName: result['districtName'],
+        locationAddress: result['fullAddress'],
+        latitude: latitude, // Keep existing coordinates
+        longitude: longitude,
+      );
+    }
   }
 
   // Get category name from ID (helper method)
@@ -190,27 +449,27 @@ class ItemProvider with ChangeNotifier {
     return null;
   }
 
-  // Validate image before adding
+  // ENHANCED: Validate image before adding with dynamic limits
   Future<bool> _validateImage(XFile image) async {
     try {
       final file = File(image.path);
       
       // Check if file exists
       if (!await file.exists()) {
-        _setError('Selected file does not exist');
+        _setError(AppLocalizations.selectedFileNotExist.tr());
         return false;
       }
 
-      // Check file size
+      // Check file size with dynamic limit
       final sizeInBytes = await file.length();
       final sizeInMB = sizeInBytes / (1024 * 1024);
       
       if (sizeInMB > maxImageSizeMB) {
-        _setError('Image size should be less than ${maxImageSizeMB}MB');
+        _setError('Image size should be less than ${maxImageSizeMB}MB for this category');
         return false;
       }
 
-      // Check file type
+      // Check file type with dynamic allowed types
       final extension = image.path.split('.').last.toLowerCase();
       if (!allowedImageTypes.contains(extension)) {
         _setError('Only ${allowedImageTypes.join(', ')} files are allowed');
@@ -224,10 +483,10 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  // Add image with validation
+  // ENHANCED: Add image with dynamic validation
   Future<bool> addImage(XFile image) async {
     if (images.length >= maxImages) {
-      _setError('Maximum $maxImages images allowed');
+      _setError('Maximum $maxImages images allowed for this category');
       return false;
     }
 
@@ -259,7 +518,7 @@ class ItemProvider with ChangeNotifier {
       if (user?.latitude != null && user?.longitude != null) {
         latitude = user!.latitude;
         longitude = user.longitude;
-        locationAddress = user.locationAddress ?? 'User Location';
+        locationAddress = user.locationAddress ?? AppLocalizations.userLocation.tr();
         notifyListeners();
         return true;
       }
@@ -294,13 +553,13 @@ class ItemProvider with ChangeNotifier {
 
       latitude = position.latitude;
       longitude = position.longitude;
-      locationAddress = 'Current Location';
+              locationAddress = AppLocalizations.currentLocation.tr();
 
       // Update user's location in provider
       await userProvider.updateUserLocation(
         position.latitude,
         position.longitude,
-        'Current Location',
+        AppLocalizations.currentLocation.tr(),
       );
 
       notifyListeners();
@@ -326,14 +585,14 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  // Alternative upload method using putData instead of putFile
+  // ENHANCED: Alternative upload method with better compression for real estate
   Future<String?> _uploadImageAlternative(XFile image, String itemId, String fileName) async {
     try {
       developer.log('Using alternative upload method for: $fileName');
       
-      // Read file as bytes
-      final bytes = await image.readAsBytes();
-      developer.log('Read ${bytes.length} bytes from image');
+      // Read and potentially compress image
+      final bytes = await _processImageForUpload(image);
+      developer.log('Processed ${bytes.length} bytes from image');
       
       // Create reference
       final ref = _storage.ref().child('items/$itemId/$fileName');
@@ -346,14 +605,15 @@ class ItemProvider with ChangeNotifier {
           customMetadata: {
             'itemId': itemId,
             'originalName': fileName,
+            'category': categoryName ?? 'unknown',
           },
         ),
       );
       
       // Wait for completion with timeout
       final snapshot = await uploadTask.timeout(
-        const Duration(minutes: 2),
-        onTimeout: () => throw Exception('Upload timeout'),
+        Duration(minutes: isRealEstateCategory ? 5 : 2), // Longer timeout for real estate
+        onTimeout: () => throw Exception(AppLocalizations.uploadTimeout.tr()),
       );
       
       if (snapshot.state == TaskState.success) {
@@ -370,10 +630,72 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  // Enhanced upload with multiple strategies
+  // ENHANCED: Process image for upload with smart compression
+  Future<Uint8List> _processImageForUpload(XFile image) async {
+    final bytes = await image.readAsBytes();
+    
+    // For real estate, use higher quality compression
+    if (isRealEstateCategory) {
+      return await _compressImage(bytes, quality: 90);
+    }
+    
+    // For regular items, use standard compression
+    return await _compressImage(bytes, quality: 85);
+  }
+
+  // ENHANCED: Smart image compression
+  Future<Uint8List> _compressImage(Uint8List bytes, {int quality = 85}) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      
+      // Calculate target size
+      int targetWidth = image.width;
+      int targetHeight = image.height;
+      
+      // Resize if too large
+      const maxDimension = 1920;
+      if (image.width > maxDimension || image.height > maxDimension) {
+        final aspectRatio = image.width / image.height;
+        if (image.width > image.height) {
+          targetWidth = maxDimension;
+          targetHeight = (maxDimension / aspectRatio).round();
+        } else {
+          targetHeight = maxDimension;
+          targetWidth = (maxDimension * aspectRatio).round();
+        }
+      }
+      
+      // Create recorder for drawing
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      
+      // Draw resized image
+      final paint = Paint()..filterQuality = FilterQuality.high;
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+        paint,
+      );
+      
+      // Convert to image
+      final picture = recorder.endRecording();
+      final finalImage = await picture.toImage(targetWidth, targetHeight);
+      final byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
+      
+      return byteData!.buffer.asUint8List();
+    } catch (e) {
+      developer.log('Image compression failed: $e');
+      return bytes; // Return original if compression fails
+    }
+  }
+
+  // ENHANCED: Enhanced upload with multiple strategies and better progress tracking
   Future<String?> _uploadSingleImageWithStrategies(XFile image, String itemId, String fileName, int attemptNumber) async {
     try {
-      developer.log('Upload attempt $attemptNumber for: $fileName');
+      developer.log('Upload attempt $attemptNumber for: $fileName (Category: $categoryName)');
       
       // Strategy 1: Traditional putFile (attempts 1-2)
       if (attemptNumber <= 2) {
@@ -387,12 +709,16 @@ class ItemProvider with ChangeNotifier {
             SettableMetadata(
               contentType: 'image/jpeg',
               cacheControl: 'public, max-age=3600',
+              customMetadata: {
+                'category': categoryName ?? 'unknown',
+                'isRealEstate': isRealEstateCategory.toString(),
+              },
             ),
           );
           
           final snapshot = await uploadTask.timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Upload timeout'),
+            Duration(seconds: isRealEstateCategory ? 60 : 30), // Longer timeout for real estate
+            onTimeout: () => throw Exception(AppLocalizations.uploadTimeout.tr()),
           );
           
           if (snapshot.state == TaskState.success) {
@@ -430,14 +756,14 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  // Main upload function with enhanced error handling
+  // ENHANCED: Main upload function with batch processing for real estate
   Future<bool> uploadImages(String itemId) async {
     try {
       _setUploading(true);
       _setUploadProgress(0.0);
       imageUrls.clear();
 
-      developer.log('Starting upload process for ${images.length} images');
+      developer.log('Starting upload process for ${images.length} images (Category: $categoryName)');
 
       // Test network connectivity first
       final hasNetwork = await _testNetworkConnectivity();
@@ -445,37 +771,55 @@ class ItemProvider with ChangeNotifier {
         throw Exception('No internet connection. Please check your network and try again.');
       }
 
-      for (int i = 0; i < images.length; i++) {
-        final image = images[i];
+      // Process images in batches for real estate to avoid memory issues
+      const batchSize = 5;
+      int currentBatch = 0;
+      
+      for (int i = 0; i < images.length; i += batchSize) {
+        final batchEnd = (i + batchSize).clamp(0, images.length);
+        final batch = images.sublist(i, batchEnd);
+        currentBatch++;
         
-        // Generate safe filename
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final extension = image.path.split('.').last.toLowerCase();
-        final fileName = 'image_${timestamp}_${i + 1}.$extension';
+        developer.log('Processing batch $currentBatch/${((images.length / batchSize).ceil())}');
         
-        developer.log('Processing image ${i + 1}/${images.length}: $fileName');
-        
-        try {
-          final downloadUrl = await _uploadSingleImageWithStrategies(image, itemId, fileName, 1);
+        // Process batch concurrently but with controlled parallelism
+        final futures = batch.asMap().entries.map((entry) async {
+          final index = i + entry.key;
+          final image = entry.value;
           
-          if (downloadUrl != null) {
-            imageUrls.add(downloadUrl);
-            developer.log('Successfully uploaded image ${i + 1}');
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final extension = image.path.split('.').last.toLowerCase();
+          final fileName = 'image_${timestamp}_${index + 1}.$extension';
+          
+          developer.log('Processing image ${index + 1}/${images.length}: $fileName');
+          
+          try {
+            final downloadUrl = await _uploadSingleImageWithStrategies(image, itemId, fileName, 1);
             
-            // Update progress
-            final progress = (i + 1) / images.length;
-            _setUploadProgress(progress);
-          } else {
-            throw Exception('Failed to upload image ${i + 1} after all retry attempts');
+            if (downloadUrl != null) {
+              developer.log('Successfully uploaded image ${index + 1}');
+              return downloadUrl;
+            } else {
+              throw Exception('Failed to upload image ${index + 1} after all retry attempts');
+            }
+          } catch (e) {
+            developer.log('Failed to upload image ${index + 1}: $e');
+            throw Exception('Upload failed for image ${index + 1}: $e');
           }
-          
-        } catch (e) {
-          developer.log('Failed to upload image ${i + 1}: $e');
-          throw Exception('Upload failed for image ${i + 1}: $e');
-        }
+        });
         
-        // Small delay between uploads
-        if (i < images.length - 1) {
+        // Wait for batch completion
+        final batchResults = await Future.wait(futures);
+        imageUrls.addAll(batchResults);
+        
+        // Update progress
+        final progress = (i + batch.length) / images.length;
+        _setUploadProgress(progress);
+        
+        // Small delay between batches for real estate
+        if (isRealEstateCategory && batchEnd < images.length) {
+          await Future.delayed(const Duration(milliseconds: 1000));
+        } else if (batchEnd < images.length) {
           await Future.delayed(const Duration(milliseconds: 500));
         }
       }
@@ -493,13 +837,13 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
-  // Enhanced publish item method with category name resolution
+  // ENHANCED: Enhanced publish item method with category-specific metadata
   Future<bool> publishItem(BuildContext context) async {
     try {
       _setPublishing(true);
       _setError(null);
 
-      developer.log('Starting publish process...');
+      developer.log('Starting publish process for category: $categoryName...');
 
       // Validate form data first
       if (!_validateFormData()) {
@@ -544,11 +888,11 @@ class ItemProvider with ChangeNotifier {
 
       developer.log('Creating Firestore document...');
 
-      // Create item document with both category ID and name
-      await _firestore.collection('items').doc(itemId).set({
+      // ENHANCED: Create item document with category-specific fields
+      Map<String, dynamic> itemData = {
         'itemId': itemId,
         'sellerId': user.uid,
-        'sellerName': user.type == 'company' ? user.companyName : 'Individual Seller',
+        'sellerName': user.type == 'company' ? user.companyName : AppLocalizations.individualSeller.tr(),
         'sellerType': user.type,
         'itemTitle': itemTitle.trim(),
         'category': category, // Store category ID
@@ -565,6 +909,10 @@ class ItemProvider with ChangeNotifier {
         'latitude': latitude,
         'longitude': longitude,
         'locationAddress': locationAddress,
+        'cityId': selectedCityId,
+        'cityName': selectedCityName,
+        'districtId': selectedDistrictId,
+        'districtName': selectedDistrictName,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'active',
@@ -574,9 +922,32 @@ class ItemProvider with ChangeNotifier {
         'favoriteCount': 0,
         'isFeatured': false,
         'isPromoted': false,
+        'isRealEstate': isRealEstateCategory,
+        'photoCount': imageUrls.length,
+        
+        // NEW: Add category-specific fields
+        'categorySpecificFields': _categorySpecificFields,
+        'categoryFieldTemplate': _categoryFieldTemplate,
+        'categoryTemplateName': _categoryTemplateName,
+        'hasCustomFields': _categorySpecificFields.isNotEmpty,
+      };
+
+      // Add real estate specific fields
+      if (isRealEstateCategory) {
+        itemData.addAll({
+          'propertyType': _extractPropertyType(),
+          'hasMultiplePhotos': imageUrls.length >= 10,
+          'isPremiumListing': imageUrls.length >= 15,
+        });
+      }
+
+      await _firestore.collection('items').doc(itemId).set(itemData);
+      await SavedSearchService.checkSavedSearchesForNewItem({
+        'id': itemId,
+        ...itemData,
       });
 
-      developer.log('Item published successfully!');
+      developer.log('Item published successfully with ${_categorySpecificFields.length} category-specific fields!');
       _setPublishing(false);
       resetForm();
       return true;
@@ -589,8 +960,77 @@ class ItemProvider with ChangeNotifier {
     }
   }
 
+
+  // ENHANCED: Extract property type from category name
+  String _extractPropertyType() {
+    if (categoryName == null) return 'property';
+    
+    final categoryLower = categoryName!.toLowerCase();
+    
+    if (categoryLower.contains('house')) return 'house';
+    if (categoryLower.contains('apartment')) return 'apartment';
+    if (categoryLower.contains('villa')) return 'villa';
+    if (categoryLower.contains('land')) return 'land';
+    if (categoryLower.contains('commercial')) return 'commercial';
+    if (categoryLower.contains('office')) return 'office';
+    if (categoryLower.contains('shop')) return 'shop';
+    if (categoryLower.contains('warehouse')) return 'warehouse';
+    
+    return 'property';
+  }
+
   // Validate form using GlobalKey
   bool validateForm() {
     return formKey.currentState?.validate() ?? false;
   }
+  // NEW: Load existing item data for editing
+Future<void> loadExistingItem(ProductModel product) async {
+  try {
+    // Reset form first
+    resetForm();
+    
+    // Load basic item details
+    itemTitle = product.title;
+    category = product.category ?? '';
+    categoryName = product.categoryName;
+    condition = product.condition;
+    description = product.description;
+    brand = product.brand ?? '';
+    dimensions = product.dimensions ?? '';
+    color = product.color ?? '';
+    price = product.price;
+    allowPriceNegotiation = product.allowPriceNegotiation;
+    shippingOption = product.shippingOption ?? 'Both';
+    
+    // Load location data
+    latitude = product.latitude;
+    longitude = product.longitude;
+    locationAddress = product.locationAddress;
+    selectedCityId = product.cityId;
+    selectedCityName = product.cityName;
+    selectedDistrictId = product.districtId;
+    selectedDistrictName = product.districtName;
+    
+    // Load existing image URLs (for display)
+    imageUrls = List<String>.from(product.imageUrls);
+    
+    // Load category-specific fields if available
+    if (product.categorySpecificFields != null) {
+      _categorySpecificFields = Map<String, dynamic>.from(product.categorySpecificFields!);
+    }
+    
+    // Load category template if available
+    if (product.categoryFieldTemplate != null) {
+      _categoryFieldTemplate = List<Map<String, dynamic>>.from(product.categoryFieldTemplate!);
+      _categoryTemplateName = product.categoryTemplateName;
+    }
+    
+    developer.log('Loaded existing item data for editing: ${product.title}');
+    notifyListeners();
+  } catch (e) {
+    developer.log('Error loading existing item data: $e');
+    _setError('Failed to load item data: $e');
+  }
+}
+
 }

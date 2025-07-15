@@ -7,10 +7,14 @@ import 'package:arabicmarketplace/screens/chat/view/chat_screen.dart';
 import 'package:arabicmarketplace/screens/home/view/home_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/item_details_screen.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/provider.dart';
+// Import your other pages (MarketplaceHomePage, ChatPage, etc.)
 
 class CustomBottomNavigationBar extends StatefulWidget {
   @override
@@ -23,19 +27,20 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
   final List<Widget> _screens = [
     MarketplaceHomePage(),
     ChatPage(),
-    ItemDetailsPage(isMain: true,),
-    SearchPage(isMain: true,),
+    ItemDetailsPage(isMain: true),
+    SearchPage(isMain: true),
     AccountScreen(),
   ];
 
   @override
   void initState() {
-   getUserData();
+    getUserData();
     super.initState();
   }
-  getUserData(){
-    SchedulerBinding.instance.scheduleFrameCallback((callback){
- Provider.of<UserProvider>(context,listen: false);
+
+  getUserData() {
+    SchedulerBinding.instance.scheduleFrameCallback((callback) {
+      Provider.of<UserProvider>(context, listen: false);
     });
   }
 
@@ -44,7 +49,7 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
     return Scaffold(
       body: _screens[selectedIndex],
       bottomNavigationBar: Container(
-        height:Platform.isIOS? 120:84,
+        height: Platform.isIOS ? 120 : 84,
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -60,13 +65,13 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
           children: [
             _buildNavItemWithAsset(
               iconPath: "assets/icons/Home.png",
-              label: 'HOME',
+              label: AppLocalizations.home.tr(),
               index: 0,
               isSelected: selectedIndex == 0,
             ),
             _buildNavItemWithAsset(
               iconPath: "assets/icons/Chat.png",
-              label: 'CHATS',
+              label: AppLocalizations.chats.tr(),
               index: 1,
               isSelected: selectedIndex == 1,
             ),
@@ -74,13 +79,13 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
             _buildNavItem(
               icon: Icons.search_outlined,
               selectedIcon: Icons.search,
-              label: 'Search',
+              label: AppLocalizations.search.tr(),
               index: 3,
               isSelected: selectedIndex == 3,
             ),
             _buildNavItemWithAsset(
               iconPath: "assets/icons/User.png",
-              label: 'ACCOUNT',
+              label: AppLocalizations.account.tr(),
               index: 4,
               isSelected: selectedIndex == 4,
             ),
@@ -166,86 +171,83 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
     );
   }
 
- Widget _buildSellButton() {
-  bool isSelected = selectedIndex == 2;
-  return GestureDetector(
-    onTap: () {
-      setState(() {
-        selectedIndex = 2;
-      });
-    },
-    child: Container(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Elevated circular button
-          Transform.translate(
-            offset: Offset(0, -15), // Move icon up to create slope effect
-            child: Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white, // Keep white background
-                // Create gradient border effect
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    ColorsController.primaryColor, // Top half border
-                    Colors.black,                  // Bottom half border
-                  ],
-                  stops: [0.5, 0.5],
-                ),
-              ),
+  Widget _buildSellButton() {
+    bool isSelected = selectedIndex == 2;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedIndex = 2;
+        });
+      },
+      child: Container(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.translate(
+              offset: Offset(0, -15),
               child: Container(
-                width: 58, // 70 - (6*2) = inner size
-                height: 58,
-                margin: EdgeInsets.all(6), // Creates 6px border
+                width: 70,
+                height: 70,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white, // White inner background
+                  color: Colors.white,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      ColorsController.primaryColor,
+                      Colors.black,
+                    ],
+                    stops: [0.5, 0.5],
+                  ),
                 ),
-                child: Icon(
-                  Icons.add,
-                  color: Colors.red,
-                  size: 32,
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  margin: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: Colors.red,
+                    size: 32,
+                  ),
                 ),
               ),
             ),
-          ),
-          // Text at normal level
-          Transform.translate(
-            offset: Offset(0, -15), // Adjust text position to align with others
-            child: Text(
-              'SELL',
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: isSelected ? Colors.blue : Colors.grey[600],
+            Transform.translate(
+              offset: Offset(0, -15),
+              child: Text(
+                AppLocalizations.sell.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: isSelected ? Colors.blue : Colors.grey[600],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
- 
+    );
+  }
+
   String _getPageName(int index) {
     switch (index) {
       case 0:
-        return 'Home';
+        return AppLocalizations.home.tr();
       case 1:
-        return 'Chats';
+        return AppLocalizations.chats.tr();
       case 2:
-        return 'Sell';
+        return AppLocalizations.sell.tr();
       case 3:
-        return 'Search';
+        return AppLocalizations.search.tr();
       case 4:
-        return 'Account';
+        return AppLocalizations.account.tr();
       default:
-        return 'Unknown';
+        return AppLocalizations.unknown.tr();
     }
   }
 }

@@ -197,82 +197,84 @@ class _MessagesScreenState extends State<MessagesScreen>
         },
       ),
       actions: [
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: Colors.black),
-          onSelected: (value) {
-            switch (value) {
-              case 'profile':
-                _navigateToUserProfile();
-                break;
-              case 'report_user':
-                _showReportUserDialog();
-                break;
-              case 'report_chat':
-                _showReportChatDialog();
-                break;
-              case 'delete':
-                _showDeleteChatDialog();
-                break;
-              case 'block':
-                _showBlockUserDialog();
-                break;
-            }
-          },
-          itemBuilder: (BuildContext context) => [
-            PopupMenuItem(
-              value: 'profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person_outline, size: 20, color: Colors.grey[700]),
-                  SizedBox(width: 12),
-                  Text(AppLocalizations.viewProfile.tr()), // Using existing key
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'report_user',
-              child: Row(
-                children: [
-                  Icon(Icons.report_outlined, size: 20, color: Colors.orange),
-                  SizedBox(width: 12),
-                  Text(
-                    AppLocalizations.reportBug.tr(),
-                  ), // Using existing key creatively
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'report_chat',
-              child: Row(
-                children: [
-                  Icon(Icons.flag_outlined, size: 20, color: Colors.orange),
-                  SizedBox(width: 12),
-                  Text(AppLocalizations.reportBug.tr()), // Using existing key
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text(AppLocalizations.delete.tr()), // Using existing key
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'block',
-              child: Row(
-                children: [
-                  Icon(Icons.block, size: 20, color: Colors.red),
-                  SizedBox(width: 12),
-                  Text('Block User'), // Simple text
-                ],
-              ),
-            ),
-          ],
-        ),
+        // PopupMenuButton<String>(
+        //   icon: const Icon(Icons.more_vert, color: Colors.black),
+        //   onSelected: (value) {
+        //     switch (value) {
+        //       case 'profile':
+        //         _navigateToUserProfile();
+        //         break;
+        //       case 'report_user':
+        //         _showReportUserDialog();
+        //         break;
+        //       case 'report_chat':
+        //         _showReportChatDialog();
+        //         break;
+        //       case 'delete':
+        //         _showDeleteChatDialog();
+        //         break;
+        //       case 'block':
+        //         _showBlockUserDialog();
+        //         break;
+        //     }
+        //   },
+        //   itemBuilder: (BuildContext context) => [
+        //     PopupMenuItem(
+        //       value: 'profile',
+        //       child: Row(
+        //         children: [
+        //           Icon(Icons.person_outline, size: 20, color: Colors.grey[700]),
+        //           SizedBox(width: 12),
+        //           Text(AppLocalizations.viewProfile.tr()), // Using existing key
+        //         ],
+        //       ),
+        //     ),
+        //     PopupMenuItem(
+        //       value: 'report_user',
+        //       child: Row(
+        //         children: [
+        //           Icon(Icons.report_outlined, size: 20, color: Colors.orange),
+        //           SizedBox(width: 12),
+        //           Text(
+        //             AppLocalizations.reportBug.tr(),
+        //           ), // Using existing key creatively
+        //         ],
+        //       ),
+        //     ),
+        //     PopupMenuItem(
+        //       value: 'report_chat',
+        //       child: Row(
+        //         children: [
+        //           Icon(Icons.flag_outlined, size: 20, color: Colors.orange),
+        //           SizedBox(width: 12),
+        //           Text(AppLocalizations.reportBug.tr()), // Using existing key
+        //         ],
+        //       ),
+        //     ),
+        //     PopupMenuItem(
+        //       value: 'delete',
+        //       child: Row(
+        //         children: [
+        //           Icon(Icons.delete_outline, size: 20, color: Colors.red),
+        //           SizedBox(width: 12),
+        //           Text(AppLocalizations.delete.tr()), // Using existing key
+        //         ],
+        //       ),
+        //     ),
+        //     PopupMenuItem(
+        //       value: 'block',
+        //       child: Row(
+        //         children: [
+        //           Icon(Icons.block, size: 20, color: Colors.red),
+        //           SizedBox(width: 12),
+        //           Text('Block User'), // Simple text
+        //         ],
+        //       ),
+        //     ),
+        //   ],
+        // ),
+    
+    
       ],
     );
   }
@@ -1027,7 +1029,7 @@ class _MessagesScreenState extends State<MessagesScreen>
               children: [
                 _buildImageOption(
                   icon: Icons.photo_library,
-                  label: 'Gallery', // Simple word
+                  label: AppLocalizations.gallery.tr(),
                   onTap: () async {
                     Navigator.pop(context);
                     final ImagePicker picker = ImagePicker();
@@ -1052,7 +1054,7 @@ class _MessagesScreenState extends State<MessagesScreen>
                 ),
                 _buildImageOption(
                   icon: Icons.camera_alt,
-                  label: 'Camera', // Simple word
+                  label: AppLocalizations.camera.tr(),
                   onTap: () async {
                     Navigator.pop(context);
                     final ImagePicker picker = ImagePicker();

@@ -1,6 +1,8 @@
 // screens/profile_screen.dart - Updated with Backend Integration
 import 'package:arabicmarketplace/screens/account/controller/profile_provider.dart';
 import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -53,14 +55,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'To change your personal information, please contact our support team:',
+              AppLocalizations.toChangePersonalInfoContactSupport.tr(),
               style: GoogleFonts.jost(fontSize: 14, color: Colors.grey[700]),
             ),
             SizedBox(height: 16),
             _buildContactOption(
               icon: Icons.email,
-              title: 'Email Support',
-              subtitle: 'support@yourapp.com',
+              title: AppLocalizations.emailSupport.tr(),
+              subtitle: AppLocalizations.supportEmail.tr(),
               onTap: () {
                 // Add email launch functionality
                 Navigator.pop(context);
@@ -69,8 +71,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             SizedBox(height: 8),
             _buildContactOption(
               icon: Icons.phone,
-              title: 'Phone Support',
-              subtitle: '+1 (555) 123-4567',
+              title: AppLocalizations.phoneSupport.tr(),
+              subtitle: AppLocalizations.supportPhone.tr(),
               onTap: () {
                 // Add phone launch functionality
                 Navigator.pop(context);
@@ -79,8 +81,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             SizedBox(height: 8),
             _buildContactOption(
               icon: Icons.chat,
-              title: 'Live Chat',
-              subtitle: 'Available 24/7',
+              title: AppLocalizations.supportLiveChat.tr(),
+              subtitle: AppLocalizations.available247.tr(),
               onTap: () {
                 // Add chat functionality
                 Navigator.pop(context);
@@ -157,20 +159,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return ChangeNotifierProvider.value(
       value: _profileProvider,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            'My Profile',
+            AppLocalizations.myProfile.tr(),
             style: GoogleFonts.jost(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onBackground,
             ),
           ),
           centerTitle: false,
@@ -178,8 +180,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Consumer<ProfileProvider>(
               builder: (context, provider, child) {
                 return IconButton(
-                  icon: Icon(Icons.refresh, color: Colors.black),
+                  icon: Icon(Icons.refresh, color: Theme.of(context).colorScheme.onBackground),
                   onPressed: provider.isLoading ? null : () => provider.refreshProfile(),
+                  tooltip: AppLocalizations.refresh.tr(),
                 );
               },
             ),
@@ -195,7 +198,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
                     Text(
-                      'Loading profile...',
+                      AppLocalizations.loadingProfile.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 16,
                         color: Colors.grey[600],
@@ -456,7 +459,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             padding: EdgeInsets.only(top: 12),
             child: Icon(Icons.info_outline, color: Colors.black, size: 20),
           ),
-          hintText: 'Tell us about ${provider.userProfile?.type == 'company' ? 'your company' : 'yourself'}...',
+          hintText: provider.userProfile?.type == 'company' 
+              ? AppLocalizations.tellUsAboutYourCompany.tr()
+              : AppLocalizations.tellUsAboutYourself.tr(),
           hintStyle: GoogleFonts.jost(
             fontSize: 16,
             fontWeight: FontWeight.w500,
@@ -648,7 +653,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Saving...',
+                    AppLocalizations.saving.tr(),
                     style: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -657,7 +662,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               )
             : Text(
-                'Save About Info',
+                AppLocalizations.saveAboutInfo.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -680,7 +685,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
         child: Text(
-          'Change Password',
+          AppLocalizations.changePassword.tr(),
           style: GoogleFonts.jost(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -735,7 +740,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Select Profile Picture',
+                AppLocalizations.selectProfilePicture.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -747,7 +752,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   _buildImageSourceOption(
                     icon: Icons.camera_alt,
-                    label: 'Camera',
+                    label: AppLocalizations.camera.tr(),
                     onTap: () {
                       Navigator.pop(context);
                       provider.pickImage(ImageSource.camera);
@@ -755,7 +760,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   _buildImageSourceOption(
                     icon: Icons.photo_library,
-                    label: 'Gallery',
+                    label: AppLocalizations.gallery.tr(),
                     onTap: () {
                       Navigator.pop(context);
                       provider.pickImage(ImageSource.gallery);
@@ -764,7 +769,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   if (provider.profileImageUrl != null)
                     _buildImageSourceOption(
                       icon: Icons.delete,
-                      label: 'Remove',
+                      label: AppLocalizations.remove.tr(),
                       onTap: () {
                         Navigator.pop(context);
                         provider.deleteProfileImage();
@@ -823,7 +828,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'About info updated successfully!',
+            AppLocalizations.aboutInfoUpdatedSuccessfully.tr(),
             style: GoogleFonts.jost(fontSize: 14, fontWeight: FontWeight.w500),
           ),
           backgroundColor: Colors.green[700],
@@ -835,7 +840,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            provider.error ?? 'Failed to update about info',
+            provider.error ?? AppLocalizations.failedToUpdateAboutInfo.tr(),
             style: GoogleFonts.jost(fontSize: 14, fontWeight: FontWeight.w500),
           ),
           backgroundColor: Colors.red,
@@ -860,7 +865,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         builder: (context, setState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Text(
-            'Change Password',
+            AppLocalizations.changePassword.tr(),
             style: GoogleFonts.jost(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -876,7 +881,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isCurrentPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: 'Current Password',
+                  labelText: AppLocalizations.currentPassword.tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixIcon: Icon(Icons.lock_outline, size: 20),
                   suffixIcon: IconButton(
@@ -897,7 +902,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isNewPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: 'New Password',
+                  labelText: AppLocalizations.newPassword.tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixIcon: Icon(Icons.lock, size: 20),
                   suffixIcon: IconButton(
@@ -918,7 +923,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isConfirmPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
+                  labelText: AppLocalizations.confirmNewPassword.tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixIcon: Icon(Icons.lock, size: 20),
                   suffixIcon: IconButton(
@@ -942,7 +947,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 confirmPasswordController.dispose();
               },
               child: Text(
-                'Cancel',
+                AppLocalizations.cancel.tr(),
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -956,21 +961,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   // Validate inputs
                   if (currentPasswordController.text.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Please enter current password')),
+                      SnackBar(content: Text(AppLocalizations.pleaseEnterCurrentPassword.tr())),
                     );
                     return;
                   }
                   
                   if (newPasswordController.text.length < 6) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('New password must be at least 6 characters')),
+                      SnackBar(content: Text(AppLocalizations.newPasswordMustBe6Characters.tr())),
                     );
                     return;
                   }
                   
                   if (newPasswordController.text != confirmPasswordController.text) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Passwords do not match')),
+                      SnackBar(content: Text(AppLocalizations.passwordsDoNotMatch.tr())),
                     );
                     return;
                   }
@@ -985,14 +990,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Password updated successfully!'),
+                        content: Text(AppLocalizations.passwordUpdatedSuccessfully.tr()),
                         backgroundColor: Colors.green[700],
                       ),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(provider.error ?? 'Failed to update password'),
+                        content: Text(provider.error ?? AppLocalizations.failedToUpdatePassword.tr()),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -1009,7 +1014,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        'Update',
+                        AppLocalizations.update.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,

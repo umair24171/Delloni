@@ -802,4 +802,16 @@ class AuthService {
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
+
+  // New method to update user language
+  Future<void> updateUserLanguage(String uid, String language) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'language': language,
+      });
+    } catch (e) {
+      print('Error updating language: $e');
+      rethrow;
+    }
+  }
 }

@@ -1,12 +1,21 @@
 // providers/search_provider.dart
 import 'dart:async';
 import 'dart:developer';
+import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 
 // Add this import at the top
 import 'dart:math' as math;
+// Updated SearchProvider with city/district support
+// providers/search_provider.dart
+// Add this import at the top
+import 'dart:math' as math;
+
+import '../../notifications/view/notification_saved_search_page.dart';
+
+// Enhanced SearchProvider with saved search integration
 class SearchProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
@@ -21,7 +30,7 @@ class SearchProvider with ChangeNotifier {
   List<String> _searchSuggestions = [];
   List<String> _recentSearches = [];
   
-  // Filters
+  // Filters with city/district support
   SearchFilters _filters = SearchFilters();
   
   // Debounce timer for search
@@ -43,6 +52,9 @@ class SearchProvider with ChangeNotifier {
   SearchFilters get filters => _filters;
   bool get hasResults => _searchResults.isNotEmpty || _categoryResults.isNotEmpty;
   bool get hasFilters => _filters.hasActiveFilters;
+
+  // NEW: Check if current search can be saved
+  bool get canSaveSearch => _searchQuery.isNotEmpty || _filters.hasActiveFilters;
 
   SearchProvider() {
     _loadRecentSearches();
@@ -93,7 +105,7 @@ class SearchProvider with ChangeNotifier {
     }
   }
 
-  // Main search function
+  // Main search function with enhanced city/district filtering
   Future<void> _performSearch() async {
     if (_searchQuery.isEmpty) return;
     
@@ -120,7 +132,7 @@ class SearchProvider with ChangeNotifier {
     }
   }
 
-  // Search products with filters
+  // Enhanced search products with city/district filters
   Future<List<ProductModel>> _searchProducts() async {
     try {
       Query query = _firestore
@@ -129,9 +141,6 @@ class SearchProvider with ChangeNotifier {
 
       // Apply text search - search in multiple fields
       final searchTerms = _searchQuery.toLowerCase().split(' ');
-      
-      // For now, we'll use basic field searching
-      // In production, consider using Algolia or ElasticSearch for better full-text search
       
       // Apply category filter first if specified
       if (_filters.selectedCategory != null && _filters.selectedCategory != 'Any') {
@@ -152,10 +161,14 @@ class SearchProvider with ChangeNotifier {
         query = query.where('sellerType', isEqualTo: sellerType);
       }
       
-      // Apply location filter if specified
-      if (_filters.latitude != null && _filters.longitude != null && _filters.radiusKm != null) {
-        // Note: Firestore doesn't support radius queries natively
-        // You might want to use a geohashing library or filter results after fetching
+      // Apply city filter
+      if (_filters.cityId != null) {
+        query = query.where('cityId', isEqualTo: _filters.cityId);
+      }
+      
+      // Apply district filter (only if city is also specified)
+      if (_filters.districtId != null && _filters.cityId != null) {
+        query = query.where('districtId', isEqualTo: _filters.districtId);
       }
       
       // Order by creation date
@@ -170,12 +183,13 @@ class SearchProvider with ChangeNotifier {
       
       // Apply text search filtering (since Firestore has limited text search)
       products = products.where((product) {
-        final searchableText = '${product.title} ${product.description} ${product.brand} ${product.category} ${product.color}'.toLowerCase();
+        final searchableText = '${product.title} ${product.description} ${product.brand ?? ''} ${product.category} ${product.color ?? ''}'.toLowerCase();
         return searchTerms.any((term) => searchableText.contains(term));
       }).toList();
       
-      // Apply location filter if needed (post-query filtering)
-      if (_filters.latitude != null && _filters.longitude != null && _filters.radiusKm != null) {
+      // Apply location filter if needed (for current location searches)
+      if (_filters.latitude != null && _filters.longitude != null && 
+          _filters.radiusKm != null && _filters.cityId == null) {
         products = _filterByLocation(products);
       }
       
@@ -199,7 +213,7 @@ class SearchProvider with ChangeNotifier {
           .map((doc) => CategoryModel.fromFirestore(doc))
           .where((category) => 
               category.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              category.name?.toLowerCase().contains(_searchQuery.toLowerCase()) == true)
+              (category.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false))
           .toList();
       
       return categories;
@@ -210,7 +224,7 @@ class SearchProvider with ChangeNotifier {
     }
   }
 
-  // Filter products by location
+  // Filter products by location (for current location searches)
   List<ProductModel> _filterByLocation(List<ProductModel> products) {
     if (_filters.latitude == null || _filters.longitude == null || _filters.radiusKm == null) {
       return products;
@@ -252,7 +266,7 @@ class SearchProvider with ChangeNotifier {
     return degrees * (math.pi / 180);
   }
 
-  // Generate search suggestions
+  // Enhanced generate search suggestions with city data
   Future<void> _generateSearchSuggestions() async {
     try {
       // Get popular categories
@@ -266,6 +280,21 @@ class SearchProvider with ChangeNotifier {
       final suggestions = categoriesSnapshot.docs
           .map((doc) => doc['name'] as String)
           .toList();
+      
+      // Add popular cities to suggestions
+      try {
+        final citiesSnapshot = await _firestore
+            .collection('cities')
+            .where('isActive', isEqualTo: true)
+            .orderBy('name')
+            .limit(3)
+            .get();
+        
+        suggestions.addAll(citiesSnapshot.docs
+            .map((doc) => doc['name'] as String));
+      } catch (e) {
+        log('Error loading cities for suggestions: $e');
+      }
       
       // Add some common search terms
       suggestions.addAll([
@@ -313,18 +342,7 @@ class SearchProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Persistence for recent searches (you can use SharedPreferences)
-  void _loadRecentSearches() {
-    // TODO: Load from SharedPreferences
-    // For now, using mock data
-    _recentSearches = ['iPhone 12 pro max', 'Samsung Galaxy', 'MacBook'];
-  }
-
-  void _saveRecentSearches() {
-    // TODO: Save to SharedPreferences
-  }
-
-  // Filter management
+  // Enhanced filter management with city/district support
   void updateFilters(SearchFilters newFilters) {
     _filters = newFilters;
     notifyListeners();
@@ -343,6 +361,238 @@ class SearchProvider with ChangeNotifier {
     if (_searchQuery.isNotEmpty) {
       _performSearch();
     }
+  }
+
+  // Enhanced search by location (city/district)
+  Future<void> searchByLocation(String? cityId, String? districtId, String locationName) async {
+    _filters = _filters.copyWith(
+      cityId: cityId,
+      districtId: districtId,
+      location: locationName,
+    );
+    _searchQuery = locationName;
+    await _performSearch();
+    _addToRecentSearches(locationName);
+  }
+
+  // Get products by city
+  Future<List<ProductModel>> getProductsByCity(String cityId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('items')
+          .where('status', isEqualTo: 'active')
+          .where('cityId', isEqualTo: cityId)
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      log('Error getting products by city: $e');
+      return [];
+    }
+  }
+
+  // Get products by district
+  Future<List<ProductModel>> getProductsByDistrict(String districtId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('items')
+          .where('status', isEqualTo: 'active')
+          .where('districtId', isEqualTo: districtId)
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      log('Error getting products by district: $e');
+      return [];
+    }
+  }
+
+  // NEW: Saved search functionality
+  
+  // Show save search dialog
+  Future<void> showSaveSearchDialog(BuildContext context) async {
+    if (!canSaveSearch) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a search query or apply filters first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => SaveSearchDialog(
+        currentQuery: _searchQuery,
+        currentFilters: _filters,
+      ),
+    );
+
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Search saved! You\'ll get notified of new matches.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  // Build save search button widget
+  Widget buildSaveSearchButton(BuildContext context) {
+    if (!canSaveSearch) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => showSaveSearchDialog(context),
+          icon: const Icon(Icons.bookmark_add, size: 18),
+          label: const Text('Save This Search'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xff014700),
+            side: const BorderSide(color: Color(0xff014700)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build search results header with save option
+  Widget buildSearchResultsHeader(BuildContext context) {
+    if (!hasResults) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${_searchResults.length} results found',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          if (canSaveSearch)
+            TextButton.icon(
+              onPressed: () => showSaveSearchDialog(context),
+              icon: const Icon(Icons.bookmark_add, size: 18),
+              label: const Text('Save'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xff014700),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Execute saved search
+  Future<void> executeSearchFromSavedSearch(SavedSearchModel savedSearch) async {
+    try {
+      _setSearching(true);
+      _setError(null);
+      
+      // Set search query and filters from saved search
+      _searchQuery = savedSearch.query;
+      _filters = SearchFilters(
+        selectedCategory: savedSearch.categoryId,
+        minPrice: savedSearch.minPrice,
+        maxPrice: savedSearch.maxPrice,
+        adType: savedSearch.adType,
+        cityId: savedSearch.cityId,
+        cityName: savedSearch.cityName,
+        districtId: savedSearch.districtId,
+        districtName: savedSearch.districtName,
+        latitude: savedSearch.latitude,
+        longitude: savedSearch.longitude,
+        radiusKm: savedSearch.radiusKm,
+        location: savedSearch.cityName,
+      );
+      
+      // Perform search
+      await _performSearch();
+      
+      // Add to recent searches
+      if (_searchQuery.isNotEmpty) {
+        _addToRecentSearches(_searchQuery);
+      }
+      
+      _setSearching(false);
+      notifyListeners();
+      
+    } catch (e) {
+      _setError('Failed to execute saved search: ${e.toString()}');
+      _setSearching(false);
+      log('Error executing saved search: $e');
+    }
+  }
+
+  // Get search summary for display
+  String getSearchSummary() {
+    List<String> parts = [];
+    
+    if (_searchQuery.isNotEmpty) {
+      parts.add('"$_searchQuery"');
+    }
+    
+    if (_filters.selectedCategory != null) {
+      parts.add('in ${_filters.selectedCategory}');
+    }
+    
+    if (_filters.minPrice != null || _filters.maxPrice != null) {
+      if (_filters.minPrice != null && _filters.maxPrice != null) {
+        parts.add('Rs ${_filters.minPrice!.toStringAsFixed(0)} - Rs ${_filters.maxPrice!.toStringAsFixed(0)}');
+      } else if (_filters.minPrice != null) {
+        parts.add('above Rs ${_filters.minPrice!.toStringAsFixed(0)}');
+      } else if (_filters.maxPrice != null) {
+        parts.add('below Rs ${_filters.maxPrice!.toStringAsFixed(0)}');
+      }
+    }
+    
+    if (_filters.cityName != null) {
+      parts.add('in ${_filters.cityName}');
+      if (_filters.districtName != null) {
+        parts.add('(${_filters.districtName})');
+      }
+    }
+    
+    if (_filters.adType != null && _filters.adType != 'All') {
+      parts.add('${_filters.adType} ads');
+    }
+    
+    return parts.isNotEmpty ? parts.join(' • ') : 'All items';
+  }
+
+  // Persistence for recent searches
+  void _loadRecentSearches() {
+    // TODO: Load from SharedPreferences
+    // For now, using mock data
+    _recentSearches = ['iPhone 12 pro max', 'Samsung Galaxy', 'MacBook'];
+  }
+
+  void _saveRecentSearches() {
+    // TODO: Save to SharedPreferences
   }
 
   // Clear search results
@@ -375,18 +625,22 @@ class SearchProvider with ChangeNotifier {
   }
 }
 
-// Search filters model
+// Enhanced SearchFilters class with city/district fields
 class SearchFilters {
   final String? selectedCategory;
   final double? minPrice;
   final double? maxPrice;
   final double? minRadius;
   final double? maxRadius;
-  final String? adType; // 'Individual', 'Company', 'All'
+  final String? adType;
   final double? latitude;
   final double? longitude;
   final double? radiusKm;
   final String? location;
+  final String? cityId;
+  final String? cityName;
+  final String? districtId;
+  final String? districtName;
 
   const SearchFilters({
     this.selectedCategory,
@@ -399,6 +653,10 @@ class SearchFilters {
     this.longitude,
     this.radiusKm,
     this.location,
+    this.cityId,
+    this.cityName,
+    this.districtId,
+    this.districtName,
   });
 
   bool get hasActiveFilters {
@@ -408,7 +666,9 @@ class SearchFilters {
            minRadius != null ||
            maxRadius != null ||
            (adType != null && adType != 'All') ||
-           latitude != null;
+           latitude != null ||
+           cityId != null ||
+           districtId != null;
   }
 
   SearchFilters copyWith({
@@ -422,6 +682,10 @@ class SearchFilters {
     double? longitude,
     double? radiusKm,
     String? location,
+    String? cityId,
+    String? cityName,
+    String? districtId,
+    String? districtName,
   }) {
     return SearchFilters(
       selectedCategory: selectedCategory ?? this.selectedCategory,
@@ -434,6 +698,28 @@ class SearchFilters {
       longitude: longitude ?? this.longitude,
       radiusKm: radiusKm ?? this.radiusKm,
       location: location ?? this.location,
+      cityId: cityId ?? this.cityId,
+      cityName: cityName ?? this.cityName,
+      districtId: districtId ?? this.districtId,
+      districtName: districtName ?? this.districtName,
     );
+  }
+
+  // Convert to SavedSearchModel compatible format
+  Map<String, dynamic> toSavedSearchData() {
+    return {
+      'selectedCategory': selectedCategory,
+      'minPrice': minPrice,
+      'maxPrice': maxPrice,
+      'adType': adType,
+      'cityId': cityId,
+      'cityName': cityName,
+      'districtId': districtId,
+      'districtName': districtName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'radiusKm': radiusKm,
+      'location': location,
+    };
   }
 }

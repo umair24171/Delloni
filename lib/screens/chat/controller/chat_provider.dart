@@ -42,7 +42,7 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  EnhancedChatProvider() {
+  ChatProvider() {
     _initializeChats();
   }
 
@@ -58,7 +58,7 @@ class ChatProvider with ChangeNotifier {
       _setupChatsListener(currentUser.uid);
     } catch (e) {
       _setError('Failed to initialize chats: $e');
-      log('EnhancedChatProvider initialization error: $e');
+      log('ChatProvider initialization error: $e');
     }
   }
 
@@ -73,8 +73,10 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Setup real-time chat listener
+  // FIXED: Enhanced chat listener with better error handling
   void _setupChatsListener(String userId) {
+    _chatsSubscription?.cancel(); // Cancel existing subscription
+    
     _chatsSubscription = _firestore
         .collection('chats')
         .where('participants', arrayContains: userId)
@@ -82,48 +84,114 @@ class ChatProvider with ChangeNotifier {
         .orderBy('lastMessageTime', descending: true)
         .snapshots()
         .listen((snapshot) {
-      _allChats = snapshot.docs
-          .map((doc) => EnhancedChatModel.fromFirestore(doc))
-          .toList();
-
-      _categorizeChatsEnhanced(userId);
-      _setLoading(false);
+      try {
+        log('📱 Processing ${snapshot.docs.length} chats from Firestore');
+        
+        // Filter out chats that this user has deleted
+        final filteredChats = <EnhancedChatModel>[];
+        
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          
+          // FIXED: Better handling of deletedBy field
+          final deletedByData = data['deletedBy'];
+          List<String> deletedBy = [];
+          
+          if (deletedByData != null) {
+            if (deletedByData is List) {
+              deletedBy = List<String>.from(deletedByData);
+            } else if (deletedByData is String) {
+              deletedBy = [deletedByData];
+            }
+          }
+          
+          // Check if current user has deleted this chat
+          if (!deletedBy.contains(userId)) {
+            try {
+              final chat = EnhancedChatModel.fromFirestore(doc);
+              filteredChats.add(chat);
+              log('✅ Added chat: ${chat.id} (deleted by: $deletedBy)');
+            } catch (e) {
+              log('❌ Error parsing chat ${doc.id}: $e');
+            }
+          } else {
+            log('🗑️ Skipping deleted chat: ${doc.id}');
+          }
+        }
+        
+        _allChats = filteredChats;
+        log('📊 Total active chats: ${_allChats.length}');
+        
+        _categorizeChatsFixed(userId);
+        _setLoading(false);
+      } catch (e) {
+        log('❌ Error processing chats: $e');
+        _setError('Error processing chats: $e');
+      }
     }, onError: (e) {
+      log('❌ Chats stream error: $e');
       _setError('Error loading chats: $e');
-      log('Chats stream error: $e');
     });
   }
 
-  // ENHANCED: Better categorization logic based on product ownership
-  void _categorizeChatsEnhanced(String userId) {
+  // FIXED: Proper categorization based on who initiated chat about which product
+  void _categorizeChatsFixed(String userId) {
     _buyingChats.clear();
     _sellingChats.clear();
     
     for (var chat in _allChats) {
-      if (chat.productId != null) {
-        // Use the enhanced methods to determine buying/selling
-        if (chat.isUserBuying(userId)) {
-          _buyingChats.add(chat);
-        } else if (chat.isUserSelling(userId)) {
-          _sellingChats.add(chat);
+      log('=== Processing Chat ${chat.id} ===');
+      log('Product Owner: ${chat.productOwnerId}');
+      log('Current User: $userId');
+      log('Product Title: ${chat.productTitle}');
+      log('Participants: ${chat.participants}');
+      
+      try {
+        if (chat.productId != null && chat.productOwnerId != null) {
+          // Primary logic: Use productOwnerId to determine buyer/seller
+          if (chat.productOwnerId == userId) {
+            // Current user owns the product → they are SELLING
+            _sellingChats.add(chat);
+            log('✓ Added to SELLING (user owns product)');
+          } else {
+            // Current user doesn't own the product → they are BUYING
+            _buyingChats.add(chat);
+            log('✓ Added to BUYING (user doesn\'t own product)');
+          }
         } else {
-          // Fallback to general categorization
-          _buyingChats.add(chat);
+          // Fallback logic for chats without clear product ownership
+          log('⚠️ No product owner info, using fallback logic');
+          
+          // Check if we can determine from chat type
+          String chatType = chat.chatType.toLowerCase();
+          if (chatType.contains('buying')) {
+            _buyingChats.add(chat);
+            log('✓ Added to BUYING (chatType: $chatType)');
+          } else if (chatType.contains('selling')) {
+            _sellingChats.add(chat);
+            log('✓ Added to SELLING (chatType: $chatType)');
+          } else {
+            // Default fallback: add to buying
+            _buyingChats.add(chat);
+            log('✓ Added to BUYING (default fallback)');
+          }
         }
-      } else {
-        // General chats without products
-        if (chat.participants.first == userId) {
-          _sellingChats.add(chat); // User initiated
-        } else {
-          _buyingChats.add(chat); // Others initiated
-        }
+      } catch (e) {
+        log('❌ Error categorizing chat ${chat.id}: $e');
+        // Safe fallback
+        _buyingChats.add(chat);
       }
     }
+    
+    log('📊 Final categorization:');
+    log('   Buying: ${_buyingChats.length} chats');
+    log('   Selling: ${_sellingChats.length} chats');
+    log('   Total: ${_allChats.length} chats');
     
     notifyListeners();
   }
 
-  // ENHANCED: Create or get chat with product owner tracking
+  // FIXED: Enhanced chat creation with proper field initialization
   Future<String?> createOrGetChatEnhanced({
     required String otherUserId,
     required String otherUserName,
@@ -132,7 +200,7 @@ class ChatProvider with ChangeNotifier {
     String? productTitle,
     String? productImage,
     double? productPrice,
-    String? productOwnerId, // NEW: Track who owns the product
+    String? productOwnerId,
   }) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -147,6 +215,23 @@ class ChatProvider with ChangeNotifier {
       final existingChat = await _firestore.collection('chats').doc(chatId).get();
       
       if (existingChat.exists) {
+        // Update existing chat with current product info
+        Map<String, dynamic> updateData = {
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'isActive': true, // Ensure chat is active
+        };
+        
+        if (productId != null) {
+          updateData.addAll({
+            'productId': productId,
+            'productTitle': productTitle,
+            'productImage': productImage,
+            'productPrice': productPrice,
+            'productOwnerId': productOwnerId,
+          });
+        }
+        
+        await _firestore.collection('chats').doc(chatId).update(updateData);
         return chatId;
       }
 
@@ -164,7 +249,7 @@ class ChatProvider with ChangeNotifier {
         chatType = productOwnerId == currentUser.uid ? 'selling' : 'buying';
       }
 
-      // Create new chat with enhanced data
+      // FIXED: Create new chat with proper field initialization
       await _firestore.collection('chats').doc(chatId).set({
         'participants': [currentUser.uid, otherUserId],
         'participantNames': {
@@ -182,7 +267,7 @@ class ChatProvider with ChangeNotifier {
         'productTitle': productTitle,
         'productImage': productImage,
         'productPrice': productPrice,
-        'productOwnerId': productOwnerId, // NEW
+        'productOwnerId': productOwnerId,
         'unreadCount': {
           currentUser.uid: 0,
           otherUserId: 0,
@@ -193,31 +278,31 @@ class ChatProvider with ChangeNotifier {
         },
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
-        'chatType': chatType, // ENHANCED
+        'chatType': chatType,
+        'deletedBy': [], // FIXED: Initialize as empty array
       });
 
+      log('✅ Created new chat: $chatId');
       return chatId;
     } catch (e) {
       _setError('Failed to create chat: $e');
-      log('Error creating enhanced chat: $e');
+      log('❌ Error creating enhanced chat: $e');
       return null;
     }
   }
 
-  // Change selected tab
+  // Rest of your existing methods...
   void changeTab(int index) {
     _selectedTabIndex = index;
     notifyListeners();
   }
 
-  // Generate consistent chat ID
   String _generateChatId(String userId1, String userId2) {
     List<String> ids = [userId1, userId2];
     ids.sort();
     return '${ids[0]}_${ids[1]}';
   }
 
-  // Get total unread count
   int getTotalUnreadCount() {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return 0;
@@ -225,7 +310,6 @@ class ChatProvider with ChangeNotifier {
     return _allChats.fold(0, (total, chat) => total + chat.getUnreadCount(currentUser.uid));
   }
 
-  // Mark chat as read
   Future<void> markChatAsRead(String chatId) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
@@ -239,11 +323,87 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // Refresh chats
-  Future<void> refreshChats() async {
+  // FIXED: Mark chat as unread
+  Future<void> markChatAsUnread(String chatId) async {
     final currentUser = _auth.currentUser;
-    if (currentUser != null) {
-      _setupChatsListener(currentUser.uid);
+    if (currentUser == null) return;
+
+    try {
+      await _firestore.collection('chats').doc(chatId).update({
+        'unreadCount.${currentUser.uid}': 1,
+      });
+    } catch (e) {
+      log('Error marking chat as unread: $e');
+    }
+  }
+
+  // FIXED: Enhanced delete chat with better error handling
+  Future<bool> deleteChat(String chatId) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        log('❌ Cannot delete chat: User not authenticated');
+        return false;
+      }
+
+      log('🗑️ Deleting chat: $chatId for user: ${currentUser.uid}');
+
+      // Add current user to deletedBy array
+      await _firestore.collection('chats').doc(chatId).update({
+        'deletedBy': FieldValue.arrayUnion([currentUser.uid]),
+      });
+
+      // FIXED: Remove from local lists immediately for better UX
+      _allChats.removeWhere((chat) => chat.id == chatId);
+      _buyingChats.removeWhere((chat) => chat.id == chatId);
+      _sellingChats.removeWhere((chat) => chat.id == chatId);
+      
+      log('✅ Chat deleted successfully: $chatId');
+      notifyListeners();
+      return true;
+    } catch (e) {
+      log('❌ Error deleting chat: $e');
+      _setError('Failed to delete chat: $e');
+      return false;
+    }
+  }
+
+  // FIXED: Enhanced refresh with proper error handling
+  Future<void> refreshChats() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        _setLoading(true);
+        _setError(null);
+        _setupChatsListener(currentUser.uid);
+      }
+    } catch (e) {
+      _setError('Failed to refresh chats: $e');
+      log('❌ Error refreshing chats: $e');
+    }
+  }
+
+  // FIXED: Check if chat exists and is accessible
+  Future<bool> isChatAccessible(String chatId) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return false;
+
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      
+      if (!chatDoc.exists) return false;
+      
+      final data = chatDoc.data() as Map<String, dynamic>;
+      final participants = List<String>.from(data['participants'] ?? []);
+      final deletedBy = List<String>.from(data['deletedBy'] ?? []);
+      final isActive = data['isActive'] ?? true;
+      
+      return participants.contains(currentUser.uid) && 
+             !deletedBy.contains(currentUser.uid) && 
+             isActive;
+    } catch (e) {
+      log('❌ Error checking chat accessibility: $e');
+      return false;
     }
   }
 
@@ -913,91 +1073,5 @@ class IndividualChatProvider with ChangeNotifier {
     
     super.dispose();
   }
-}
-extension IndividualChatProviderEnhancement on IndividualChatProvider {
-  
-  // Enhanced method to load other participant with presence info
-  Future<void> _loadOtherParticipantWithPresence() async {
-    if (_chat == null) return;
-    
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
 
-    try {
-      final otherUserId = _chat!.getOtherParticipantId(currentUser.uid);
-      
-      // Load user data
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(otherUserId)
-          .get();
-      
-      if (userDoc.exists) {
-        final userData = userDoc.data()!;
-        
-        // Load presence data
-        final presenceDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(otherUserId)
-            .collection('presence')
-            .doc('status')
-            .get();
-        
-        Map<String, dynamic> presenceData = {};
-        if (presenceDoc.exists) {
-          presenceData = presenceDoc.data()!;
-        }
-        
-        // Combine user data with presence data
-        final combinedData = {
-          ...userData,
-          'uid': otherUserId,
-          'isOnline': presenceData['isOnline'] ?? false,
-          'lastSeen': presenceData['lastSeen'],
-        };
-        
-        _otherParticipant = ChatParticipantModel.fromUserModel(combinedData);
-        notifyListeners();
-      }
-    } catch (e) {
-      log('Error loading other participant with presence: $e');
-    }
-  }
-
-  // Enhanced update user presence method
-  Future<void> updateUserPresenceEnhanced(String chatId, {bool isActive = true}) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      
-      // Update presence in user's presence collection
-      final presenceRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('presence')
-          .doc('status');
-      
-      batch.set(presenceRef, {
-        'lastSeen': FieldValue.serverTimestamp(),
-        'currentChat': isActive ? chatId : null,
-        'isOnline': isActive,
-      }, SetOptions(merge: true));
-      
-      // Also update in main user document for quick access
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser.uid);
-      
-      batch.update(userRef, {
-        'lastSeen': FieldValue.serverTimestamp(),
-        'isOnline': isActive,
-      });
-      
-      await batch.commit();
-    } catch (e) {
-      log('Error updating presence: $e');
-    }
-  }
 }

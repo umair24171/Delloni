@@ -1,12 +1,75 @@
 import 'package:arabicmarketplace/screens/account/controller/help_contact_service.dart';
+import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:developer';
-
+import 'dart:ui' as ui;
 // Fixed Help & Contact Page
+class HelpContactService {
+  Future<List<FAQItem>> getFAQs() async => [];
+  Future<List<HelpCategory>> getHelpCategories() async => [];
+  Future<List<HelpArticle>> getHelpArticles(String categoryId) async => [];
+  Stream<List<ContactSubmission>> getUserContactSubmissions() => Stream.value([]);
+  Future<Map<String, dynamic>> submitContactForm({
+    required String name,
+    required String email,
+    required String subject,
+    required String message,
+    required String category,
+  }) async => {'success': true};
+  Future<Map<String, dynamic>> submitBugReport({
+    required String title,
+    required String description,
+    required String stepsToReproduce,
+    String? expectedBehavior,
+    String? actualBehavior,
+  }) async => {'success': true};
+}
+
+class FAQItem {
+  final String question;
+  final String answer;
+  final String category;
+  FAQItem({required this.question, required this.answer, required this.category});
+}
+
+class HelpCategory {
+  final String id;
+  final String name;
+  final String description;
+  final String icon;
+  HelpCategory({required this.id, required this.name, required this.description, required this.icon});
+}
+
+class HelpArticle {
+  final String title;
+  final String content;
+  HelpArticle({required this.title, required this.content});
+}
+
+class ContactSubmission {
+  final String subject;
+  final String message;
+  final String category;
+  final DateTime createdAt;
+  final String statusDisplay;
+  final Color statusColor;
+  final String? adminResponse;
+  ContactSubmission({
+    required this.subject,
+    required this.message,
+    required this.category,
+    required this.createdAt,
+    required this.statusDisplay,
+    required this.statusColor,
+    this.adminResponse,
+  });
+}
+
 class HelpContactPage extends StatefulWidget {
   const HelpContactPage({Key? key}) : super(key: key);
 
@@ -26,7 +89,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadData();
   }
 
@@ -52,7 +115,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       });
     } catch (e) {
       setState(() => isLoading = false);
-      _showErrorSnackBar('Failed to load help data');
+      _showErrorSnackBar(AppLocalizations.failedLoadHelpData.tr());
     }
   }
 
@@ -68,12 +131,18 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
         ),
         title: Text(
-          'Help & Support',
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
+          AppLocalizations.helpContactUs.tr(),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
         ),
         centerTitle: false,
         bottom: TabBar(
@@ -82,33 +151,34 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
           labelColor: const Color(0xFF0D5E2A),
           unselectedLabelColor: Colors.grey[600],
           indicatorColor: const Color(0xFF0D5E2A),
-          labelStyle: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-          unselectedLabelStyle: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          tabs: const [
-            Tab(text: 'FAQ'),
-            Tab(text: 'Help Center'),
-            Tab(text: 'Contact Us'),
-            Tab(text: 'My Tickets'),
+          labelStyle: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w600)
+              : GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w400)
+              : GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w400),
+          tabs: [
+            Tab(text: AppLocalizations.faq.tr()),
+            Tab(text: AppLocalizations.helpCenter.tr()),
+            Tab(text: AppLocalizations.contactUs.tr()),
+            // Tab(text: AppLocalizations.myTickets.tr()),
           ],
         ),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D5E2A)))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildFAQTab(),
-                _buildHelpCenterTab(),
-                _buildContactTab(),
-                _buildMyTicketsTab(),
-              ],
-            ),
+      body: Directionality(
+        textDirection: context.locale.languageCode == 'ar' ? ui.TextDirection.rtl : ui.TextDirection.ltr,
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D5E2A)))
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildFAQTab(),
+                  _buildHelpCenterTab(),
+                  _buildContactTab(),
+                  // _buildMyTicketsTab(),
+                ],
+              ),
+      ),
     );
   }
 
@@ -116,12 +186,11 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
     if (faqs.isEmpty) {
       return _buildEmptyState(
         icon: Icons.quiz_outlined,
-        title: 'No FAQs Available',
-        subtitle: 'Frequently asked questions will appear here',
+        title: AppLocalizations.noFaqsAvailable.tr(),
+        subtitle: AppLocalizations.frequentlyAskedQuestions.tr(),
       );
     }
 
-    // Filter FAQs based on search query
     List<FAQItem> filteredFAQs = faqs.where((faq) {
       if (searchQuery.isEmpty) return true;
       return faq.question.toLowerCase().contains(searchQuery.toLowerCase()) ||
@@ -141,17 +210,20 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search bar
           Container(
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(12),
             ),
             child: TextField(
-              style: GoogleFonts.poppins(fontSize: 14),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(fontSize: 14)
+                  : GoogleFonts.poppins(fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Search FAQs...',
-                hintStyle: GoogleFonts.poppins(color: Colors.grey[600]),
+                hintText: AppLocalizations.searchFaqs.tr(),
+                hintStyle: context.locale.languageCode == 'ar'
+                    ? GoogleFonts.cairo(color: Colors.grey[600])
+                    : GoogleFonts.poppins(color: Colors.grey[600]),
                 prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -163,15 +235,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               },
             ),
           ),
-          
           const SizedBox(height: 24),
-          
-          // FAQ Categories
           if (groupedFAQs.isEmpty)
             _buildEmptyState(
               icon: Icons.search_off,
-              title: 'No Results Found',
-              subtitle: 'Try adjusting your search terms',
+              title: AppLocalizations.noResultsFound.tr(),
+              subtitle: AppLocalizations.tryAdjustingSearch.tr(),
             )
           else
             ...groupedFAQs.entries.map((entry) => _buildFAQCategory(entry.key, entry.value)),
@@ -186,11 +255,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       children: [
         Text(
           category.toUpperCase(),
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF0D5E2A),
-          ),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0D5E2A),
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0D5E2A),
+                ),
         ),
         const SizedBox(height: 12),
         ...categoryFAQs.map((faq) => _buildFAQItem(faq)),
@@ -218,11 +293,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       child: ExpansionTile(
         title: Text(
           faq.question,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
-          ),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
         ),
         iconColor: const Color(0xFF0D5E2A),
         collapsedIconColor: Colors.grey[600],
@@ -231,11 +312,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
               faq.answer,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: Colors.grey[700],
-                height: 1.5,
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
             ),
           ),
         ],
@@ -248,13 +335,13 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          if (helpCategories.isNotEmpty) 
+          if (helpCategories.isNotEmpty)
             ...helpCategories.map((category) => _buildHelpCategoryCard(category))
           else
             _buildEmptyState(
               icon: Icons.help_center_outlined,
-              title: 'Help Center Coming Soon',
-              subtitle: 'Detailed help articles will be available here',
+              title: AppLocalizations.helpCenterComingSoon.tr(),
+              subtitle: AppLocalizations.detailedHelpArticles.tr(),
             ),
           const SizedBox(height: 20),
           _buildQuickActions(),
@@ -306,19 +393,30 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
                   children: [
                     Text(
                       category.name,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
+                      style: context.locale.languageCode == 'ar'
+                          ? GoogleFonts.cairo(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            )
+                          : GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       category.description,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: context.locale.languageCode == 'ar'
+                          ? GoogleFonts.cairo(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            )
+                          : GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
                     ),
                   ],
                 ),
@@ -349,20 +447,31 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       child: Column(
         children: [
           Text(
-            'Still Need Help?',
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
+            AppLocalizations.stillNeedHelp.tr(),
+            style: context.locale.languageCode == 'ar'
+                ? GoogleFonts.cairo(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  )
+                : GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Contact our support team for personalized assistance',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.white.withOpacity(0.9),
-            ),
+            AppLocalizations.contactSupportTeam.tr(),
+            style: context.locale.languageCode == 'ar'
+                ? GoogleFonts.cairo(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  )
+                : GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -371,7 +480,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               Expanded(
                 child: _buildQuickActionButton(
                   icon: Icons.chat_bubble_outline,
-                  label: 'Live Chat',
+                  label: AppLocalizations.liveChat.tr(),
                   onTap: () => _tabController.animateTo(2),
                 ),
               ),
@@ -379,7 +488,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               Expanded(
                 child: _buildQuickActionButton(
                   icon: Icons.email_outlined,
-                  label: 'Email Us',
+                  label: AppLocalizations.email.tr(),
                   onTap: () => _launchEmail(),
                 ),
               ),
@@ -411,11 +520,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             const SizedBox(height: 4),
             Text(
               label,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
             ),
           ],
         ),
@@ -429,11 +544,8 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Contact methods
           _buildContactMethods(),
           const SizedBox(height: 24),
-          
-          // Contact form
           _buildContactForm(),
         ],
       ),
@@ -445,22 +557,27 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Get in Touch',
-          style: GoogleFonts.poppins(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
+          AppLocalizations.getInTouch.tr(),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
         ),
         const SizedBox(height: 16),
-        
         Row(
           children: [
             Expanded(
               child: _buildContactMethodCard(
                 icon: Icons.email_outlined,
-                title: 'Email',
-                subtitle: 'support@delloni.com',
+                title: AppLocalizations.email.tr(),
+                subtitle: AppLocalizations.emailAddress.tr(),
                 onTap: () => _launchEmail(),
               ),
             ),
@@ -468,23 +585,21 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             Expanded(
               child: _buildContactMethodCard(
                 icon: Icons.phone_outlined,
-                title: 'Phone',
-                subtitle: '+1 (555) 123-4567',
+                title: AppLocalizations.phone.tr(),
+                subtitle: AppLocalizations.phoneNumber.tr(),
                 onTap: () => _launchPhone(),
               ),
             ),
           ],
         ),
-        
         const SizedBox(height: 12),
-        
         Row(
           children: [
             Expanded(
               child: _buildContactMethodCard(
                 icon: Icons.chat_bubble_outline,
-                title: 'Live Chat',
-                subtitle: 'Available 24/7',
+                title: AppLocalizations.liveChat.tr(),
+                subtitle: AppLocalizations.available24_7.tr(),
                 onTap: () => _showChatDialog(),
               ),
             ),
@@ -492,8 +607,8 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             Expanded(
               child: _buildContactMethodCard(
                 icon: Icons.bug_report_outlined,
-                title: 'Report Bug',
-                subtitle: 'Technical Issues',
+                title: AppLocalizations.reportBug.tr(),
+                subtitle: AppLocalizations.technicalIssues.tr(),
                 onTap: () => _showBugReportDialog(),
               ),
             ),
@@ -533,19 +648,30 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             const SizedBox(height: 8),
             Text(
               title,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                    ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -558,69 +684,70 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
     return ContactFormWidget(
       onSuccess: () {
         _tabController.animateTo(3);
-        _showSuccessSnackBar('Message sent successfully!');
+        _showSuccessSnackBar(AppLocalizations.messageSentSuccess.tr());
       },
       onError: (message) => _showErrorSnackBar(message),
     );
   }
 
-  Widget _buildMyTicketsTab() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return _buildEmptyState(
-        icon: Icons.login,
-        title: 'Login Required',
-        subtitle: 'Please login to view your support tickets',
-        action: ElevatedButton(
-          onPressed: () {
-            // Navigate to login
-            Navigator.pop(context);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0D5E2A),
-          ),
-          child: Text(
-            'Login',
-            style: GoogleFonts.poppins(color: Colors.white),
-          ),
-        ),
-      );
-    }
+  // Widget _buildMyTicketsTab() {
+  //   final user = FirebaseAuth.instance.currentUser;
+  //   if (user == null) {
+  //     return _buildEmptyState(
+  //       icon: Icons.login,
+  //       title: AppLocalizations.loginRequired.tr(),
+  //       subtitle: AppLocalizations.pleaseLoginTickets.tr(),
+  //       action: ElevatedButton(
+  //         onPressed: () {
+  //           Navigator.pop(context);
+  //         },
+  //         style: ElevatedButton.styleFrom(
+  //           backgroundColor: const Color(0xFF0D5E2A),
+  //         ),
+  //         child: Text(
+  //           AppLocalizations.login.tr(),
+  //           style: context.locale.languageCode == 'ar'
+  //               ? GoogleFonts.cairo(color: Colors.white)
+  //               : GoogleFonts.poppins(color: Colors.white),
+  //         ),
+  //       ),
+  //     );
+  //   }
 
-    return StreamBuilder<List<ContactSubmission>>(
-      stream: _helpService.getUserContactSubmissions(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF0D5E2A)));
-        }
+  //   return StreamBuilder<List<ContactSubmission>>(
+  //     stream: _helpService.getUserContactSubmissions(),
+  //     builder: (context, snapshot) {
+  //       if (snapshot.connectionState == ConnectionState.waiting) {
+  //         return const Center(child: CircularProgressIndicator(color: Color(0xFF0D5E2A)));
+  //       }
 
-        if (snapshot.hasError) {
-          return _buildEmptyState(
-            icon: Icons.error_outline,
-            title: 'Error Loading Tickets',
-            subtitle: 'Please try again later',
-          );
-        }
+  //       if (snapshot.hasError) {
+  //         return _buildEmptyState(
+  //           icon: Icons.error_outline,
+  //           title: AppLocalizations.errorLoadingTickets.tr(),
+  //           subtitle: AppLocalizations.tryAgainLater.tr(),
+  //         );
+  //       }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmptyState(
-            icon: Icons.support_agent_outlined,
-            title: 'No Support Tickets',
-            subtitle: 'Your support requests will appear here',
-          );
-        }
+  //       if (!snapshot.hasData || snapshot.data!.isEmpty) {
+  //         return _buildEmptyState(
+  //           icon: Icons.support_agent_outlined,
+  //           title: AppLocalizations.noSupportTickets.tr(),
+  //           subtitle: AppLocalizations.supportRequestsHere.tr(),
+  //         );
+  //       }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.length,
-          itemBuilder: (context, index) {
-            final ticket = snapshot.data![index];
-            return _buildTicketCard(ticket);
-          },
-        );
-      },
-    );
-  }
+  //       return ListView.builder(
+  //         padding: const EdgeInsets.all(16),
+  //         itemCount: snapshot.data!.length,
+  //         itemBuilder: (context, index) {
+  //           final ticket = snapshot.data![index];
+  //           return _buildTicketCard(ticket);
+  //         },
+  //       );
+  //     },
+  //   );
+  // }
 
   Widget _buildTicketCard(ContactSubmission ticket) {
     return Container(
@@ -647,11 +774,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               Expanded(
                 child: Text(
                   ticket.subject,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
+                  style: context.locale.languageCode == 'ar'
+                      ? GoogleFonts.cairo(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        )
+                      : GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
                 ),
               ),
               Container(
@@ -662,11 +795,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
                 ),
                 child: Text(
                   ticket.statusDisplay,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: ticket.statusColor,
-                  ),
+                  style: context.locale.languageCode == 'ar'
+                      ? GoogleFonts.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: ticket.statusColor,
+                        )
+                      : GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: ticket.statusColor,
+                        ),
                 ),
               ),
             ],
@@ -674,11 +813,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
           const SizedBox(height: 8),
           Text(
             ticket.message,
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[700],
-              height: 1.5,
-            ),
+            style: context.locale.languageCode == 'ar'
+                ? GoogleFonts.cairo(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.5,
+                  )
+                : GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.5,
+                  ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -689,19 +834,30 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               const SizedBox(width: 4),
               Text(
                 ticket.category.toUpperCase(),
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                ),
+                style: context.locale.languageCode == 'ar'
+                    ? GoogleFonts.cairo(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      )
+                    : GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
               ),
               const Spacer(),
               Text(
                 _formatDate(ticket.createdAt),
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                ),
+                style: context.locale.languageCode == 'ar'
+                    ? GoogleFonts.cairo(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      )
+                    : GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
               ),
             ],
           ),
@@ -718,20 +874,31 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Support Response:',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
-                    ),
+                    AppLocalizations.helpSupport.tr(),
+                    style: context.locale.languageCode == 'ar'
+                        ? GoogleFonts.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[700],
+                          )
+                        : GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[700],
+                          ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     ticket.adminResponse!,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: Colors.green[800],
-                    ),
+                    style: context.locale.languageCode == 'ar'
+                        ? GoogleFonts.cairo(
+                            fontSize: 13,
+                            color: Colors.green[800],
+                          )
+                        : GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.green[800],
+                          ),
                   ),
                 ],
               ),
@@ -758,19 +925,30 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             const SizedBox(height: 16),
             Text(
               title,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
             ),
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
               textAlign: TextAlign.center,
             ),
             if (action != null) ...[
@@ -783,7 +961,6 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
     );
   }
 
-  // Helper methods
   IconData _getIconData(String iconName) {
     switch (iconName.toLowerCase()) {
       case 'account':
@@ -807,11 +984,17 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
 
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
-        return '${difference.inMinutes}m ago';
+        return context.locale.languageCode == 'ar'
+            ? '${difference.inMinutes} دقيقة مضت'
+            : '${difference.inMinutes}m ago';
       }
-      return '${difference.inHours}h ago';
+      return context.locale.languageCode == 'ar'
+          ? '${difference.inHours} ساعة مضت'
+          : '${difference.inHours}h ago';
     } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
+      return context.locale.languageCode == 'ar'
+          ? '${difference.inDays} أيام مضت'
+          : '${difference.inDays}d ago';
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
@@ -829,7 +1012,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14, color: Colors.white)
+              : GoogleFonts.poppins(fontSize: 14, color: Colors.white),
+        ),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
       ),
@@ -839,7 +1027,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14, color: Colors.white)
+              : GoogleFonts.poppins(fontSize: 14, color: Colors.white),
+        ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
       ),
@@ -851,19 +1044,25 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Live Chat',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          AppLocalizations.liveChatComingSoon.tr(),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontWeight: FontWeight.w600)
+              : GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         content: Text(
-          'Live chat feature is coming soon! For now, please use the contact form or email us directly.',
-          style: GoogleFonts.poppins(fontSize: 14),
+          AppLocalizations.useContactForm.tr(),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14)
+              : GoogleFonts.poppins(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
-              'OK',
-              style: GoogleFonts.poppins(color: const Color(0xFF0D5E2A)),
+              AppLocalizations.ok.tr(),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(color: const Color(0xFF0D5E2A))
+                  : GoogleFonts.poppins(color: const Color(0xFF0D5E2A)),
             ),
           ),
         ],
@@ -881,26 +1080,26 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   Future<void> _launchEmail() async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'support@delloni.com',
-      query: 'subject=Support Request',
+      path: AppLocalizations.emailAddress.tr(),
+      query: 'subject=${AppLocalizations.supportRequestsHere.tr()}',
     );
     try {
       if (await canLaunchUrl(emailUri)) {
         await launchUrl(emailUri);
       }
     } catch (e) {
-      _showErrorSnackBar('Could not launch email client');
+      _showErrorSnackBar(AppLocalizations.couldNotLaunchEmail.tr());
     }
   }
 
   Future<void> _launchPhone() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+15551234567');
+    final Uri phoneUri = Uri(scheme: 'tel', path: AppLocalizations.phoneNumber.tr());
     try {
       if (await canLaunchUrl(phoneUri)) {
         await launchUrl(phoneUri);
       }
     } catch (e) {
-      _showErrorSnackBar('Could not launch phone dialer');
+      _showErrorSnackBar(AppLocalizations.couldNotLaunchPhone.tr());
     }
   }
 }
@@ -943,9 +1142,9 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Form(
         key: _formKey,
@@ -953,11 +1152,11 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Send us a Message',
+              '${AppLocalizations.sendUsMessage.tr()}',
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: Theme.of(context).colorScheme.onBackground,
               ),
             ),
             const SizedBox(height: 16),
@@ -965,7 +1164,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Name field
             _buildFormField(
               controller: _nameController,
-              label: 'Full Name',
+              label: '${AppLocalizations.fullName.tr()}',
               hint: 'Enter your full name',
               validator: (value) => value?.isEmpty == true ? 'Name is required' : null,
             ),
@@ -975,7 +1174,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Email field
             _buildFormField(
               controller: _emailController,
-              label: 'Email Address',
+              label: '${AppLocalizations.enterEmailAddress.tr()}',
               hint: 'Enter your email address',
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
@@ -991,7 +1190,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             
             // Category dropdown
             Text(
-              'Category',
+              '${AppLocalizations.category.tr()}',
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1031,7 +1230,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Subject field
             _buildFormField(
               controller: _subjectController,
-              label: 'Subject',
+              label: '${AppLocalizations.subject.tr()}',
               hint: 'Brief description of your inquiry',
               validator: (value) => value?.isEmpty == true ? 'Subject is required' : null,
             ),
@@ -1041,7 +1240,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Message field
             _buildFormField(
               controller: _messageController,
-              label: 'Message',
+              label: '${AppLocalizations.message.tr()}',
               hint: 'Describe your issue or question in detail...',
               maxLines: 5,
               validator: (value) => value?.isEmpty == true ? 'Message is required' : null,
@@ -1071,7 +1270,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
                         ),
                       )
                     : Text(
-                        'Send Message',
+                        '${AppLocalizations.sendMessage.tr()}',
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

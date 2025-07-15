@@ -1,5 +1,8 @@
 // screens/chat_page.dart - Updated with Backend and Localization
+import 'dart:developer';
+
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
+import 'package:arabicmarketplace/screens/chat/model/chat_model.dart';
 import 'package:arabicmarketplace/screens/chat/view/messages_screen.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart'; // Add this import
@@ -11,6 +14,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart'; // Add this import
 
+// UPDATED: ChatPage with search icon and swipe actions
+// FIXED: ChatPage with proper Dismissible widget handling
 class ChatPage extends StatefulWidget {
   const ChatPage({Key? key}) : super(key: key);
 
@@ -20,13 +25,19 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   late ChatProvider _chatProvider;
+  final TextEditingController _searchController = TextEditingController();
+  List<EnhancedChatModel> _filteredChats = [];
+  bool _isSearching = false;
+  
+  // FIXED: Track dismissing chats to prevent widget tree errors
+  final Set<String> _dismissingChats = {};
 
   @override
   void initState() {
     super.initState();
     _chatProvider = ChatProvider();
+    _searchController.addListener(_filterChats);
 
-    // FIXED: Initialize after the widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _chatProvider.refreshChats();
     });
@@ -35,7 +46,34 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _chatProvider.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _filterChats() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      setState(() {
+        _isSearching = false;
+        _filteredChats.clear();
+      });
+    } else {
+      setState(() {
+        _isSearching = true;
+        _filteredChats = _chatProvider.currentChats.where((chat) {
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser == null) return false;
+          
+          final otherUserName = chat.getOtherParticipantName(currentUser.uid).toLowerCase();
+          final lastMessage = chat.lastMessage.toLowerCase();
+          final productTitle = (chat.productTitle ?? '').toLowerCase();
+          
+          return otherUserName.contains(query) || 
+                 lastMessage.contains(query) || 
+                 productTitle.contains(query);
+        }).toList();
+      });
+    }
   }
 
   @override
@@ -48,7 +86,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           backgroundColor: Colors.white,
           elevation: 0,
           title: Text(
-            AppLocalizations.chat.tr(), // Using existing key
+            AppLocalizations.chat.tr(),
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -57,6 +95,18 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           ),
           leading: const SizedBox.shrink(),
           leadingWidth: 0,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.search, color: Colors.black),
+              onPressed: () {
+                showSearch(
+                  context: context,
+                  delegate: ChatSearchDelegate(_chatProvider),
+                );
+              },
+            ),
+            SizedBox(width: 8),
+          ],
         ),
         body: Consumer<ChatProvider>(
           builder: (context, chatProvider, child) {
@@ -66,21 +116,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 SizedBox(height: 20),
                 Row(
                   children: [
-                    _buildTabButton(
-                      AppLocalizations.all.tr(),
-                      0,
-                      chatProvider,
-                    ), // Using existing key
-                    _buildTabButton(
-                      AppLocalizations.buying.tr(),
-                      1,
-                      chatProvider,
-                    ), // Using existing key
-                    _buildTabButton(
-                      AppLocalizations.selling.tr(),
-                      2,
-                      chatProvider,
-                    ), // Using existing key
+                    _buildTabButton(AppLocalizations.all.tr(), 0, chatProvider),
+                    _buildTabButton(AppLocalizations.buying.tr(), 1, chatProvider),
+                    _buildTabButton(AppLocalizations.selling.tr(), 2, chatProvider),
                   ],
                 ),
                 SizedBox(height: 20),
@@ -91,35 +129,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             );
           },
         ),
-        // ADDED: Floating Action Button for browsing users
-        floatingActionButton: Consumer<ChatProvider>(
-          builder: (context, chatProvider, child) {
-            // Only show FAB when not loading and there are no chats or when chats are empty
-            if (chatProvider.isLoading) return SizedBox.shrink();
-
-            return FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => StartBrowsingUsersPage(),
-                  ),
-                );
-              },
-              backgroundColor: Color(0xff014700),
-              foregroundColor: Colors.white,
-              icon: Icon(Icons.search),
-              label: Text(
-                AppLocalizations.browseUsers.tr(), // Using existing key
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            );
-          },
-        ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
   }
@@ -152,7 +161,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Widget _buildChatContent(ChatProvider provider) {
-    // FIXED: Better loading state management
     if (provider.isLoading) {
       return Center(
         child: Column(
@@ -163,7 +171,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
             SizedBox(height: 16),
             Text(
-              AppLocalizations.loading.tr(), // Using existing key
+              AppLocalizations.loading.tr(),
               style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
@@ -190,18 +198,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 backgroundColor: Color(0xff014700),
                 foregroundColor: Colors.white,
               ),
-              child: Text(
-                'Retry',
-              ), // Could use existing keys but this is simple
+              child: Text('Retry'),
             ),
           ],
         ),
       );
     }
 
-    final chats = provider.currentChats;
+    final chats = _isSearching ? _filteredChats : provider.currentChats;
+    
+    // FIXED: Filter out chats that are being dismissed
+    final visibleChats = chats.where((chat) => !_dismissingChats.contains(chat.id)).toList();
 
-    if (chats.isEmpty) {
+    if (visibleChats.isEmpty) {
       return _buildEmptyState();
     }
 
@@ -210,13 +219,298 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       color: Color(0xff014700),
       child: ListView.builder(
         padding: EdgeInsets.symmetric(horizontal: 16),
-        itemCount: chats.length,
+        itemCount: visibleChats.length,
         itemBuilder: (context, index) {
-          final chat = chats[index];
-          return _buildChatItem(chat);
+          final chat = visibleChats[index];
+          return _buildSwipeableChatItem(chat, provider);
         },
       ),
     );
+  }
+
+  // FIXED: Enhanced swipeable chat item with proper dismissal handling
+  Widget _buildSwipeableChatItem(dynamic chat, ChatProvider provider) {
+    // FIXED: Don't create Dismissible for chats that are being dismissed
+    if (_dismissingChats.contains(chat.id)) {
+      return SizedBox.shrink();
+    }
+
+    return Dismissible(
+      key: Key(chat.id),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.endToStart) {
+          // Swipe left - Report/Delete actions
+          return await _showLeftSwipeActions(chat, provider);
+        } else if (direction == DismissDirection.startToEnd) {
+          // Swipe right - Mark as unread
+          await provider.markChatAsUnread(chat.id);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Marked as unread'),
+                backgroundColor: Colors.blue,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+          return false; // Don't dismiss
+        }
+        return false;
+      },
+      background: Container(
+        color: Colors.blue,
+        alignment: Alignment.centerLeft,
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            Icon(Icons.mark_email_unread, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Mark Unread', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text('Options', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            SizedBox(width: 8),
+            Icon(Icons.more_horiz, color: Colors.white),
+          ],
+        ),
+      ),
+      child: _buildChatItem(chat),
+    );
+  }
+
+  // FIXED: Enhanced left swipe actions with proper dismissal handling
+  Future<bool> _showLeftSwipeActions(dynamic chat, ChatProvider provider) async {
+    try {
+      final result = await showModalBottomSheet<String>(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Chat Options',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 20),
+              ListTile(
+                leading: Icon(Icons.report_outlined, color: Colors.orange),
+                title: Text('Report Chat'),
+                onTap: () => Navigator.pop(context, 'report'),
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_outline, color: Colors.red),
+                title: Text('Delete Chat'),
+                onTap: () => Navigator.pop(context, 'delete'),
+              ),
+              ListTile(
+                leading: Icon(Icons.cancel_outlined, color: Colors.grey),
+                title: Text('Cancel'),
+                onTap: () => Navigator.pop(context, 'cancel'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (result == 'report') {
+        await _showReportDialog(chat);
+        return false;
+      } else if (result == 'delete') {
+        return await _handleDeleteChat(chat, provider);
+      }
+      
+      return false;
+    } catch (e) {
+      log('Error in left swipe actions: $e');
+      return false;
+    }
+  }
+
+  // FIXED: Enhanced delete chat handling
+  Future<bool> _handleDeleteChat(dynamic chat, ChatProvider provider) async {
+    try {
+      final shouldDelete = await _showDeleteConfirmation(chat);
+      
+      if (shouldDelete) {
+        // FIXED: Add to dismissing set to prevent widget tree errors
+        setState(() {
+          _dismissingChats.add(chat.id);
+        });
+
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Text('Deleting chat...'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Delete the chat
+        final success = await provider.deleteChat(chat.id);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Chat deleted successfully'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return true; // This will dismiss the Dismissible
+          } else {
+            // Remove from dismissing set if deletion failed
+            setState(() {
+              _dismissingChats.remove(chat.id);
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.error, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Failed to delete chat'),
+                  ],
+                ),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      log('Error handling delete chat: $e');
+      
+      // Clean up dismissing state on error
+      setState(() {
+        _dismissingChats.remove(chat.id);
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting chat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      
+      return false;
+    }
+  }
+
+  Future<void> _showReportDialog(dynamic chat) async {
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Report Chat'),
+          content: Text('Report this chat for inappropriate content?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Report', style: TextStyle(color: Colors.orange)),
+            ),
+          ],
+        ),
+      );
+
+      if (result == true && mounted) {
+        // Here you would implement actual report functionality
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Chat reported successfully'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      log('Error showing report dialog: $e');
+    }
+  }
+
+  Future<bool> _showDeleteConfirmation(dynamic chat) async {
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Delete Chat'),
+          content: Text('Are you sure you want to delete this chat? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      
+      return result ?? false;
+    } catch (e) {
+      log('Error showing delete confirmation: $e');
+      return false;
+    }
   }
 
   Widget _buildEmptyState() {
@@ -224,7 +518,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Illustration
           Image.asset(
             'assets/images/chat_image.png',
             height: 200,
@@ -244,26 +537,20 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               );
             },
           ),
-
           const SizedBox(height: 30),
-
-          // Main text - Using existing key creatively
           Text(
-            AppLocalizations.noReviewsYet.tr(), // Using existing key creatively
+            'No conversations yet',
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: Colors.black,
             ),
           ),
-
           const SizedBox(height: 10),
-
-          // Subtitle - Using existing key
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              AppLocalizations.sendMessage.tr(), // Using existing key
+              'Start browsing products and connect with sellers',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -273,50 +560,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-
-          const SizedBox(height: 40),
-
-          // Start Messaging Button
-          Container(
-            width: 200,
-            height: 40,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => StartBrowsingUsersPage(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xff014700),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-              child: Text(
-                AppLocalizations.browseUsers.tr(), // Using existing key
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  // FIXED: Updated to work with both ChatModel and EnhancedChatModel
+  // Keep your existing _buildChatItem method unchanged
   Widget _buildChatItem(dynamic chat) {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return SizedBox.shrink();
 
-    // Handle both ChatModel and EnhancedChatModel
     final otherUserName = chat.getOtherParticipantName(currentUser.uid);
     final otherUserImage = chat.getOtherParticipantImage(currentUser.uid);
     final unreadCount = chat.getUnreadCount(currentUser.uid);
@@ -324,14 +577,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
     return InkWell(
       onTap: () {
-        // Mark as read when tapping
         _chatProvider.markChatAsRead(chat.id);
-
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                MessagesScreen(chatId: chat.id), // Use MessagesPage
+            builder: (context) => MessagesScreen(chatId: chat.id),
           ),
         );
       },
@@ -346,7 +596,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         ),
         child: Row(
           children: [
-            // Profile Image
             Stack(
               children: [
                 CircleAvatar(
@@ -359,7 +608,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       : null,
                   backgroundColor: Colors.grey[200],
                 ),
-                // ADDED: Online indicator
                 if (_isUserOnline(chat))
                   Positioned(
                     right: 0,
@@ -376,15 +624,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   ),
               ],
             ),
-
             SizedBox(width: 12),
-
-            // Chat Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name and Time
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -416,20 +660,15 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       ),
                     ],
                   ),
-
                   SizedBox(height: 4),
-
-                  // Last Message and Unread Count
                   Row(
                     children: [
                       Expanded(
                         child: Text(
                           isTyping
-                              ? AppLocalizations.typing
-                                    .tr() // Using existing key
+                              ? 'Typing...'
                               : chat.lastMessage.isEmpty
-                              ? AppLocalizations.noReviewsYet
-                                    .tr() // Using existing key creatively
+                              ? 'No messages yet'
                               : chat.lastMessage,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
@@ -472,13 +711,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       ],
                     ],
                   ),
-
-                  // Product Info (if available)
                   if (chat.productTitle != null) ...[
                     SizedBox(height: 8),
                     InkWell(
                       onTap: () {
-                        // Navigate to product detail when product card is tapped
                         if (chat.productId != null) {
                           Navigator.push(
                             context,
@@ -515,14 +751,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                                       child: Image.network(
                                         chat.productImage!,
                                         fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return Icon(
-                                                Icons.image,
-                                                size: 16,
-                                                color: Colors.grey,
-                                              );
-                                            },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Icon(
+                                            Icons.image,
+                                            size: 16,
+                                            color: Colors.grey,
+                                          );
+                                        },
                                       ),
                                     )
                                   : Icon(
@@ -576,211 +811,106 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     );
   }
 
-  // Helper method to check if user is online
   bool _isUserOnline(dynamic chat) {
-    // You can implement this based on your chat model
-    // For now, returning false as a placeholder
-    return false;
+    return false; // Placeholder
   }
 }
 
-// =====================================================
-// ENHANCED START BROWSING USERS PAGE - LOCALIZED
-// =====================================================
+// Keep your existing ChatSearchDelegate and extensions unchanged...
+// UPDATED: Search delegate for existing chats
+class ChatSearchDelegate extends SearchDelegate<String> {
+  final ChatProvider chatProvider;
 
-class StartBrowsingUsersPage extends StatefulWidget {
-  @override
-  _StartBrowsingUsersPageState createState() => _StartBrowsingUsersPageState();
-}
-
-class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _users = [];
-  List<Map<String, dynamic>> _filteredUsers = [];
-  bool _isLoading = false;
-  String? _error;
+  ChatSearchDelegate(this.chatProvider);
 
   @override
-  void initState() {
-    super.initState();
-    _loadUsers();
-    _searchController.addListener(_filterUsers);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadUsers() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return;
-
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('uid', isNotEqualTo: currentUser.uid)
-          .limit(50)
-          .get();
-
-      _users = querySnapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
-
-      _filteredUsers = List.from(_users);
-
-      setState(() {
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = '${AppLocalizations.error.tr()}: $e'; // Using existing key
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _filterUsers() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredUsers = _users.where((user) {
-        final name = (user['companyName'] ?? user['name'] ?? '').toLowerCase();
-        return name.contains(query);
-      }).toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          AppLocalizations.browseUsers.tr(), // Using existing key
-          style: GoogleFonts.poppins(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
+  List<Widget> buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: Icon(Icons.clear),
+        onPressed: () {
+          query = '';
+        },
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: AppLocalizations.search.tr(), // Using existing key
-                hintStyle: GoogleFonts.poppins(color: Colors.grey[500]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ),
+    ];
+  }
 
-          // Content
-          Expanded(child: _buildContent()),
-        ],
-      ),
+  @override
+  Widget buildLeading(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, '');
+      },
     );
   }
 
-  Widget _buildContent() {
-    if (_isLoading) {
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  Widget _buildSearchResults() {
+    if (query.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xff014700)),
-            ),
+            Icon(Icons.search, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
-              AppLocalizations.loading.tr(), // Using existing key
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+              'Search your conversations',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
       );
     }
 
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-            SizedBox(height: 16),
-            Text(
-              _error!,
-              style: TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadUsers,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xff014700),
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Retry'), // Simple word, could use existing key
-            ),
-          ],
-        ),
-      );
-    }
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return SizedBox.shrink();
 
-    if (_filteredUsers.isEmpty) {
+    final filteredChats = chatProvider.allChats.where((chat) {
+      final otherUserName = chat.getOtherParticipantName(currentUser.uid).toLowerCase();
+      final lastMessage = chat.lastMessage.toLowerCase();
+      final productTitle = (chat.productTitle ?? '').toLowerCase();
+      final searchQuery = query.toLowerCase();
+      
+      return otherUserName.contains(searchQuery) || 
+             lastMessage.contains(searchQuery) || 
+             productTitle.contains(searchQuery);
+    }).toList();
+
+    if (filteredChats.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 80, color: Colors.grey[400]),
-            SizedBox(height: 20),
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            SizedBox(height: 16),
             Text(
-              _searchController.text.isNotEmpty
-                  ? '${AppLocalizations.search.tr()}: "${_searchController.text}"' // Using existing key
-                  : AppLocalizations.noReviewsYet
-                        .tr(), // Using existing key creatively
-              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            if (_searchController.text.isNotEmpty) ...[
-              SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  _searchController.clear();
-                  _filterUsers();
-                },
-                child: Text(
-                  AppLocalizations.clearAll.tr(), // Using existing key
-                  style: GoogleFonts.poppins(
-                    color: Color(0xff014700),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+              'No conversations found',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
-            ],
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Try searching with different keywords',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
           ],
         ),
       );
@@ -788,38 +918,43 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
 
     return ListView.builder(
       padding: EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _filteredUsers.length,
+      itemCount: filteredChats.length,
       itemBuilder: (context, index) {
-        final user = _filteredUsers[index];
-        return _buildUserItem(user);
+        final chat = filteredChats[index];
+        return _buildSearchResultItem(context, chat, currentUser);
       },
     );
   }
 
-  Widget _buildUserItem(Map<String, dynamic> user) {
-    final userName = user['companyName'] ?? user['name'] ?? 'Unknown User';
-    final userImage = user['profileImage'] ?? '';
-    final userType = user['type'] ?? 'individual';
-    final memberSince = user['createdAt'] as Timestamp?;
+  Widget _buildSearchResultItem(BuildContext context, dynamic chat, currentUser) {
+    final otherUserName = chat.getOtherParticipantName(currentUser.uid);
+    final otherUserImage = chat.getOtherParticipantImage(currentUser.uid);
+    final unreadCount = chat.getUnreadCount(currentUser.uid);
 
     return InkWell(
-      onTap: () => _startChat(user),
+      onTap: () {
+        close(context, '');
+        chatProvider.markChatAsRead(chat.id);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MessagesScreen(chatId: chat.id),
+          ),
+        );
+      },
       child: Container(
         margin: EdgeInsets.only(bottom: 8),
-        padding: EdgeInsets.all(12),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
+          color: unreadCount > 0 ? Colors.blue.withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundImage: userImage.isNotEmpty
-                  ? NetworkImage(userImage)
-                  : null,
-              child: userImage.isEmpty ? Icon(Icons.person, size: 28) : null,
+              backgroundImage: otherUserImage.isNotEmpty ? NetworkImage(otherUserImage) : null,
+              child: otherUserImage.isEmpty ? Icon(Icons.person, size: 28, color: Colors.grey[600]) : null,
               backgroundColor: Colors.grey[200],
             ),
             SizedBox(width: 12),
@@ -828,77 +963,69 @@ class _StartBrowsingUsersPageState extends State<StartBrowsingUsersPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    userName,
+                    otherUserName,
                     style: GoogleFonts.poppins(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: unreadCount > 0 ? FontWeight.w700 : FontWeight.w600,
                       color: Colors.black,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 2),
+                  SizedBox(height: 4),
                   Text(
-                    userType == 'company'
-                        ? AppLocalizations.company.tr()
-                        : AppLocalizations.individual
-                              .tr(), // Using existing keys
+                    chat.lastMessage.isEmpty ? 'No messages yet' : chat.lastMessage,
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                      fontSize: 14,
+                      color: unreadCount > 0 ? Colors.black87 : Colors.grey[600],
+                      fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (memberSince != null)
-                    Text(
-                      '${AppLocalizations.memberSince.tr()} ${DateFormat('MMM yyyy').format(memberSince.toDate())}', // Using existing key
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: Colors.grey[500],
+                  if (chat.productTitle != null) ...[
+                    SizedBox(height: 4),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Product: ${chat.productTitle}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.grey[700],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
-            Icon(Icons.chat_outlined, color: Color(0xff014700), size: 20),
+            if (unreadCount > 0) ...[
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Color(0xff014700),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  unreadCount > 99 ? '99+' : unreadCount.toString(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
-  }
-
-  Future<void> _startChat(Map<String, dynamic> user) async {
-    try {
-      final chatProvider = ChatProvider();
-
-      final chatId = await chatProvider.createOrGetChatEnhanced(
-        otherUserId: user['uid'] ?? user['id'],
-        otherUserName: user['companyName'] ?? user['name'] ?? 'Unknown User',
-        otherUserImage: user['profileImage'],
-      );
-
-      if (chatId != null) {
-        Navigator.pop(context); // Go back to chat list
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MessagesScreen(chatId: chatId),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.error.tr()), // Using existing key
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${AppLocalizations.error.tr()}: $e',
-          ), // Using existing key
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 }
