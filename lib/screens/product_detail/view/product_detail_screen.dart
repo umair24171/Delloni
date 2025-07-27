@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:arabicmarketplace/controller/review_provider.dart';
@@ -16,8 +17,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:html/parser.dart' as parser;
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String? productId;
@@ -36,20 +40,434 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late ProductDetailProvider _provider;
   PageController _pageController = PageController();
+   // CURRENCY CONVERSION PROPERTIES
+  String _selectedCurrency = 'SYP'; // Default to Syrian Pound
+  bool _isLoadingRates = false;
+  DateTime? _lastRateUpdate;
+  
+  // Exchange rates with Syrian Pound as base (1 SYP = X other currency)
+  Map<String, double> _exchangeRates = {
+    'SYP': 1.0,
+    // 'PKR': 0.0032, // 1 SYP ≈ 0.0032 PKR
+    'USD': 0.00040, // 1 SYP ≈ 0.0004 USD
+    'EUR': 0.00037, // 1 SYP ≈ 0.00037 EUR
+  };
+  
+  final List<Map<String, String>> _currencies = [
+    {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'ل.س', 'flag': '🇸🇾'},
+    // {'code': 'PKR', 'name': 'Pakistani Rupee', 'symbol': '₨', 'flag': '🇵🇰'},
+    {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
+    {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
+  ];
 
-  @override
+   @override
   void initState() {
     super.initState();
     _provider = ProductDetailProvider();
+    _loadExchangeRates(); // Load exchange rates on startup
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.productId != null) {
         _provider.initializeProduct(widget.productId!);
-      } else if (widget.product != null) {
-        _provider.initializeProduct(widget.product!.id);
       }
+    
     });
   }
+   // CURRENCY CONVERSION METHODS
+  Future<void> _loadExchangeRates() async {
+    setState(() {
+      _isLoadingRates = true;
+    });
+
+    try {
+      // Fetch Syrian Central Bank rate
+      final sypRates = await _fetchSyrianCentralBankRates();
+      
+      // Fetch other currency rates
+      final otherRates = await _fetchOtherCurrencyRates();
+      
+      setState(() {
+        _exchangeRates = {
+          'SYP': 1.0,
+          // 'PKR': otherRates['PKR'] ?? 0.0032,
+          'USD': otherRates['USD'] ?? 0.00040,
+          'EUR': otherRates['EUR'] ?? 0.00037,
+        };
+        _lastRateUpdate = DateTime.now();
+        _isLoadingRates = false;
+      });
+      
+      // Save rates to local storage
+      await _saveRatesToLocal();
+      
+    } catch (e) {
+      print('Error loading exchange rates: $e');
+      
+      // Try to load cached rates
+      await _loadCachedRates();
+      
+      setState(() {
+        _isLoadingRates = false;
+      });
+    }
+  }
+
+  Future<Map<String, double>> _fetchSyrianCentralBankRates() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://www.cb.gov.sy/index.php?lang=2'),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      ).timeout(Duration(seconds: 15));
+      
+      if (response.statusCode == 200) {
+        final document = parser.parse(response.body);
+        
+        // Parse USD to SYP rate
+        final patterns = [
+          r'USD[^\d]*(\d+\.?\d*)',
+          r'Dollar[^\d]*(\d+\.?\d*)',
+          r'(\d+\.?\d*)[^\d]*USD',
+        ];
+        
+        final searchTexts = [
+          document.body?.text ?? '',
+          ...document.querySelectorAll('table').map((e) => e.text),
+          ...document.querySelectorAll('.rate, .exchange, .currency').map((e) => e.text),
+        ];
+        
+        for (final text in searchTexts) {
+          for (final pattern in patterns) {
+            final regex = RegExp(pattern, caseSensitive: false);
+            final match = regex.firstMatch(text);
+            if (match != null) {
+              final usdToSyp = double.tryParse(match.group(1) ?? '');
+              if (usdToSyp != null && usdToSyp > 100 && usdToSyp < 10000) {
+                // Convert to SYP base rates
+                return {
+                  'USD': 1.0 / usdToSyp, // 1 SYP = X USD
+                  // 'PKR': (1.0 / usdToSyp) * 280, // Assuming 1 USD ≈ 280 PKR
+                  'EUR': (1.0 / usdToSyp) * 0.92, // Assuming 1 USD ≈ 0.92 EUR
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching Syrian Central Bank rates: $e');
+    }
+    
+    // Fallback rates
+    return {
+      'USD': 0.00040,
+      // 'PKR': 0.0032,
+      'EUR': 0.00037,
+    };
+  }
+
+  Future<Map<String, double>> _fetchOtherCurrencyRates() async {
+    try {
+      // Try to fetch from exchange rate API
+      final response = await http.get(
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
+      ).timeout(Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final rates = data['rates'] as Map<String, dynamic>;
+        
+        // Convert to SYP base (assuming 1 USD = 2500 SYP as fallback)
+        final usdToSyp = 2500.0;
+        
+        return {
+          'USD': 1.0 / usdToSyp,
+          // 'PKR': (rates['PKR'] as num?)?.toDouble() ?? 280.0 / usdToSyp,
+          'EUR': (rates['EUR'] as num?)?.toDouble() ?? 0.92 / usdToSyp,
+        };
+      }
+    } catch (e) {
+      print('Error fetching other currency rates: $e');
+    }
+    
+    // Fallback rates
+    return {
+      'USD': 0.00040,
+      // 'PKR': 0.0032,
+      'EUR': 0.00037,
+    };
+  }
+
+  Future<void> _saveRatesToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ratesJson = json.encode(_exchangeRates);
+      await prefs.setString('exchange_rates', ratesJson);
+      await prefs.setString('rates_timestamp', DateTime.now().toIso8601String());
+    } catch (e) {
+      print('Error saving rates: $e');
+    }
+  }
+
+  Future<void> _loadCachedRates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ratesJson = prefs.getString('exchange_rates');
+      final timestamp = prefs.getString('rates_timestamp');
+      
+      if (ratesJson != null && timestamp != null) {
+        final cachedTime = DateTime.parse(timestamp);
+        final hoursSinceCache = DateTime.now().difference(cachedTime).inHours;
+        
+        if (hoursSinceCache < 6) {
+          final rates = Map<String, double>.from(json.decode(ratesJson));
+          setState(() {
+            _exchangeRates = rates;
+            _lastRateUpdate = cachedTime;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading cached rates: $e');
+    }
+  }
+
+  String _convertPrice(double amount, String originalCurrency) {
+  
+    // Convert PKR to SYP first (assuming original prices are in PKR)
+    double sypAmount;
+    sypAmount = amount;
+    
+    if (_selectedCurrency == 'SYP') {
+      return sypAmount.toStringAsFixed(0);
+    }
+    
+    final rate = _exchangeRates[_selectedCurrency] ?? 1.0;
+    final convertedAmount = sypAmount * rate;
+    
+    return convertedAmount >= 1 
+        ? convertedAmount.toStringAsFixed(2)
+        : convertedAmount.toStringAsFixed(4);
+  }
+
+  String _getFormattedPrice(ProductDetailModel product) {
+    if (product.price == 0.0) return 'Free';
+
+    final currency = _currencies.firstWhere((c) => c['code'] == _selectedCurrency);
+    final convertedPrice = _convertPrice(product.price, 'SYP'); // Assuming original is PKR
+    
+    return '${currency['symbol']}$convertedPrice';
+  }
+
+  bool _isDataFresh() {
+    if (_lastRateUpdate == null) return false;
+    return DateTime.now().difference(_lastRateUpdate!).inHours < 1;
+  }
+
+  String _formatLastUpdate(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} minutes ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hours ago';
+    } else {
+      return '${difference.inDays} days ago';
+    }
+  }
+
+  void _showCurrencyConverter(ProductDetailModel product) {
+    if (product.price <= 0) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Price in Different Currencies',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _isDataFresh() ? Colors.green[50] : Colors.orange[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _isDataFresh() ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isDataFresh() ? Icons.check_circle : Icons.schedule,
+                                size: 12,
+                                color: _isDataFresh() ? Colors.green[700] : Colors.orange[700],
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                _isDataFresh() ? 'Live' : 'Cached',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: _isDataFresh() ? Colors.green[700] : Colors.orange[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _isLoadingRates ? null : _loadExchangeRates,
+                          icon: _isLoadingRates 
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Icon(Icons.refresh, size: 20),
+                          tooltip: 'Refresh exchange rates',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                
+                if (_lastRateUpdate != null)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'Last updated: ${_formatLastUpdate(_lastRateUpdate!)}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                
+                ..._currencies.map((currency) {
+                  // Convert PKR price to SYP first, then to target currency
+                  double sypPrice = product.price / 9.0; // PKR to SYP conversion
+                  double convertedAmount;
+                  
+                  if (currency['code'] == 'SYP') {
+                    convertedAmount = sypPrice;
+                  } else {
+                    final rate = _exchangeRates[currency['code']] ?? 1.0;
+                    convertedAmount = sypPrice * rate;
+                  }
+                  
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 12),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: currency['code'] == _selectedCurrency 
+                          ? Color(0xFF2D5016).withOpacity(0.1)
+                          : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: currency['code'] == _selectedCurrency 
+                            ? Color(0xFF2D5016)
+                            : Colors.grey[200]!,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          currency['flag']!,
+                          style: TextStyle(fontSize: 24),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currency['name']!,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                currency['code']!,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'SYP' ? 0 : 2)}',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: currency['code'] == _selectedCurrency 
+                                    ? Color(0xFF2D5016)
+                                    : Colors.black,
+                              ),
+                            ),
+                            if (currency['code'] != 'SYP')
+                              Text(
+                                '1 SYP = ${_exchangeRates[currency['code']]?.toStringAsFixed(currency['code'] == 'SYP' ? 2 : 4)} ${currency['code']}',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Future<void> _handleCallButtonPress(ProductDetailProvider provider) async {
   // Show loading indicator
@@ -103,7 +521,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         : Colors.red,
       duration: Duration(seconds: 3),
       action: !result['hasNumber'] && result['success'] ? SnackBarAction(
-        label: 'Chat Instead',
+        label: 'Chat Instead'.tr(),
         textColor: Colors.white,
         onPressed: () => provider.chatWithSeller(context),
       ) : null,
@@ -148,7 +566,7 @@ Check out this amazing product on our marketplace!
             children: [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Text('Product shared successfully!'),
+              Text('Product shared successfully!'.tr()),
             ],
           ),
           backgroundColor: Colors.green,
@@ -164,7 +582,7 @@ Check out this amazing product on our marketplace!
           children: [
             Icon(Icons.error_outline, color: Colors.white),
             SizedBox(width: 8),
-            Text('Failed to share product'),
+            Text('Failed to share product'.tr()),
           ],
         ),
         backgroundColor: Colors.red,
@@ -182,82 +600,440 @@ Check out this amazing product on our marketplace!
     _pageController.dispose();
     super.dispose();
   }
-  // ENHANCED: Category-specific Stats Section (Top row with icons)
-  Widget _buildCategoryStatsSection(ProductDetailModel product) {
-    // Get category-specific fields from the product
-    final categoryFields = _getCategorySpecificFields(product);
-    if (categoryFields.isEmpty) return SizedBox.shrink();
-
-    // Get the most important fields for stats display
-    List<Widget> statItems = [];
-    
-    // Priority fields for stats display
-    final priorityFields = {
-      'year': {'icon': Icons.calendar_today, 'suffix': ''},
-      'kilometers': {'icon': Icons.speed, 'suffix': ' km'},
-      'mileage': {'icon': Icons.speed, 'suffix': ' km'},
-      'fuel_type': {'icon': Icons.local_gas_station, 'suffix': ''},
-      'transmission': {'icon': Icons.settings, 'suffix': ''},
-      'storage': {'icon': Icons.storage, 'suffix': ''},
-      'ram': {'icon': Icons.memory, 'suffix': ''},
-      'area': {'icon': Icons.square_foot, 'suffix': ' sq ft'},
-      'bedrooms': {'icon': Icons.bed, 'suffix': ' bed'},
-    };
-
-    // Build stat items from category fields
-    for (final fieldName in priorityFields.keys) {
-      if (categoryFields.containsKey(fieldName) && categoryFields[fieldName] != null) {
-        final value = categoryFields[fieldName];
-        final config = priorityFields[fieldName]!;
+  
+   
+   // ENHANCED: Title and Price Section with Currency Selection
+  Widget _buildEnhancedTitlePriceSection(ProductDetailModel product) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          product.title,
+          style: GoogleFonts.outfit(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: 8),
         
-        if (value != null && value.toString().isNotEmpty && value.toString() != 'null') {
-          statItems.add(_buildStatItem(
-            config['icon'] as IconData,
-            '${value.toString()}${config['suffix']}',
-          ));
+        // Enhanced Price Row with Currency Selector and Converter
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        _getFormattedPrice(product),
+                        style: GoogleFonts.outfit(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (product.allowPriceNegotiation) ...[
+                        SizedBox(width: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Negotiable',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  
+                  // Currency Selection Row
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF2D5016).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Color(0xFF2D5016).withOpacity(0.3),
+                          ),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedCurrency,
+                            isDense: true,
+                            items: _currencies.map((currency) {
+                              return DropdownMenuItem<String>(
+                                value: currency['code'],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(currency['flag']!, style: TextStyle(fontSize: 14)),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      currency['code']!,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF2D5016),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              if (newValue != null) {
+                                setState(() {
+                                  _selectedCurrency = newValue;
+                                });
+                              }
+                            },
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              color: Color(0xFF2D5016),
+                            ),
+                            dropdownColor: Colors.white,
+                            icon: Icon(
+                              Icons.keyboard_arrow_down,
+                              size: 16,
+                              color: Color(0xFF2D5016),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showCurrencyConverter(product),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.currency_exchange,
+                                size: 14,
+                                color: Colors.blue[700],
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Convert',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[600]),
+            SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                product.locationAddress ?? 'Location not specified'.tr(),
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+            Text(
+              product.getTimeSincePosted(),
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+        if (product.condition.isNotEmpty) ...[
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _getConditionColor(product.condition),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              product.condition,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+// ENHANCED: Category-specific Stats Section (Top row with icons)
+ Widget _buildCategoryStatsSection(ProductDetailModel product) {
+  // Get field template data to determine which fields have icons
+  final fieldTemplateData = _getFieldTemplateData(product);
+  final fieldsWithIcons = _getFieldsWithIcons(product, fieldTemplateData);
+  
+  if (fieldsWithIcons.isEmpty) return SizedBox.shrink();
+
+  final statItems = <Widget>[];
+
+  // Build stat items from fields that have icons in template
+  for (final fieldData in fieldsWithIcons) {
+    statItems.add(_buildStatItemWithIcon(
+      fieldData['icon'],
+      fieldData['iconUrl'],
+      fieldData['value'],
+      fieldData['label'],
+    ));
+  }
+
+  return Container(
+    padding: EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Color(0xFFF8F9FA),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+    ),
+    child: Wrap(
+      spacing: 20,
+      runSpacing: 20,
+      alignment: WrapAlignment.spaceAround,
+      children: statItems.take(6).toList(), // Show up to 6 stats
+    ),
+  );
+}
+// Helper method to extract field template data from product
+Map<String, Map<String, dynamic>> _getFieldTemplateData(ProductDetailModel product) {
+  final templateData = <String, Map<String, dynamic>>{};
+  
+  try {
+    // Check if product has categoryFieldTemplate
+    if (product.specifications.containsKey('categoryFieldTemplate')) {
+      final template = product.specifications['categoryFieldTemplate'];
+      print('DEBUG: categoryFieldTemplate found: $template');
+      
+      if (template is List) {
+        for (final fieldConfig in template) {
+          if (fieldConfig is Map) {
+            final fieldName = fieldConfig['fieldName'] ?? fieldConfig['name'];
+            if (fieldName != null) {
+              templateData[fieldName] = Map<String, dynamic>.from(fieldConfig);
+              print('DEBUG: Added template for field $fieldName: $fieldConfig');
+            }
+          }
         }
       }
     }
+  } catch (e) {
+    print('Error parsing field template: $e');
+  }
+  
+  return templateData;
+}
+// Enhanced stat item builder that can handle both custom icons and fallback icons
+Widget _buildStatItemWithIcon(IconData fallbackIcon, String? iconUrl, String value, String label) {
+  return Expanded(
+    child: Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Color(0xFF2D5016).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: _buildIconWidget(iconUrl, fallbackIcon),
+        ),
+        SizedBox(height: 8),
+        Text(
+          value,
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        SizedBox(height: 4),
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    ),
+  );
+}
 
-    // Fallback to legacy stats if no category fields
-    if (statItems.isEmpty) {
-      final stats = product.stats;
-      if (stats.year != null) {
-        statItems.add(_buildStatItem(Icons.calendar_today, stats.year!));
-      }
-      if (stats.mileage != null) {
-        statItems.add(_buildStatItem(Icons.speed, stats.mileage!));
-      }
-      if (stats.fuelType != null) {
-        statItems.add(_buildStatItem(Icons.local_gas_station, stats.fuelType!));
-      }
-      if (stats.transmission != null) {
-        statItems.add(_buildStatItem(Icons.settings, stats.transmission!));
-      }
-    }
-
-    if (statItems.isEmpty) return SizedBox.shrink();
-
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFFE9ECEF), width: 1),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: statItems.take(4).toList(),
+// Helper method to build icon widget (custom URL or fallback)
+Widget _buildIconWidget(String? iconUrl, IconData fallbackIcon) {
+  if (iconUrl != null && iconUrl.isNotEmpty) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        iconUrl,
+        width: 24,
+        height: 24,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading custom icon: $error');
+          return Icon(
+            fallbackIcon,
+            size: 24,
+            color: Color(0xFF2D5016),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2D5016)),
+            ),
+          );
+        },
       ),
     );
+  } else {
+    return Icon(
+      fallbackIcon,
+      size: 24,
+      color: Color(0xFF2D5016),
+    );
   }
+}
+// Helper method to get fields that have icons based on template
+List<Map<String, dynamic>> _getFieldsWithIcons(ProductDetailModel product, Map<String, Map<String, dynamic>> templateData) {
+  final fieldsWithIcons = <Map<String, dynamic>>[];
+  
+  // Check categorySpecificFields against template
+  product.categorySpecificFields.forEach((fieldName, value) {
+    if (value == null || value.toString().trim().isEmpty) return;
+    
+    final template = templateData[fieldName];
+    final hasIcon = template?['showFieldIcon'] == true;
+    final iconUrl = template?['fieldIconUrl'];
+    final label = template?['label'] ?? _formatFieldName(fieldName);
+    
+    print('DEBUG: Field $fieldName - hasIcon: $hasIcon, iconUrl: $iconUrl');
+    
+    if (hasIcon) {
+      // Format the value
+      String formattedValue = _formatFieldValueForDisplay(value, fieldName);
+      
+      fieldsWithIcons.add({
+        'fieldName': fieldName,
+        'value': formattedValue,
+        'label': label,
+        'icon': _getDefaultIconForField(fieldName), // Fallback icon
+        'iconUrl': iconUrl,
+        'hasCustomIcon': iconUrl != null && iconUrl.toString().isNotEmpty,
+      });
+      
+      print('DEBUG: Added field with icon: $fieldName = $formattedValue');
+    }
+  });
+  
+  return fieldsWithIcons;
+}
+
+// Helper method to format field values for display
+String _formatFieldValueForDisplay(dynamic value, String fieldName) {
+  if (value == null) return 'N/A';
+  
+  // Handle boolean values
+  if (value is bool) {
+    return value ? 'Yes' : 'No';
+  }
+  
+  // Add units based on field name
+  String stringValue = value.toString();
+  final fieldLower = fieldName.toLowerCase();
+  
+  if (fieldLower.contains('year') && stringValue.length == 4) {
+    return stringValue;
+  } else if (fieldLower.contains('size') && RegExp(r'^\d+\.?\d*$').hasMatch(stringValue)) {
+    return stringValue + '"';
+  } else if (fieldLower.contains('storage') || fieldLower.contains('ram')) {
+    return stringValue + ' GB';
+  } else if (fieldLower.contains('battery')) {
+    return stringValue + ' mAh';
+  } else if (fieldLower.contains('engine')) {
+    return stringValue + ' cc';
+  } else if (fieldLower.contains('area')) {
+    return stringValue + ' sq ft';
+  } else if (fieldLower.contains('mileage') || fieldLower.contains('kilometers')) {
+    return stringValue + ' km';
+  }
+  
+  return stringValue;
+}
+
+// Helper method to get default icon for fields (fallback)
+IconData _getDefaultIconForField(String fieldName) {
+  final fieldLower = fieldName.toLowerCase();
+  
+  if (fieldLower.contains('color')) return Icons.palette;
+  if (fieldLower.contains('model') || fieldLower.contains('year')) return Icons.calendar_today;
+  if (fieldLower.contains('size')) return Icons.straighten;
+  if (fieldLower.contains('storage')) return Icons.storage;
+  if (fieldLower.contains('ram') || fieldLower.contains('memory')) return Icons.memory;
+  if (fieldLower.contains('battery')) return Icons.battery_full;
+  if (fieldLower.contains('screen')) return Icons.tv;
+  if (fieldLower.contains('camera')) return Icons.camera_alt;
+  if (fieldLower.contains('network')) return Icons.network_cell;
+  if (fieldLower.contains('engine')) return Icons.engineering;
+  if (fieldLower.contains('fuel')) return Icons.local_gas_station;
+  if (fieldLower.contains('transmission')) return Icons.settings;
+  if (fieldLower.contains('mileage') || fieldLower.contains('kilometers')) return Icons.speed;
+  
+  return Icons.info_outline; // Default fallback icon
+}
+   
+   
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: _provider,
       child: Scaffold(
-        backgroundColor: Colors.white,
         extendBodyBehindAppBar: true,
         body: Consumer<ProductDetailProvider>(
           builder: (context, provider, child) {
@@ -276,7 +1052,7 @@ Check out this amazing product on our marketplace!
                     SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => provider.refreshData(),
-                      child: Text('Retry'),
+                      child: Text('Retry'.tr()),
                     ),
                   ],
                 ),
@@ -284,7 +1060,7 @@ Check out this amazing product on our marketplace!
             }
 
             if (provider.product == null) {
-              return Center(child: Text('Product not found'));
+              return Center(child: CircularProgressIndicator());
             }
 
             return SingleChildScrollView(
@@ -300,8 +1076,8 @@ Check out this amazing product on our marketplace!
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title and Price
-                        _buildTitlePriceSection(provider.product!),
+                        // ENHANCED: Title and Price with Currency Selection
+                        _buildEnhancedTitlePriceSection(provider.product!),
                         
                         SizedBox(height: 25),
                         
@@ -310,39 +1086,20 @@ Check out this amazing product on our marketplace!
                         
                         SizedBox(height: 30),
                         
-                        // ENHANCED: Category-specific Stats Row
+                        // Your existing sections...
                         _buildCategoryStatsSection(provider.product!),
-                        
                         SizedBox(height: 30),
-                        
-                        // ENHANCED: Category-specific Details Section
                         _buildCategoryDetailsSection(provider.product!),
-                        
                         SizedBox(height: 30),
-                        
-                        // Description
                         _buildDescriptionSection(provider.product!),
-                        
                         SizedBox(height: 30),
-                        
-                        // ENHANCED: Category-specific Features
                         _buildCategoryFeaturesSection(provider.product!),
-                        
                         SizedBox(height: 30),
-                        
-                        // Seller Detail with Rating
                         _buildSellerSection(provider.seller, provider),
-                        
                         SizedBox(height: 30),
-                        
-                        // Seller Reviews Section
                         _buildSellerReviewsSection(provider.seller),
-                        
                         SizedBox(height: 30),
-                        
-                        // Related Products
                         _buildRelatedProductsSection(provider.relatedProducts),
-                        
                         SizedBox(height: 30),
                       ],
                     ),
@@ -364,9 +1121,8 @@ Check out this amazing product on our marketplace!
                     backgroundColor: Color(0xFF2D5016),
                     icon: Icon(Icons.star_outline, color: Colors.white),
                     label: Text(
-                      'Review Seller',
+                      'Review Seller'.tr(),
                       style: GoogleFonts.outfit(
-                        color: Colors.white,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -377,87 +1133,84 @@ Check out this amazing product on our marketplace!
       ),
     );
   }
-  Widget _buildCategoryDetailsSection(ProductDetailModel product) {
-  print('Building category details section for: ${product.title}');
+ 
+ 
+ // ENHANCED: Category Details Section - Only fields WITHOUT icons
+Widget _buildCategoryDetailsSection(ProductDetailModel product) {
+  // Get field template data to determine which fields have icons
+  final fieldTemplateData = _getFieldTemplateData(product);
+  final fieldsWithIcons = _getFieldsWithIcons(product, fieldTemplateData);
+  final fieldsWithIconNames = fieldsWithIcons.map((f) => f['fieldName']).toSet();
   
-  final categoryFields = _getCategorySpecificFields(product);
-  print('Category fields for UI: $categoryFields');
+  // Get fields WITHOUT icons for specifications section
+  final fieldsWithoutIcons = <Map<String, String>>[];
   
-  List<Widget> details = [];
-
-  // Add category-specific fields first
-  if (categoryFields.isNotEmpty) {
-    print('Found ${categoryFields.length} category fields');
+  // Check categorySpecificFields that don't have icons
+  product.categorySpecificFields.forEach((fieldName, value) {
+    if (value == null || value.toString().trim().isEmpty) return;
+    if (fieldsWithIconNames.contains(fieldName)) return; // Skip fields already shown in stats
     
-    // Organize fields by category for better display
-    final organizedFields = _organizeFieldsByCategory(categoryFields, product);
-    print('Organized fields: $organizedFields');
+    final template = fieldTemplateData[fieldName];
+    final hasIcon = template?['showFieldIcon'] == true;
     
-    for (final categoryEntry in organizedFields.entries) {
-      print('Processing category: ${categoryEntry.key} with ${categoryEntry.value.length} fields');
+    if (!hasIcon) {
+      final label = template?['label'] ?? _formatFieldName(fieldName);
+      final formattedValue = _formatFieldValueForDisplay(value, fieldName);
       
-      // Add category header if multiple categories
-      if (organizedFields.keys.length > 1) {
-        details.add(
-          Padding(
-            padding: EdgeInsets.only(top: 16, bottom: 8),
-            child: Text(
-              _getCategoryDisplayName(categoryEntry.key),
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF2D5016),
-              ),
-            ),
-          ),
-        );
-      }
+      fieldsWithoutIcons.add({
+        'label': label,
+        'value': formattedValue,
+      });
       
-      // Add fields in this category
-      for (final field in categoryEntry.value) {
-        final label = field['label'] as String? ?? '';
-        final value = field['value'] as String? ?? '';
-        print('Adding field: $label = $value');
-        if (label.isNotEmpty && value.isNotEmpty) {
-          details.add(_buildDetailRow(label, value));
-        }
-      }
+      print('DEBUG: Added field without icon: $fieldName = $formattedValue');
     }
-  } else {
-    print('No category fields found');
-  }
+  });
 
-  // Add standard fields that aren't in category fields
-  final standardFields = _getStandardFields(product, categoryFields);
-  print('Standard fields: ${standardFields.length}');
-  for (final field in standardFields) {
-    final label = field['label'] as String? ?? '';
-    final value = field['value'] as String? ?? '';
-    if (label.isNotEmpty && value.isNotEmpty) {
-      details.add(_buildDetailRow(label, value));
-      print('Added standard field: $label = $value');
+  // Add other specifications that aren't in categorySpecificFields
+  final specifications = Map<String, dynamic>.from(product.specifications);
+  
+  // Remove fields that are already processed
+  product.categorySpecificFields.keys.forEach((key) {
+    specifications.remove(key);
+  });
+  
+  // Remove template data and other metadata
+  specifications.remove('categoryFieldTemplate');
+  specifications.remove('hasCategoryFields');
+  specifications.remove('flattenedFields');
+
+  // Add remaining specs that don't have icons
+  specifications.forEach((fieldName, value) {
+    if (value == null || value.toString().trim().isEmpty) return;
+    if (fieldName.toLowerCase().contains('template')) return;
+    if (fieldName.toLowerCase().contains('fields')) return;
+    
+    // Don't add if it's a field that should have an icon based on our fallback logic
+    final fieldLower = fieldName.toLowerCase();
+    final hasDefaultIcon = _shouldHaveDefaultIcon(fieldLower);
+    
+    if (!hasDefaultIcon) {
+      fieldsWithoutIcons.add({
+        'label': _formatFieldName(fieldName),
+        'value': _formatFieldValueForDisplay(value, fieldName),
+      });
     }
-  }
+  });
 
-  // Always add Ad ID and Views
-  details.add(_buildDetailRow('Ad ID', product.id.substring(0, 8).toUpperCase()));
-  details.add(_buildDetailRow('Views', product.viewCount.toString()));
-
-  if (details.isEmpty) {
-    print('No details to show');
+  // If no fields to show, return empty widget
+  if (fieldsWithoutIcons.isEmpty && 
+      product.brand == null && product.color == null && product.dimensions == null) {
     return SizedBox.shrink();
   }
 
-  print('Rendering ${details.length} detail items');
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'Specifications',
+        'Specifications'.tr(),
         style: GoogleFonts.outfit(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: Colors.black,
         ),
       ),
       SizedBox(height: 15),
@@ -468,219 +1221,271 @@ Check out this amazing product on our marketplace!
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Color(0xFFE9ECEF), width: 1),
         ),
-        child: Column(children: details),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Display fields without icons
+            ...fieldsWithoutIcons.map((field) => _buildDetailRow(
+              field['label']!,
+              field['value']!,
+            )),
+
+            // Add standard fields if not already included
+            if (product.brand != null && product.brand!.isNotEmpty)
+              _buildDetailRow('Brand'.tr(), product.brand!),
+            if (product.color != null && product.color!.isNotEmpty && !product.categorySpecificFields.containsKey('color'))
+              _buildDetailRow('Color'.tr(), product.color!),
+            if (product.dimensions != null && product.dimensions!.isNotEmpty)
+              _buildDetailRow('Dimensions'.tr(), product.dimensions!),
+
+            // Always add Ad ID and Views
+            if (fieldsWithoutIcons.isNotEmpty || product.brand != null || product.color != null || product.dimensions != null)
+              Divider(height: 24, color: Color(0xFFE9ECEF)),
+            _buildDetailRow('Ad ID'.tr(), product.id.substring(0, 8).toUpperCase()),
+            _buildDetailRow('Views'.tr(), product.viewCount.toString()),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+// Helper method to check if a field should have a default icon
+bool _shouldHaveDefaultIcon(String fieldLower) {
+  return fieldLower.contains('color') ||
+         fieldLower.contains('model') ||
+         fieldLower.contains('year') ||
+         fieldLower.contains('size') ||
+         fieldLower.contains('storage') ||
+         fieldLower.contains('ram') ||
+         fieldLower.contains('memory') ||
+         fieldLower.contains('battery') ||
+         fieldLower.contains('screen') ||
+         fieldLower.contains('camera') ||
+         fieldLower.contains('network') ||
+         fieldLower.contains('engine') ||
+         fieldLower.contains('fuel') ||
+         fieldLower.contains('transmission') ||
+         fieldLower.contains('mileage') ||
+         fieldLower.contains('kilometers');
+}
+
+// Enhanced Features Section - Only boolean features
+Widget _buildCategoryFeaturesSection(ProductDetailModel product) {
+  // Get field template data
+  final fieldTemplateData = _getFieldTemplateData(product);
+  
+  // Extract boolean features from category fields
+  final features = <String>[];
+  
+  product.categorySpecificFields.forEach((fieldName, value) {
+    if (value is bool && value == true) {
+      final template = fieldTemplateData[fieldName];
+      final label = template?['label'] ?? _formatFieldName(fieldName);
+      features.add(label);
+    }
+  });
+
+  // Add any additional features from specifications
+  for (final entry in product.specifications.entries) {
+    if (entry.value is bool && entry.value == true) {
+      final displayName = _formatFieldName(entry.key);
+      if (!features.contains(displayName)) {
+        features.add(displayName);
+      }
+    }
+  }
+
+  // Add legacy features
+  features.addAll(product.features.where((f) => !features.contains(f)));
+
+  if (features.isEmpty) return SizedBox.shrink();
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Features'.tr(),
+        style: GoogleFonts.outfit(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      SizedBox(height: 15),
+      Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+        ),
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: features.length,
+          itemBuilder: (context, index) {
+            return _buildFeatureItem(
+              _getFeatureIcon(features[index]),
+              features[index],
+            );
+          },
+        ),
       ),
     ],
   );
 }
 
-  Widget _buildCategoryFeaturesSection(ProductDetailModel product) {
-    final categoryFields = _getCategorySpecificFields(product);
-    List<String> features = [];
+// Helper method to format field names
+String _formatFieldName(String fieldName) {
+  final displayNames = {
+    'year': 'Year',
+    'kilometers': 'Mileage',
+    'mileage': 'Mileage',
+    'fuel_type': 'Fuel Type',
+    'transmission': 'Transmission',
+    'engine_capacity': 'Engine Capacity',
+    'body_type': 'Body Type',
+    'car_type': 'Car Type',
+    'doors': 'Doors',
+    'seating_capacity': 'Seating',
+    'power_steering': 'Power Steering',
+    'air_conditioning': 'Air Conditioning',
+    'bike_type': 'Bike Type',
+    'engine_type': 'Engine Type',
+    'storage': 'Storage',
+    'ram': 'RAM',
+    'screen_size': 'Screen Size',
+    'battery_capacity': 'Battery',
+    'network_type': 'Network',
+    'dual_sim': 'Dual SIM',
+    'processor': 'Processor',
+    'storage_type': 'Storage Type',
+    'storage_capacity': 'Storage Capacity',
+    'graphics_card': 'Graphics Card',
+    'operating_system': 'Operating System',
+    'property_type': 'Property Type',
+    'area': 'Area',
+    'bedrooms': 'Bedrooms',
+    'bathrooms': 'Bathrooms',
+    'furnished': 'Furnished',
+    'parking': 'Parking',
+    'purpose': 'Purpose',
+    'size': 'Size',
+    'material': 'Material',
+    'gender': 'Gender',
+    'room_type': 'Room Type',
+    'assembly_required': 'Assembly Required',
+    'sport_type': 'Sport Type',
+    'suitable_for': 'Suitable For',
+    'color': 'Color',
+    'model': 'Model',
+  };
 
-    // Extract boolean features from category fields
-    final booleanFeatures = _extractBooleanFeatures(categoryFields);
-    features.addAll(booleanFeatures);
+  return displayNames[fieldName.toLowerCase()] ?? fieldName
+    .split('_')
+    .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
+    .join(' ');
+}
 
-    // Add legacy features
-    features.addAll(product.features);
-
-    if (features.isEmpty) return SizedBox.shrink();
-
-    return Column(
+// Helper widget for detail rows
+Widget _buildDetailRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Features',
-          style: GoogleFonts.outfit(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
+        Expanded(
+          flex: 2,
+          child: Text(
+            label.tr(),
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
-        SizedBox(height: 15),
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Color(0xFFE9ECEF), width: 1),
-          ),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 4,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+        Expanded(
+          flex: 3,
+          child: Text(
+            value,
+            style: GoogleFonts.outfit(
+              fontSize: 15,
+              color: Colors.black,
+              fontWeight: FontWeight.w600,
             ),
-            itemCount: features.length,
-            itemBuilder: (context, index) {
-              return _buildFeatureItem(
-                _getFeatureIcon(features[index]),
-                features[index],
-              );
-            },
+            textAlign: TextAlign.right,
           ),
         ),
       ],
-    );
-  }
-  String _getCategoryDisplayName(String categoryKey) {
-    final categoryNames = {
-      'basic_info': 'Basic Information',
-      'technical': 'Technical Specifications',
-      'appearance': 'Appearance',
-      'design': 'Design',
-      'features': 'Features',
-      'classification': 'Classification',
-      'size': 'Size & Dimensions',
-      'layout': 'Layout',
-      'connectivity': 'Connectivity',
-      'software': 'Software',
-      'quality': 'Quality',
-      'condition': 'Condition',
-      'amenities': 'Amenities',
-      'service': 'Service',
-      'sizing': 'Sizing',
-    };
-    
-    return categoryNames[categoryKey] ?? categoryKey.replaceAll('_', ' ').toUpperCase();
-  }
-  // Helper method to get category-specific fields from product
- Map<String, dynamic> _getCategorySpecificFields(ProductDetailModel product) {
-  print('=== DEBUG: Getting Category Specific Fields ===');
-  print('Product ID: ${product.id}');
-  print('Product title: ${product.title}');
-  print('Product category: ${product.category}');
-  
-  // Debug: Print all specifications
-  print('All product specifications:');
-  product.specifications.forEach((key, value) {
-    print('  $key: $value (${value.runtimeType})');
-  });
-  
-  final categoryFields = <String, dynamic>{};
-  
-  // Method 1: Try to get from product's categorySpecificFields
-  if (product.specifications.containsKey('categorySpecificFields')) {
-    final fields = product.specifications['categorySpecificFields'];
-    print('Found categorySpecificFields: $fields (${fields.runtimeType})');
-    
-    if (fields is Map<String, dynamic>) {
-      print('categorySpecificFields is Map<String, dynamic>');
-      final extractedFields = Map<String, dynamic>.from(fields);
-      print('Extracted fields: $extractedFields');
-      categoryFields.addAll(extractedFields);
-    } else if (fields is Map) {
-      print('categorySpecificFields is generic Map, converting...');
-      fields.forEach((key, value) {
-        if (key is String) {
-          categoryFields[key] = value;
-          print('  Added: $key = $value');
-        }
-      });
-    }
-  } else {
-    print('No categorySpecificFields found in specifications');
-  }
-  
-  // Method 2: Try to get from flattenedFields
-  if (product.specifications.containsKey('flattenedFields')) {
-    final flattenedFields = product.specifications['flattenedFields'];
-    print('Found flattenedFields: $flattenedFields');
-    
-    if (flattenedFields is Map) {
-      flattenedFields.forEach((key, value) {
-        if (key is String && key.startsWith('cf_')) {
-          // Remove 'cf_' prefix
-          final fieldName = key.substring(3);
-          categoryFields[fieldName] = value;
-          print('  Added from flattened: $fieldName = $value');
-        }
-      });
-    }
-  }
-  
-  // Method 3: Direct field extraction (fallback)
-  final knownCategoryFields = {
-    'year', 'kilometers', 'mileage', 'fuel_type', 'transmission', 'engine_capacity',
-    'body_type', 'car_type', 'doors', 'seating_capacity', 'power_steering',
-    'air_conditioning', 'bike_type', 'engine_type', 'storage', 'ram',
-    'screen_size', 'battery_capacity', 'network_type', 'dual_sim',
-    'processor', 'storage_type', 'storage_capacity', 'graphics_card',
-    'operating_system', 'property_type', 'area', 'bedrooms', 'bathrooms',
-    'furnished', 'parking', 'purpose', 'size', 'material', 'gender',
-    'room_type', 'assembly_required', 'sport_type', 'suitable_for'
-  };
-
-  print('Checking known category fields...');
-  for (final fieldName in knownCategoryFields) {
-    if (product.specifications.containsKey(fieldName)) {
-      if (!categoryFields.containsKey(fieldName)) {
-        categoryFields[fieldName] = product.specifications[fieldName];
-        print('  Added known field: $fieldName = ${product.specifications[fieldName]}');
-      }
-    }
-  }
-  
-  print('Final category fields: $categoryFields');
-  print('=== END DEBUG ===');
-  
-  return categoryFields;
+    ),
+  );
 }
-  // Helper method to organize fields by category
-  Map<String, List<Map<String, String>>> _organizeFieldsByCategory(
-    Map<String, dynamic> fields, 
-    ProductDetailModel product
-  ) {
-    final organized = <String, List<Map<String, String>>>{};
-    
-    // Field category mapping
-    final fieldCategories = {
-      'basic_info': ['year', 'kilometers', 'mileage'],
-      'technical': ['fuel_type', 'transmission', 'engine_capacity', 'processor', 'ram', 'storage_type', 'storage_capacity'],
-      'appearance': ['color', 'body_type', 'car_type'],
-      'design': ['doors', 'seating_capacity', 'screen_size'],
-      'features': ['power_steering', 'air_conditioning', 'dual_sim'],
-      'classification': ['property_type', 'bike_type', 'gender', 'sport_type'],
-      'size': ['area', 'size'],
-      'layout': ['bedrooms', 'bathrooms'],
-      'connectivity': ['network_type'],
-      'software': ['operating_system'],
-      'quality': ['material'],
-      'condition': ['furnished'],
-      'amenities': ['parking'],
-      'service': ['assembly_required'],
-      'sizing': ['suitable_for'],
-    };
 
-    // Categorize fields
-    for (final entry in fields.entries) {
-      final fieldName = entry.key;
-      final fieldValue = entry.value;
-      
-      if (fieldValue == null || fieldValue.toString().isEmpty || fieldValue.toString() == 'null') {
-        continue;
-      }
+// Helper widget for feature items
+Widget _buildFeatureItem(IconData icon, String text) {
+  return Container(
+    padding: EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Color(0xFFF8F9FA),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Color(0xFFE9ECEF), width: 1),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Color(0xFF2D5016).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon, 
+            size: 18, 
+            color: Color(0xFF2D5016),
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
-      String category = 'general';
-      for (final catEntry in fieldCategories.entries) {
-        if (catEntry.value.contains(fieldName)) {
-          category = catEntry.key;
-          break;
-        }
-      }
+// Helper method to get feature icons
+IconData _getFeatureIcon(String feature) {
+  String lowerFeature = feature.toLowerCase();
+  if (lowerFeature.contains('power steering')) return Icons.casino;
+  if (lowerFeature.contains('air conditioning') || lowerFeature.contains('ac')) return Icons.ac_unit;
+  if (lowerFeature.contains('lock')) return Icons.lock_outline;
+  if (lowerFeature.contains('seat')) return Icons.airline_seat_recline_normal;
+  if (lowerFeature.contains('automatic') || lowerFeature.contains('gear')) return Icons.settings;
+  if (lowerFeature.contains('speed')) return Icons.speed;
+  if (lowerFeature.contains('bluetooth')) return Icons.bluetooth;
+  if (lowerFeature.contains('camera')) return Icons.camera_alt;
+  if (lowerFeature.contains('gps') || lowerFeature.contains('navigation')) return Icons.navigation;
+  if (lowerFeature.contains('dual sim')) return Icons.sim_card;
+  if (lowerFeature.contains('parking')) return Icons.local_parking;
+  if (lowerFeature.contains('furnished')) return Icons.chair;
+  return Icons.check_circle_outline;
+}
 
-      organized.putIfAbsent(category, () => []).add({
-        'label': _getFieldDisplayName(fieldName),
-        'value': _formatFieldValue(fieldValue, fieldName),
-      });
-    }
-
-    return organized;
-  }
   String _getFieldDisplayName(String fieldName) {
     final displayNames = {
       'year': 'Year',
@@ -759,15 +1564,15 @@ Check out this amazing product on our marketplace!
     
     // Only add standard fields if they're not already in category fields
     if (!categoryFields.containsKey('color') && product.color != null && product.color!.isNotEmpty) {
-      standardFields.add({'label': 'Color', 'value': product.color!});
+      standardFields.add({'label': 'Color'.tr(), 'value': product.color!});
     }
     
     if (product.brand != null && product.brand!.isNotEmpty) {
-      standardFields.add({'label': 'Brand', 'value': product.brand!});
+      standardFields.add({'label': 'Brand'.tr(), 'value': product.brand!});
     }
     
     if (product.dimensions != null && product.dimensions!.isNotEmpty) {
-      standardFields.add({'label': 'Dimensions', 'value': product.dimensions!});
+      standardFields.add({'label': 'Dimensions'.tr(), 'value': product.dimensions!});
     }
 
     // Add legacy specifications that aren't category fields
@@ -775,11 +1580,11 @@ Check out this amazing product on our marketplace!
     final stats = product.stats;
     
     if (stats.registeredIn != null && !categoryFields.containsKey('registered_in')) {
-      standardFields.add({'label': 'Registered in', 'value': stats.registeredIn!});
+      standardFields.add({'label': 'Registered in'.tr(), 'value': stats.registeredIn!});
     }
     
     if (stats.assembly != null && !categoryFields.containsKey('assembly')) {
-      standardFields.add({'label': 'Assembly', 'value': stats.assembly!});
+      standardFields.add({'label': 'Assembly'.tr(), 'value': stats.assembly!});
     }
 
     return standardFields;
@@ -819,32 +1624,16 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                         colors: [Color(0xFFE8E8E8), Color(0xFFF5F5F5)],
                       ),
                     ),
-                    child: UniversalImage(
+                    child: 
+                    WatermarkPreservingImage(
+height: double.infinity,
+width: double.infinity,
+preserveWatermark: true,
                         imageUrl:  product.imageUrls[index],
                         fit: BoxFit.cover,
-                        errorWidget: Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: Icon(
-                              Icons.image,
-                              size: 50,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        ),
+                      
                       ),
-                    // Image.network(
-                    //   product.imageUrls[index],
-                    //   fit: BoxFit.cover,
-                    //   errorBuilder: (context, error, stackTrace) {
-                    //     return Container(
-                    //       color: Colors.grey[300],
-                    //       child: Center(
-                    //         child: Icon(Icons.image, size: 80, color: Colors.grey[600]),
-                    //       ),
-                    //     );
-                    //   },
-                    // ),
+                   
                   );
                 },
               )
@@ -1006,7 +1795,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
               borderRadius: BorderRadius.circular(15),
             ),
             child: Text(
-              'Negotiable',
+              'Negotiable'.tr(),
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontSize: 12,
@@ -1018,72 +1807,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
     ],
   );
 }
-  Widget _buildTitlePriceSection(ProductDetailModel product) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          product.title,
-          style: GoogleFonts.outfit(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        SizedBox(height: 5),
-        Text(
-          product.getFormattedPrice(),
-          style: GoogleFonts.outfit(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        SizedBox(height: 5),
-        Row(
-          children: [
-            Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[600]),
-            SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                product.locationAddress ?? 'Location not specified',
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ),
-            Text(
-              product.getTimeSincePosted(),
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-        if (product.condition.isNotEmpty) ...[
-          SizedBox(height: 8),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _getConditionColor(product.condition),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              product.condition,
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
+ 
  Widget _buildActionButtons(ProductDetailProvider provider) {
   return Row(
     children: [
@@ -1123,7 +1847,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
               color: Colors.white,
             ),
             label: Text(
-              provider.sellerHasPhoneNumber ? '${AppLocalizations.call.tr()}' : 'No Number',
+              provider.sellerHasPhoneNumber ? '${AppLocalizations.call.tr()}' : 'No Number'.tr(),
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontSize: 16,
@@ -1144,70 +1868,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
     ],
   );
 }
-  Widget _buildStatsSection(ProductDetailModel product) {
-    final stats = product.stats;
-    List<Widget> statItems = [];
 
-    if (stats.year != null) {
-      statItems.add(_buildStatItem(Icons.calendar_today_outlined, stats.year!));
-    }
-    if (stats.mileage != null) {
-      statItems.add(_buildStatItem(Icons.speed_outlined, stats.mileage!));
-    }
-    if (stats.fuelType != null) {
-      statItems.add(_buildStatItem(Icons.local_gas_station_outlined, stats.fuelType!));
-    }
-    if (stats.transmission != null) {
-      statItems.add(_buildStatItem(Icons.settings_outlined, stats.transmission!));
-    }
-
-    if (statItems.isEmpty) return SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: statItems.take(4).toList(),
-    );
-  }
-
-  Widget _buildDetailsSection(ProductDetailModel product) {
-    List<Widget> details = [];
-    final specs = product.specifications;
-    final stats = product.stats;
-
-    // Add common details
-    if (stats.registeredIn != null) {
-      details.add(_buildDetailRow('Registered in', stats.registeredIn!));
-    }
-    if (product.color != null) {
-      details.add(_buildDetailRow('Color', product.color!));
-    }
-    if (stats.assembly != null) {
-      details.add(_buildDetailRow('Assembly', stats.assembly!));
-    }
-    if (stats.engineCapacity != null) {
-      details.add(_buildDetailRow('Engine Capacity', stats.engineCapacity!));
-    }
-    if (stats.bodyType != null) {
-      details.add(_buildDetailRow('Body Type', stats.bodyType!));
-    }
-    if (product.brand != null) {
-      details.add(_buildDetailRow('Brand', product.brand!));
-    }
-
-    // Add custom specifications
-    specs.forEach((key, value) {
-      if (value != null && value.toString().isNotEmpty) {
-        details.add(_buildDetailRow(_formatSpecKey(key), value.toString()));
-      }
-    });
-
-    details.add(_buildDetailRow('Ad ID', product.id.substring(0, 8)));
-    details.add(_buildDetailRow('Views', product.viewCount.toString()));
-
-    if (details.isEmpty) return SizedBox.shrink();
-
-    return Column(children: details);
-  }
 
   Widget _buildDescriptionSection(ProductDetailModel product) {
     if (product.description.isEmpty) return SizedBox.shrink();
@@ -1220,7 +1881,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
           style: GoogleFonts.outfit(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: Colors.black,
+            // color: Colors.black,
           ),
         ),
         SizedBox(height: 15),
@@ -1228,7 +1889,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
           product.description,
           style: GoogleFonts.outfit(
             fontSize: 15,
-            color: Colors.grey[600],
+            // color: Colors.grey[600],
             height: 1.5,
           ),
         ),
@@ -1236,41 +1897,6 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
     );
   }
 
-  Widget _buildFeaturesSection(ProductDetailModel product) {
-    if (product.features.isEmpty) return SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Features',
-          style: GoogleFonts.outfit(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        SizedBox(height: 20),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 4,
-            crossAxisSpacing: 15,
-            mainAxisSpacing: 15,
-          ),
-          itemCount: product.features.length,
-          itemBuilder: (context, index) {
-            return _buildFeatureItem(
-              _getFeatureIcon(product.features[index]),
-              product.features[index],
-            );
-          },
-        ),
-      ],
-    );
-  }
 
  Widget _buildSellerSection(SellerModel? seller, ProductDetailProvider provider) {
   if (seller == null) return SizedBox.shrink();
@@ -1283,7 +1909,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
         style: GoogleFonts.outfit(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: Colors.black,
+          // color: Colors.black,
         ),
       ),
       SizedBox(height: 15),
@@ -1353,7 +1979,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                             Text(
                               provider.sellerHasPhoneNumber
                                 ? '${AppLocalizations.phoneAvailable.tr()}'
-                                : 'No phone number',
+                                : 'No phone number'.tr(),
                               style: GoogleFonts.outfit(
                                 fontSize: 11,
                                 color: provider.sellerHasPhoneNumber 
@@ -1428,7 +2054,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                       InkWell(
                         onTap: () => _navigateToSellerProfile(seller.id),
                         child: Text(
-                          'View Profile',
+                          'View Profile'.tr(),
                           style: GoogleFonts.outfit(
                             fontSize: 12,
                             color: Color(0xFF2D5016),
@@ -1499,13 +2125,13 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: Colors.black,
+                // color: Colors.black,
               ),
             ),
             TextButton(
               onPressed: () => _navigateToSellerReviews(seller.id),
               child: Text(
-                'View All',
+                'View All'.tr(),
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   color: Color(0xFF2D5016),
@@ -1532,11 +2158,11 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Related Products',
+          'Related Products'.tr(),
           style: GoogleFonts.outfit(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: Colors.black,
+            // color: Colors.black,
           ),
         ),
         SizedBox(height: 15),
@@ -1669,81 +2295,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
       ),
     );
   }
-   Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 15,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: GoogleFonts.outfit(
-                fontSize: 15,
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildFeatureItem(IconData icon, String text) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Color(0xFFE9ECEF), width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Color(0xFF2D5016).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              icon, 
-              size: 18, 
-              color: Color(0xFF2D5016),
-            ),
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  
   // Review-related methods
   bool _canUserReview(String sellerId) {
     // Logic to check if current user can review this seller
@@ -1766,13 +2318,13 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
         builder: (context, setState) => AlertDialog(
           title: Text(
             'Rate ${seller.getDisplayName()}',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+            style: GoogleFonts.outfit(fontWeight: FontWeight.w600,color: Colors.black),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'How was your experience with this seller?',
+                'How was your experience with this seller?'.tr(),
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -1807,7 +2359,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
               TextField(
                 controller: commentController,
                 decoration: InputDecoration(
-                  hintText: 'Share your experience (optional)',
+                  hintText: 'Share your experience (optional)'.tr(),
                   hintStyle: GoogleFonts.outfit(color: Colors.grey[500]),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1826,7 +2378,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Cancel',
+                'Cancel'.tr(),
                 style: GoogleFonts.outfit(color: Colors.grey[600]),
               ),
             ),
@@ -1843,7 +2395,7 @@ Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailPr
                 ),
               ),
               child: Text(
-                'Submit Review',
+                'Submit Review'.tr(),
                 style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
               ),
             ),
@@ -2050,28 +2602,11 @@ Future<void> _submitQuickReviewWithDebug(
     }
   }
 
- IconData _getFeatureIcon(String feature) {
-    String lowerFeature = feature.toLowerCase();
-    if (lowerFeature.contains('power steering')) return Icons.casino;
-    if (lowerFeature.contains('air conditioning') || lowerFeature.contains('ac')) return Icons.ac_unit;
-    if (lowerFeature.contains('lock')) return Icons.lock_outline;
-    if (lowerFeature.contains('seat')) return Icons.airline_seat_recline_normal;
-    if (lowerFeature.contains('automatic') || lowerFeature.contains('gear')) return Icons.settings;
-    if (lowerFeature.contains('speed')) return Icons.speed;
-    if (lowerFeature.contains('bluetooth')) return Icons.bluetooth;
-    if (lowerFeature.contains('camera')) return Icons.camera_alt;
-    if (lowerFeature.contains('gps') || lowerFeature.contains('navigation')) return Icons.navigation;
-    if (lowerFeature.contains('dual sim')) return Icons.sim_card;
-    if (lowerFeature.contains('parking')) return Icons.local_parking;
-    if (lowerFeature.contains('furnished')) return Icons.chair;
-    return Icons.check_circle_outline;
-  }
-  String _formatSpecKey(String key) {
-    return key.split('_').map((word) => 
-      word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : word
-    ).join(' ');
-  }
+ 
 }
+
+
+
 
 
 // User Rating Widget (from the review system)
@@ -2122,7 +2657,7 @@ class UserRatingWidget extends StatelessWidget {
               Icon(Icons.star_border, size: iconSize, color: Colors.grey[400]),
               SizedBox(width: 4),
               Text(
-                'No reviews',
+                'No reviews'.tr(),
                 style: GoogleFonts.outfit(
                   fontSize: fontSize,
                   color: Colors.grey[500],
@@ -2187,7 +2722,7 @@ class RecentReviewsWidget extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                'No reviews yet',
+                'No reviews yet'.tr(),
                 style: GoogleFonts.outfit(
                   color: Colors.grey[600],
                   fontSize: 14,

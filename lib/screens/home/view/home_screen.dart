@@ -24,7 +24,6 @@ import 'package:html/parser.dart' as parser;
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geocoding/geocoding.dart';
 
 // How to integrate the backend with your existing MarketplaceHomePage
 
@@ -318,6 +317,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     
     return Scaffold(
+       backgroundColor:Theme.of(context).appBarTheme.backgroundColor ,
       body: SafeArea(
         child: Consumer<HomeProvider>(
           builder: (context, homeProvider, child) {
@@ -614,184 +614,190 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
   }
 
   // Keep all your existing build methods but add RepaintBoundary for performance
-  Widget _buildEnhancedHeader(BuildContext context, HomeProvider homeProvider) {
-    return RepaintBoundary(
-      child: Container(
-        padding: EdgeInsets.all(6),
-        color: Colors.white,
-        child: Column(
-          children: [
-            // Your existing header code...
-            Row(
-              children: [
-                Container(
-                  height: 70,
-                  width: 62,
+ Widget _buildEnhancedHeader(BuildContext context, HomeProvider homeProvider) {
+  return RepaintBoundary(
+    child: Container(
+      padding: EdgeInsets.all(6),
+      child: Column(
+        children: [
+          // Your existing header code...
+          Row(
+            children: [
+              Container(
+                height: 70,
+                width: 62,
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Image.asset('assets/icons/home_logo.png', 
+                  height: 70, width: 62, fit: BoxFit.fill),
+              ),
+              
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
+                  },
+                  child: Container(
+                    height: 45,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!, width: 1.0),
+                    ),
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          child: Icon(Icons.search, color: Colors.grey[600]),
+                        ),
+                        Expanded(
+                          child: Text(
+                            AppLocalizations.search.tr(),
+                            style: GoogleFonts.jost(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              SizedBox(width: 9),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
+                },
+                child: Container(
+                  height: 45,
+                  width: 45,
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!)
                   ),
-                  child: Image.asset('assets/icons/home_logo.png', 
-                    height: 70, width: 62, fit: BoxFit.cover),
+                  child: SvgPicture.asset('assets/icons/Notification.svg',
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                    height: 40, width: 40, fit: BoxFit.cover),
                 ),
-                
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
-                    },
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 8),
+          
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10),
                     child: Container(
                       height: 45,
                       decoration: BoxDecoration(
-                        color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey[300]!, width: 1.0),
+                        border: Border.all(color: Colors.grey[300]!),
                       ),
                       child: Row(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                            child: Icon(Icons.search, color: Colors.grey[600]),
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
                           ),
                           Expanded(
-                            child: Text(
-                              AppLocalizations.search.tr(),
-                              style: GoogleFonts.jost(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.grey[500],
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  AppLocalizations.location.tr(),
+                                  style: GoogleFonts.jost(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w300,
+                                  ),
+                                ),
+                                Text(
+                                  (homeProvider.userLocationAddress != null && homeProvider.userLocationAddress!.isNotEmpty)
+                                    ? (_getCityName(homeProvider.userLocationAddress!) ?? '')
+                                    : 'Location not set'.tr(),
+                                  style: GoogleFonts.jost(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
-                
-                SizedBox(width: 9),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
-                  },
-                  child: Container(
-                    height: 45,
-                    width: 45,
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!)
-                    ),
-                    child: SvgPicture.asset('assets/icons/Notification.svg',
-                      height: 40, width: 40, fit: BoxFit.cover),
+              ),
+              
+              SizedBox(width: 9),
+              GestureDetector(
+                onTap: _showCurrencySelector,
+                child: Container(
+                  height: 45,
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
                   ),
-                ),
-              ],
-            ),
-            
-            SizedBox(height: 8),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 10),
-                      child: Container(
-                        height: 45,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16),
-                              child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    AppLocalizations.location.tr(),
-                                    style: GoogleFonts.jost(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w300,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                  Text(
-                                    (homeProvider.userLocationAddress != null && homeProvider.userLocationAddress!.isNotEmpty)
-                                      ? (_getCityName(homeProvider.userLocationAddress!) ?? '')
-                                      : 'Location not set',
-                                    style: GoogleFonts.jost(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16),
-                              child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
-                            ),
-                          ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // FIX: Use safe currency lookup with fallback
+                      Text(
+                        _getSafeCurrencyFlag(),
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        _selectedCurrency,
+                        style: GoogleFonts.jost(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
+                      SizedBox(width: 4),
+                      Icon(Icons.keyboard_arrow_down, 
+                        size: 16, color: Colors.grey[600]),
+                    ],
                   ),
                 ),
-                
-                SizedBox(width: 9),
-                GestureDetector(
-                  onTap: _showCurrencySelector,
-                  child: Container(
-                    height: 45,
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _currencies.firstWhere((c) => c['code'] == _selectedCurrency)['flag']!,
-                          style: TextStyle(fontSize: 16),
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          _selectedCurrency,
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(Icons.keyboard_arrow_down, 
-                          size: 16, color: Colors.grey[600]),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
+    ),
+  );
+}
+String _getSafeCurrencyFlag() {
+  try {
+    final currency = _currencies.firstWhere(
+      (c) => c['code'] == _selectedCurrency,
+      orElse: () => _currencies.first, // Fallback to first currency
     );
+    return currency['flag'] ?? '🇸🇾';
+  } catch (e) {
+    print('Error getting currency flag: $e');
+    return '🇸🇾'; // Default flag
   }
+}
+
 
   // OPTIMIZED: Product card with RepaintBoundary
   Widget _buildProductCard(Map<String, dynamic> product) {
@@ -887,8 +893,8 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                                         SizedBox(width: 8),
                                         Text(
                                           isFavorite 
-                                            ? 'Removed from favorites' 
-                                            : 'Added to favorites',
+                                            ? 'Removed from favorites'.tr()
+                                            : 'Added to favorites'.tr(),
                                         ),
                                       ],
                                     ),
@@ -939,7 +945,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            'Negotiable',
+                            'Negotiable'.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
@@ -959,7 +965,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      product['itemTitle'] ?? 'Product Title',
+                      product['itemTitle'] ?? 'Product Title'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1000,7 +1006,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                     Row(
                       children: [
                         Text(
-                          product['condition'] ?? 'Used',
+                          product['condition'] ?? 'Used'.tr(),
                           style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
                         ),
                         Spacer(),
@@ -1016,14 +1022,14 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                       children: [
                         Expanded(
                           child: Text(
-                            product['locationAddress'] ?? 'Location not set',
+                            product['locationAddress'] ?? 'Location not set'.tr(),
                             style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Text(
-                          '${product['viewCount'] ?? product['views'] ?? 0} views',
+                          '${product['viewCount'] ?? product['views'] ?? 0} ${'views'.tr()}',
                           style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
                         ),
                       ],
@@ -1066,7 +1072,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                 Row(
                   children: [
                     Text(
-                      'Select Currency',
+                      'Select Currency'.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -1170,7 +1176,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
   Widget _buildCategoriesSection(List<Map<String, dynamic>> categories) {
     return RepaintBoundary(
       child: Container(
-        color: Colors.white,
+        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1179,7 +1185,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
               children: [
                 Text(
                   AppLocalizations.browseCategories.tr(), 
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,)
                 ),
                 InkWell(
                   onTap: _navigateToAllCategories,
@@ -1228,7 +1234,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     
     return RepaintBoundary(
       child: Container(
-        color: Colors.white,
+        // color: Colors.white,
         margin: EdgeInsets.only(top: 8),
         padding: EdgeInsets.all(16),
         child: Column(
@@ -1236,7 +1242,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,)),
                 InkWell(
                   onTap: () => _navigateToProductList(title, products),
                   child: Text(
@@ -1292,7 +1298,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     
     return RepaintBoundary(
       child: Container(
-        color: Colors.white,
+        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1300,8 +1306,8 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Recently Added',
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                  'Recently Added'.tr(),
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,),
                 ),
                 InkWell(
                   onTap: () => _navigateToProductList('Recently Added', recentlyAdded),
@@ -1340,7 +1346,8 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     
     return RepaintBoundary(
       child: Container(
-        color: Colors.white,
+        // color: Colors.white,
+        // color: ColorsController.darkBackground,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1388,7 +1395,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     
     return RepaintBoundary(
       child: Container(
-        color: Colors.white,
+        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1596,7 +1603,7 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
             Container(
               height: 32,
               child: Text(
-                title,
+                title.tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 10, 
@@ -1615,27 +1622,28 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
   // OPTIMIZED: Product image with better caching
    Widget _buildProductImage(Map<String, dynamic> product) {
     final imageUrls = product['imageUrls'] as List<dynamic>?;
-    
-    if (imageUrls != null && imageUrls.isNotEmpty) {
-      return ProductCardImage(
-        imageUrl: imageUrls.first.toString(),
-        width: double.infinity,
-        height: 170,
-        fit: BoxFit.cover,
-    
+  
+  if (imageUrls != null && imageUrls.isNotEmpty) {
+    return WatermarkPreservingImage(
+      imageUrl: imageUrls.first.toString(),
+      width: double.infinity,
+      height: 170,
+      fit: BoxFit.cover, // Now you can use cover without losing watermark
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      preserveWatermark: true,
+    );
+  } else {
+    return Container(
+      width: double.infinity,
+      height: 170,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      );
-    } else {
-      return Container(
-        width: double.infinity,
-        height: 170,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-        ),
-        child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
-      );
-    }
+      ),
+      child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
+    );
+  }
+ 
   }
 
   // Helper methods (keep unchanged)
@@ -1749,7 +1757,7 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
   }
 
   String _getTimeSincePosted(dynamic createdAt) {
-    if (createdAt == null) return 'Recently';
+    if (createdAt == null) return 'Recently'.tr();
     
     try {
       DateTime postDate;
@@ -1758,7 +1766,7 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
       } else if (createdAt is DateTime) {
         postDate = createdAt;
       } else {
-        return 'Recently';
+        return 'Recently'.tr();
       }
       
       final now = DateTime.now();
@@ -1771,10 +1779,10 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
       } else if (difference.inMinutes > 0) {
         return '${difference.inMinutes}m ago';
       } else {
-        return 'Just now';
+        return 'Just now'.tr();
       }
     } catch (e) {
-      return 'Recently';
+      return 'Recently'.tr();
     }
   }
 

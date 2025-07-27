@@ -33,11 +33,14 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Theme.of(context).brightness != Brightness.dark
+              ? Colors.white
+              : Colors.black,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            easy.tr('choose_location'),
+            "Choose location".tr(),
             style: GoogleFonts.jost(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -51,8 +54,8 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
                 itemProvider,
                 Icons.location_city,
                 Colors.blue,
-                easy.tr('select_city_district'),
-                easy.tr('choose_from_available_cities'),
+                "Select District".tr(),
+                'Choose from available cities'.tr(),
                 () async {
                   Navigator.pop(context);
                   final result = await Navigator.push(
@@ -67,9 +70,13 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
                       latitude: result['latitude'] ?? 0.0,
                       longitude: result['longitude'] ?? 0.0,
                       locationAddress: result['fullAddress'],
+                      cityId: result['cityId'],
+                      cityName: result['cityName'],
+                      districtId: result['districtId'],
+                      districtName: result['districtName'],
                     );
                     
-                    _showSnackBar(context, easy.tr('location_updated_to', args: [result['fullAddress']]), Colors.green);
+                    _showSnackBar(context, easy.tr('location updated to', args: [result['fullAddress']]), Colors.green);
                   }
                 },
               ),
@@ -79,15 +86,15 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
                 itemProvider,
                 Icons.my_location,
                 Colors.orange,
-                easy.tr('use_current_location'),
-                easy.tr('get_current_gps_location'),
+                "Use current ocation".tr(),
+                "Get current gps location".tr(),
                 () async {
                   Navigator.pop(context);
                   final success = await itemProvider.fetchUserLocation(context);
                   if (!success && itemProvider.error != null) {
                     _showSnackBar(context, itemProvider.error!, Colors.red);
                   } else if (success) {
-                    _showSnackBar(context, easy.tr('location_updated_successfully'), Colors.green);
+                    _showSnackBar(context, "Location updated successfully".tr(), Colors.green);
                   }
                 },
               ),
@@ -184,10 +191,10 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
         final user = userProvider.currentUser;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          // backgroundColor: Colors.white,
           appBar: AppBar(
-            surfaceTintColor: Colors.white,
-            backgroundColor: Colors.white,
+            // surfaceTintColor: Colors.white,
+            surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -198,7 +205,7 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                // color: Colors.black,
               ),
             ),
             centerTitle: true,
@@ -215,7 +222,7 @@ class _ReviewPublishPageState extends State<ReviewPublishPage> {
                     style: GoogleFonts.jost(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black,
+                      // color: Colors.black,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -517,7 +524,7 @@ Widget _buildProductDetails(ItemProvider itemProvider) {
         style: GoogleFonts.jost(
           fontSize: 22,
           fontWeight: FontWeight.w700,
-          color: Colors.black,
+          // color: Colors.black,
         ),
       ),
       const SizedBox(height: 12),
@@ -574,7 +581,7 @@ Widget _buildProductDetails(ItemProvider itemProvider) {
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                // color: Colors.black,
               ),
             ),
             SizedBox(height: 8),
@@ -639,7 +646,7 @@ Widget _buildCategorySpecificDetails(ItemProvider itemProvider) {
   return Container(
     padding: EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.blue[50],
+      // color: Colors.blue[50],
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: Colors.blue[200]!),
     ),
@@ -668,7 +675,7 @@ Widget _buildCategorySpecificDetails(ItemProvider itemProvider) {
                 style: GoogleFonts.jost(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black,
+                  // color: Colors.black,
                 ),
               ),
             ),
@@ -684,7 +691,7 @@ Widget _buildCategorySpecificDetails(ItemProvider itemProvider) {
               // Category section header (only if multiple categories)
               if (organizedFields.keys.length > 1) ...[
                 Text(
-                  _getCategoryDisplayName(categoryEntry.key),
+                  _getCategoryDisplayName(categoryEntry.key).tr(),
                   style: GoogleFonts.jost(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -707,7 +714,7 @@ Widget _buildCategorySpecificDetails(ItemProvider itemProvider) {
                 final fieldType = fieldTemplate['type'] ?? 'text';
                 
                 return _buildDetailRow(
-                  label, 
+                  label,
                   _formatFieldValue(fieldEntry.value, fieldType, suffix),
                 );
               }).toList(),
@@ -756,11 +763,11 @@ Widget _buildBasicDetails(ItemProvider itemProvider) {
             ),
             SizedBox(width: 12),
             Text(
-              easy.tr('additional_details'),
+              "Additional Details".tr(),
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                // color: Colors.black,
               ),
             ),
           ],
@@ -857,7 +864,7 @@ Widget _buildDetailRow(String label, String value) {
         SizedBox(
           width: 120,
           child: Text(
-            '$label:',
+            '${label.toString().tr()}${":"}',
             style: GoogleFonts.jost(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -867,11 +874,11 @@ Widget _buildDetailRow(String label, String value) {
         ),
         Expanded(
           child: Text(
-            value,
+            value.tr(),
             style: GoogleFonts.jost(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              // color: Colors.black,
             ),
           ),
         ),
@@ -1023,7 +1030,7 @@ Widget _buildDetailRow(String label, String value) {
                 color: ColorsController.primaryColor,
               ),
               label: Text(
-                easy.tr('change'),
+                "Change".tr(),
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -1074,7 +1081,7 @@ Widget _buildDetailRow(String label, String value) {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      itemProvider.locationAddress != null ? easy.tr('location_set') : easy.tr('location_required'),
+                      itemProvider.locationAddress != null ? "Set location".tr() : 'Location required'.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1086,7 +1093,7 @@ Widget _buildDetailRow(String label, String value) {
                     Text(
                       itemProvider.locationAddress?.isNotEmpty == true
                           ? itemProvider.locationAddress!
-                          : easy.tr('click_change_to_set_location'),
+                          : 'Tap to change or set your location'.tr(),
                       style: GoogleFonts.jost(
                         fontSize: 12,
                         color: itemProvider.locationAddress != null
@@ -1106,7 +1113,7 @@ Widget _buildDetailRow(String label, String value) {
 
   // Enhanced Publish Button
   Widget _buildPublishButton(ItemProvider itemProvider) {
-    final canPublish = itemProvider.canPublish && !itemProvider.isPublishing;
+    final canPublish =  !itemProvider.isPublishing;
     
     return Container(
       width: double.infinity,

@@ -1,31 +1,52 @@
 // models/category_model.dart
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+// ENHANCED CategoryModel with Dynamic Template Support
+
+// UPDATED CategoryModel for Your Specific Structure
 
 class CategoryModel {
   final String id;
   final String name;
   final String? description;
-  final String? icon;
-  final String? image;
+  final String? iconUrl;
+  final String? bannerUrl;
   final int level;
   final String? parentId;
   final int order;
-  final int priority;
   final bool isActive;
+  final bool isFeatured;
+  final bool showInMenu;
+  final bool hasCustomFields;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
+  
+  // NEW: Fields matching your structure
+  final List<Map<String, dynamic>>? configuredFields;
+  final String? fieldTemplateId; // Reference to fieldTemplate document
+  final List<String>? inheritedTemplates; // Array of template IDs
 
   CategoryModel({
     required this.id,
     required this.name,
     this.description,
-    this.icon,
-    this.image,
+    this.iconUrl,
+    this.bannerUrl,
     required this.level,
     this.parentId,
     required this.order,
-    required this.priority,
     required this.isActive,
+    this.isFeatured = false,
+    this.showInMenu = true,
+    this.hasCustomFields = false,
     this.createdAt,
+    this.updatedAt,
+    // NEW: Template-related fields matching your structure
+    this.configuredFields,
+    this.fieldTemplateId,
+    this.inheritedTemplates,
   });
 
   factory CategoryModel.fromFirestore(DocumentSnapshot doc) {
@@ -34,36 +55,156 @@ class CategoryModel {
   }
 
   factory CategoryModel.fromMap(Map<String, dynamic> data, String id) {
+    // Parse configuredFields
+    List<Map<String, dynamic>>? parsedConfiguredFields;
+    if (data['configuredFields'] is List) {
+      parsedConfiguredFields = List<Map<String, dynamic>>.from(data['configuredFields']);
+    }
+
+    // Parse inheritedTemplates
+    List<String>? parsedInheritedTemplates;
+    if (data['inheritedTemplates'] is List) {
+      parsedInheritedTemplates = List<String>.from(data['inheritedTemplates']);
+    }
+
     return CategoryModel(
       id: id,
       name: data['name'] ?? '',
       description: data['description'],
-      icon: data['icon'],
-      image: data['image'],
+      iconUrl: data['iconUrl'],
+      bannerUrl: data['bannerUrl'],
       level: data['level'] ?? 0,
       parentId: data['parentId'],
       order: data['order'] ?? 0,
-      priority: data['priority'] ?? 0,
       isActive: data['isActive'] ?? true,
+      isFeatured: data['isFeatured'] ?? false,
+      showInMenu: data['showInMenu'] ?? true,
+      hasCustomFields: data['hasCustomFields'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      // NEW: Your specific template fields
+      configuredFields: parsedConfiguredFields,
+      fieldTemplateId: data['fieldTemplate'], // Note: your field name is 'fieldTemplate'
+      inheritedTemplates: parsedInheritedTemplates,
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = {
       'name': name,
       'description': description,
-      'icon': icon,
-      'image': image,
+      'iconUrl': iconUrl,
+      'bannerUrl': bannerUrl,
       'level': level,
       'parentId': parentId,
       'order': order,
-      'priority': priority,
       'isActive': isActive,
+      'isFeatured': isFeatured,
+      'showInMenu': showInMenu,
+      'hasCustomFields': hasCustomFields,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
+
+    // Add your specific template fields
+    if (configuredFields != null) {
+      map['configuredFields'] = configuredFields;
+    }
+    
+    if (fieldTemplateId != null) {
+      map['fieldTemplate'] = fieldTemplateId;
+    }
+    
+    if (inheritedTemplates != null) {
+      map['inheritedTemplates'] = inheritedTemplates;
+    }
+
+    return map;
+  }
+
+  // NEW: Get all configured fields for this category
+  List<Map<String, dynamic>> getConfiguredFields() {
+    return configuredFields ?? [];
+  }
+
+  // NEW: Check if category has any configured fields
+  bool get hasAnyConfiguredFields => (configuredFields?.isNotEmpty ?? false);
+
+  // NEW: Check if category has template reference
+  bool get hasTemplateReference => fieldTemplateId != null && fieldTemplateId!.isNotEmpty;
+
+  // NEW: Check if category has inherited templates
+  bool get hasInheritedTemplates => (inheritedTemplates?.isNotEmpty ?? false);
+
+  // NEW: Get field by name from configured fields
+  Map<String, dynamic>? getConfiguredField(String fieldName) {
+    if (configuredFields == null) return null;
+    
+    try {
+      return configuredFields!.firstWhere(
+        (field) => field['name'] == fieldName || field['key'] == fieldName,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // NEW: Get all template IDs referenced by this category
+  List<String> getAllTemplateIds() {
+    final templateIds = <String>[];
+    
+    if (fieldTemplateId != null && fieldTemplateId!.isNotEmpty) {
+      templateIds.add(fieldTemplateId!);
+    }
+    
+    if (inheritedTemplates != null) {
+      templateIds.addAll(inheritedTemplates!);
+    }
+    
+    return templateIds;
+  }
+
+  CategoryModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? iconUrl,
+    String? bannerUrl,
+    int? level,
+    String? parentId,
+    int? order,
+    bool? isActive,
+    bool? isFeatured,
+    bool? showInMenu,
+    bool? hasCustomFields,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    List<Map<String, dynamic>>? configuredFields,
+    String? fieldTemplateId,
+    List<String>? inheritedTemplates,
+  }) {
+    return CategoryModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      iconUrl: iconUrl ?? this.iconUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      level: level ?? this.level,
+      parentId: parentId ?? this.parentId,
+      order: order ?? this.order,
+      isActive: isActive ?? this.isActive,
+      isFeatured: isFeatured ?? this.isFeatured,
+      showInMenu: showInMenu ?? this.showInMenu,
+      hasCustomFields: hasCustomFields ?? this.hasCustomFields,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      configuredFields: configuredFields ?? this.configuredFields,
+      fieldTemplateId: fieldTemplateId ?? this.fieldTemplateId,
+      inheritedTemplates: inheritedTemplates ?? this.inheritedTemplates,
+    );
   }
 }
+
 // models/product_model.dart
 class ProductModel {
   final String id;

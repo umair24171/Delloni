@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
 // Simplified NotificationsPage - Only Messages & Saved Searches
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -18,14 +19,15 @@ class NotificationsPage extends StatefulWidget {
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> with SingleTickerProviderStateMixin {
+class _NotificationsPageState extends State<NotificationsPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
     // Load notification preferences when page opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationProvider>().loadNotificationPreferences();
@@ -46,7 +48,10 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: Theme.of(context).colorScheme.onBackground,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -58,22 +63,20 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
           ),
         ),
         centerTitle: false,
-      bottom: TabBar(
-  controller: _tabController,
-  labelColor: Colors.black,
-  unselectedLabelColor: Colors.grey,
-  indicatorColor: const Color(0xff014700),
-  tabs: [
-    Tab(text: AppLocalizations.settings.tr()),     // Add .tr()
-    Tab(text: AppLocalizations.history.tr()),      // Add .tr()
-  ],
-),),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Theme.of(context).colorScheme.onBackground,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: const Color(0xff014700),
+          tabs: [
+            Tab(text: AppLocalizations.settings.tr()), // Add .tr()
+            Tab(text: AppLocalizations.history.tr()), // Add .tr()
+          ],
+        ),
+      ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildPreferencesTab(),
-          _buildHistoryTab(),
-        ],
+        children: [_buildPreferencesTab(), _buildHistoryTab()],
       ),
     );
   }
@@ -97,7 +100,8 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => notificationProvider.loadNotificationPreferences(),
+                  onPressed: () =>
+                      notificationProvider.loadNotificationPreferences(),
                   child: const Text('Retry'),
                 ),
               ],
@@ -111,32 +115,40 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Notification Types Section
-              _buildSectionTitle('Notification Settings'),
+            Text(
+              'Notification Settings'.tr(),
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
               // TODO: Replace with AppLocalizations.notificationSettings.tr() if _buildSectionTitle is updated
               const SizedBox(height: 16),
-              
+
               // ONLY Message Notifications
               _buildNotificationTile(
                 icon: Icons.message,
                 title: AppLocalizations.messageNotifications.tr(),
                 subtitle: AppLocalizations.getNotifiedMessages.tr(),
                 value: notificationProvider.newMessageNotifications,
-                onChanged: (value) => notificationProvider.updateNotificationPreference('newMessage', value),
+                onChanged: (value) => notificationProvider
+                    .updateNotificationPreference('newMessage', value),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // ONLY Saved Search Notifications
               _buildNotificationTile(
                 icon: Icons.bookmark,
                 title: AppLocalizations.savedSearchAlert.tr(),
                 subtitle: AppLocalizations.savedSearchAlert.tr(),
                 value: notificationProvider.savedSearchNotifications,
-                onChanged: (value) => notificationProvider.updateNotificationPreference('savedSearch', value),
+                onChanged: (value) => notificationProvider
+                    .updateNotificationPreference('savedSearch', value),
               ),
-              
+
               const SizedBox(height: 40),
-              
+
               // Saved Searches Management Button
               Container(
                 width: double.infinity,
@@ -150,7 +162,7 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
                     );
                   },
                   icon: Icon(Icons.bookmark_border),
-                  label: Text('Manage Saved Searches'),
+                  label: Text('Manage Saved Searches'.tr()),
                   // TODO: Replace with AppLocalizations.manageSavedSearches.tr() if needed
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff014700),
@@ -162,9 +174,9 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // Info section
               Container(
                 padding: const EdgeInsets.all(16),
@@ -175,15 +187,12 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.grey[600],
-                      size: 20,
-                    ),
+                    Icon(Icons.info_outline, color: Colors.grey[600], size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'You can adjust these settings anytime to control what notifications you receive.',
+                        'You can adjust these settings anytime to control what notifications you receive.'
+                            .tr(),
                         // TODO: Replace with AppLocalizations.adjustSettingsAnytime.tr() if needed
                         style: GoogleFonts.poppins(
                           fontSize: 14,
@@ -255,12 +264,14 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
               itemBuilder: (context, index) {
                 final notification = snapshot.data!.docs[index];
                 final data = notification.data() as Map<String, dynamic>;
-                
+
                 return _buildNotificationHistoryItem(
                   title: data['title'] ?? '',
                   body: data['body'] ?? '',
                   type: data['type'] ?? '',
-                  createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                  createdAt:
+                      (data['createdAt'] as Timestamp?)?.toDate() ??
+                      DateTime.now(),
                   isRead: data['read'] ?? false,
                   onTap: () {
                     // Mark as read and handle tap
@@ -285,7 +296,7 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
   }) {
     IconData icon;
     Color iconColor;
-    
+
     switch (type) {
       case 'newMessage':
         icon = Icons.message;
@@ -375,7 +386,10 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
     );
   }
 
-  void _handleNotificationTap(String notificationId, Map<String, dynamic> data) {
+  void _handleNotificationTap(
+    String notificationId,
+    Map<String, dynamic> data,
+  ) {
     // Mark notification as read
     FirebaseFirestore.instance
         .collection('users')
@@ -391,7 +405,10 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
         final chatId = data['data']?['chatId'];
         if (chatId != null) {
           // Navigate to individual chat page
-          Navigator.push(context, MaterialPageRoute(builder: (context) => ChatPage()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ChatPage()),
+          );
         }
         break;
       case 'savedSearch':
@@ -399,7 +416,12 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
         final itemId = data['data']?['itemId'];
         if (itemId != null) {
           // Navigate to item details page
-          Navigator.push(context, MaterialPageRoute(builder: (context) => ProductDetailScreen(productId: itemId)));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailScreen(productId: itemId),
+            ),
+          );
         }
         break;
     }
@@ -465,11 +487,7 @@ class _NotificationsPageState extends State<NotificationsPage> with SingleTicker
               color: const Color(0xff014700).withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: const Color(0xff014700),
-            ),
+            child: Icon(icon, size: 24, color: const Color(0xff014700)),
           ),
           const SizedBox(width: 16),
           // Title and subtitle

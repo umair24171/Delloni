@@ -6,6 +6,7 @@ import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
 import 'package:arabicmarketplace/screens/chat/view/chat_screen.dart';
 import 'package:arabicmarketplace/screens/home/view/home_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page.dart';
+import 'package:arabicmarketplace/screens/search_page/view/search_page_filter.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/item_details_screen.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -28,7 +29,8 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
     MarketplaceHomePage(),
     ChatPage(),
     ItemDetailsPage(isMain: true),
-    SearchPage(isMain: true),
+    // SearchPage(isMain: true),
+    SearchFilterPage(isMain: true),
     AccountScreen(),
   ];
 

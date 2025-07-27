@@ -3,6 +3,7 @@ import 'package:arabicmarketplace/controller/notifications_helper.dart';
 import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_results_page.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -21,20 +22,21 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
+       surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back_ios,  size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Saved Searches',
+          'Saved Searches'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            // color: Colors.black,
           ),
         ),
         centerTitle: false,
@@ -61,7 +63,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Error loading saved searches',
+                    'Error loading saved searches'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
@@ -87,7 +89,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text('Retry'),
+                    child:  Text('Retry'.tr()),
                   ),
                 ],
               ),
@@ -119,7 +121,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${provider.savedSearches.length} Saved Search${provider.savedSearches.length == 1 ? '' : 'es'}',
+                      '${provider.savedSearches.length} ${"Saved Search".tr()} ${provider.savedSearches.length == 1 ? '' : 'es'}',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -128,7 +130,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                     ),
                     const Spacer(),
                     Text(
-                      'Swipe to delete',
+                      'Swipe to delete'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.grey[500],
@@ -178,7 +180,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
             ),
             const SizedBox(height: 24),
             Text(
-              'No saved searches yet',
+              'No saved searches yet'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -187,7 +189,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Save your search filters to get notified when new matching items are posted',
+              'Save your search filters to get notified when new matching items are posted'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -209,7 +211,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                 },
                 icon: const Icon(Icons.search, size: 20),
                 label: Text(
-                  'Start Searching',
+                  'Start Searching'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -256,7 +258,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
         provider.deleteSavedSearch(savedSearch.id);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('\"${savedSearch.name}\" deleted'),
+            content: Text('\"${savedSearch.name}\" ${"deleted".tr()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -269,7 +271,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              // color: Colors.white,
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
@@ -298,7 +300,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.black,
+                            // color: Colors.black,
                           ),
                         ),
                       ),
@@ -374,7 +376,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Created ${_formatDate(savedSearch.createdAt)}',
+                        '${"Created".tr()} ${_formatDate(savedSearch.createdAt)}',
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey[500],
@@ -406,7 +408,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              savedSearch.isActive ? 'Active' : 'Paused',
+                              savedSearch.isActive ? 'Active'.tr() : 'Paused'.tr(),
                               style: GoogleFonts.poppins(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
@@ -449,17 +451,20 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         title: Text(
-          'Delete Saved Search',
+          'Delete Saved Search'.tr(),
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
           ),
         ),
         content: Text(
-          'Are you sure you want to delete \"${savedSearch.name}\"? This action cannot be undone.',
+          '${"Are you sure you want to delete".tr()} \"${savedSearch.name}\"${"?".tr()} ${"This action cannot be undone.".tr()}',
           style: GoogleFonts.poppins(
             fontSize: 14,
             color: Colors.grey[700],
@@ -469,7 +474,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: Text(
-              'Cancel',
+              'Cancel'.tr(),
               style: GoogleFonts.poppins(
                 color: Colors.grey[600],
               ),
@@ -485,7 +490,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
               ),
             ),
             child: Text(
-              'Delete',
+              'Delete'.tr(),
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w500,
               ),
@@ -537,7 +542,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
     } else if (difference.inMinutes > 0) {
       return '${difference.inMinutes}m ago';
     } else {
-      return 'Just now';
+      return 'Just now'.tr();
     }
   }
 
@@ -547,11 +552,14 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         title: Text(
-          'Edit Search Name',
+          'Edit Search Name'.tr(),
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
           ),
@@ -561,7 +569,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Enter a new name for your saved search:',
+              'Enter a new name for your saved search:'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[700],
@@ -572,7 +580,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
               controller: controller,
               style: GoogleFonts.poppins(fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Search name',
+                hintText: 'Search name'.tr(),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -590,7 +598,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              'Cancel'.tr(),
               style: GoogleFonts.poppins(
                 color: Colors.grey[600],
               ),
@@ -606,7 +614,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Search name updated'),
+                    content: Text('Search name updated'.tr(),style: TextStyle(color: Theme.of(context).colorScheme.onBackground),),
                     backgroundColor: const Color(0xff014700),
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -621,7 +629,7 @@ class _SavedSearchesPageState extends State<SavedSearchesPage> {
               ),
             ),
             child: Text(
-              'Save',
+              'Save'.tr(),
               style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w500,
               ),
@@ -702,7 +710,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
               ),
             ),
             Text(
-              '${_products.length} results',
+              '${_products.length} ${"results".tr()}',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -729,7 +737,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Search Criteria:',
+                  'Search Criteria:'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -774,7 +782,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Error loading results',
+              'Error loading results'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -793,7 +801,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadResults,
-              child: const Text('Retry'),
+              child:  Text('Retry'.tr()),
             ),
           ],
         ),
@@ -812,7 +820,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No results found',
+              'No results found'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -821,7 +829,7 @@ class _SavedSearchResultsPageState extends State<SavedSearchResultsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Try adjusting your search criteria',
+              'Try adjusting your search criteria'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -997,7 +1005,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
     }
     
     if (parts.isEmpty) {
-      return 'My Search';
+      return 'My Search'.tr();
     }
     
     return parts.join(' in ');
@@ -1006,17 +1014,20 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Save Search'),
+      backgroundColor: Theme.of(context).brightness != Brightness.dark
+          ? Colors.white
+          : Colors.black,
+      title:  Text('Save Search'.tr()),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Give your search a name:'),
+           Text('Give your search a name:'.tr()),
           const SizedBox(height: 12),
           TextField(
             controller: _nameController,
             decoration: InputDecoration(
-              hintText: 'Enter search name',
+              hintText: 'Enter search name'.tr(),
               border: const OutlineInputBorder(),
               errorText: _error,
             ),
@@ -1034,7 +1045,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Search criteria:',
+                  'Search criteria:'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -1063,7 +1074,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'You\'ll get notified when new items match this search',
+                  'You\'ll get notified when new items match this search'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -1077,7 +1088,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
       actions: [
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child:  Text('Cancel'.tr()),
         ),
         ElevatedButton(
           onPressed: _isSaving ? null : _saveSearch,
@@ -1087,7 +1098,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Save'),
+              :  Text('Save'.tr()),
         ),
       ],
     );
@@ -1124,7 +1135,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
   Future<void> _saveSearch() async {
     if (_nameController.text.trim().isEmpty) {
       setState(() {
-        _error = 'Please enter a name';
+        _error = 'Please enter a name'.tr();
       });
       return;
     }
@@ -1146,7 +1157,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Search saved successfully!'),
+            content: Text('Search saved successfully!'.tr()),
             backgroundColor: Colors.green,
           ),
         );

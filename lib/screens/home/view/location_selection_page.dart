@@ -267,7 +267,7 @@ class _LocationsPageState extends State<LocationsPage> {
               ),
               child: TextField(
                 controller: _searchController,
-                style: GoogleFonts.poppins(fontSize: 14),
+                style: GoogleFonts.poppins(fontSize: 14,color: Colors.black),
                 onChanged: (value) {
                   _searchLocations(value);
                 },

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
+import 'package:arabicmarketplace/main.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notifications_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -60,6 +62,7 @@ class NotificationService {
       await _initializeFirebaseMessaging();
       await _setupForegroundNotificationHandling();
       await _setupAuthListener();
+      await _updateFCMToken();
       
       _isInitialized = true;
       log('Notification service initialized successfully');
@@ -248,6 +251,7 @@ class NotificationService {
       String? token = await _messaging.getToken();
       if (token != null && token != _currentToken) {
         _currentToken = token;
+        log('FCM token: $token');
         await _saveTokenToFirestore(token);
         log('FCM token updated: ${token.substring(0, 20)}...');
       }
@@ -574,7 +578,7 @@ class NotificationService {
     try {
       // Parse payload and navigate accordingly
       // This should integrate with your app's navigation system
-      // Navigator.push(navigatorKey.currentContext!, MaterialPageRoute(builder: (context) => const NotificationsPage()));
+      Navigator.push(navigatorKey.currentContext!, MaterialPageRoute(builder: (context) => const NotificationsPage()));
       
       // Example navigation logic:
       /*
@@ -678,7 +682,7 @@ class NotificationService {
             'notification': {
               'channel_id': _getChannelId(type),
               'sound': type == 'newMessage' ? 'message_sound' : 'default',
-              'priority': 'high',
+              // 'priority': 'high',
               'notification_priority': 'PRIORITY_HIGH',
             },
             'priority': 'high',

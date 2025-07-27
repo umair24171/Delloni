@@ -1,6 +1,5 @@
 // screens/profile_screen.dart - Updated with Backend Integration
 import 'package:arabicmarketplace/screens/account/controller/profile_provider.dart';
-import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -41,7 +40,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Icon(Icons.support_agent, color: Colors.blue),
             SizedBox(width: 8),
             Text(
-              'Contact Support',
+              'Contact Support'.tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -162,6 +161,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+           surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground, size: 20),
@@ -248,8 +248,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // Read-only Name Field with Support Info
                       _buildReadOnlyTextField(
                         icon: Icons.person_outline,
-                        hintText: provider.userProfile?.type == 'company' ? 'Company Name' : 'Name',
-                        value: provider.usernameController.text,
+                        hintText: provider.userProfile?.type == 'company' ? 'Company Name'.tr() : 'Name'.tr(),
+                        controller: provider.usernameController,
                       ),
                       
                       const SizedBox(height: 16),
@@ -262,8 +262,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // Read-only Email Field with Support Info
                       _buildReadOnlyTextField(
                         icon: Icons.email_outlined,
-                        hintText: 'Email',
-                        value: provider.emailController.text,
+                        hintText: 'Email'.tr(),
+                        controller: provider.emailController,
                       ),
                       
                       const SizedBox(height: 16),
@@ -276,8 +276,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       // Read-only Phone Field with Support Info
                       _buildReadOnlyTextField(
                         icon: Icons.phone_outlined,
-                        hintText: 'Phone number',
-                        value: provider.phoneController.text,
+                        hintText: 'Phone number'.tr(),
+                        controller: provider.phoneController,
                       ),
                       
                       const SizedBox(height: 16),
@@ -394,85 +394,92 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Widget _buildReadOnlyTextField({
-    required IconData icon,
-    required String hintText,
-    required String value,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200], // Different color to indicate read-only
-        borderRadius: BorderRadius.circular(27),
+ // If you want to make other fields editable, replace _buildReadOnlyTextField with:
+Widget _buildReadOnlyTextField({
+  required IconData icon,
+  required String hintText,
+  required TextEditingController controller,
+  bool obscureText = false,
+  TextInputType keyboardType = TextInputType.text,
+  VoidCallback? onToggleVisibility,
+  bool showToggle = false,
+}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white, // White background for editable
+      borderRadius: BorderRadius.circular(27),
+      border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      style: GoogleFonts.jost(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: Colors.black,
       ),
-      child: TextFormField(
-        initialValue: value.isEmpty ? '' : value,
-        readOnly: true,
-        style: GoogleFonts.jost(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey[600], // Dimmed text color
-        ),
-        decoration: InputDecoration(
-          constraints: BoxConstraints(minHeight: 50),
-          prefixIcon: Icon(icon, color: Colors.grey[600], size: 20),
-          suffixIcon: GestureDetector(
-            onTap: _showContactSupportDialog,
-            child: Container(
-              padding: EdgeInsets.all(8),
-              child: Icon(
-                Icons.support_agent,
-                color: Colors.blue,
-                size: 20,
-              ),
-            ),
-          ),
-          hintText: value.isEmpty ? hintText : null,
-          hintStyle: GoogleFonts.jost(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[500],
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditableAboutField(ProfileProvider provider) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[200], // Read-only color
-        borderRadius: BorderRadius.circular(27),
-      ),
-      child: TextFormField(
-        controller: provider.aboutController,
-        maxLines: 3,
-        style: GoogleFonts.jost(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: Colors.black,
-        ),
-        decoration: InputDecoration(
-          constraints: BoxConstraints(minHeight: 50),
-          prefixIcon: Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Icon(Icons.info_outline, color: Colors.black, size: 20),
-          ),
-          hintText: provider.userProfile?.type == 'company' 
-              ? AppLocalizations.tellUsAboutYourCompany.tr()
-              : AppLocalizations.tellUsAboutYourself.tr(),
-          hintStyle: GoogleFonts.jost(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
+      decoration: InputDecoration(
+        constraints: BoxConstraints(minHeight: 50),
+        prefixIcon: Icon(icon, color: Colors.green[700], size: 20),
+        suffixIcon: showToggle ? GestureDetector(
+          onTap: onToggleVisibility,
+          child: Icon(
+            obscureText ? Icons.visibility : Icons.visibility_off,
             color: Colors.grey[600],
+            size: 20,
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ) : null,
+        hintText: hintText,
+        hintStyle: GoogleFonts.jost(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey[500],
         ),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
-    );
-  }
+    ),
+  );
+}
+
+
+ Widget _buildEditableAboutField(ProfileProvider provider) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white, // Changed from grey to white (editable)
+      borderRadius: BorderRadius.circular(27),
+      border: Border.all(color: Colors.grey[300]!), // Add border for clarity
+    ),
+    child: TextFormField(
+      controller: provider.aboutController,
+      maxLines: 3,
+      style: GoogleFonts.jost(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: Colors.black,
+      ),
+      decoration: InputDecoration(
+        constraints: BoxConstraints(minHeight: 50),
+        prefixIcon: Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: Icon(Icons.info_outline, color: Colors.green[700], size: 20), // Changed color
+        ),
+        hintText: provider.userProfile?.type == 'company' 
+            ? AppLocalizations.tellUsAboutYourCompany.tr()
+            : AppLocalizations.tellUsAboutYourself.tr(),
+        hintStyle: GoogleFonts.jost(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey[600],
+        ),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+    ),
+  );
+}
+
 
   Widget _buildPasswordField(ProfileProvider provider) {
     return Container(
@@ -625,52 +632,87 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildSaveAboutButton(ProfileProvider provider) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ElevatedButton(
-        onPressed: provider.isSaving ? null : () => _saveAboutChanges(provider),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green[700],
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(27),
-          ),
+  // Add this method to save all changes:
+Future<void> _saveAllChanges(ProfileProvider provider) async {
+  if (!_formKey.currentState!.validate()) {
+    return;
+  }
+
+  final success = await provider.saveProfile(); // This should save all fields
+  
+  if (success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Profile updated successfully!',
+          style: GoogleFonts.jost(fontSize: 14, fontWeight: FontWeight.w500),
         ),
-        child: provider.isSaving
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    AppLocalizations.saving.tr(),
-                    style: GoogleFonts.jost(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              )
-            : Text(
-                AppLocalizations.saveAboutInfo.tr(),
-                style: GoogleFonts.jost(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+        backgroundColor: Colors.green[700],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          provider.error ?? 'Failed to update profile',
+          style: GoogleFonts.jost(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
+}
+
+ Widget _buildSaveAboutButton(ProfileProvider provider) {
+  return SizedBox(
+    width: double.infinity,
+    height: 54,
+    child: ElevatedButton(
+      onPressed: provider.isSaving ? null : () => _saveAllChanges(provider),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(27),
+        ),
+      ),
+      child: provider.isSaving
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  AppLocalizations.saving.tr(),
+                  style: GoogleFonts.jost(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              'Save Changes'.tr(), // Update all profile information
+              style: GoogleFonts.jost(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+    ),
+  );
+}
 
   Widget _buildChangePasswordButton() {
     return SizedBox(
@@ -736,6 +778,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(20),
+          
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -813,6 +856,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             style: GoogleFonts.jost(
               fontSize: 14,
               fontWeight: FontWeight.w500,
+              color: Colors.black
             ),
           ),
         ],
@@ -863,13 +907,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
+          backgroundColor: Theme.of(context).brightness != Brightness.dark
+              ? Colors.white
+              : Colors.black,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Text(
             AppLocalizations.changePassword.tr(),
             style: GoogleFonts.jost(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black,
             ),
           ),
           content: Column(
@@ -881,8 +930,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isCurrentPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: AppLocalizations.currentPassword.tr(),
-                  labelStyle: GoogleFonts.jost(fontSize: 14),
+                  labelText: "Current Password".tr(),
+                  labelStyle: GoogleFonts.jost(fontSize: 14,),
                   prefixIcon: Icon(Icons.lock_outline, size: 20),
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -902,7 +951,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isNewPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: AppLocalizations.newPassword.tr(),
+                  labelText: "New Password".tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixIcon: Icon(Icons.lock, size: 20),
                   suffixIcon: IconButton(
@@ -923,7 +972,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 obscureText: !isConfirmPasswordVisible,
                 style: GoogleFonts.jost(fontSize: 14),
                 decoration: InputDecoration(
-                  labelText: AppLocalizations.confirmNewPassword.tr(),
+                  labelText: "Confirm Password".tr(),
                   labelStyle: GoogleFonts.jost(fontSize: 14),
                   prefixIcon: Icon(Icons.lock, size: 20),
                   suffixIcon: IconButton(

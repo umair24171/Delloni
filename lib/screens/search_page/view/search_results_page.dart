@@ -2,6 +2,7 @@ import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/notifications/view/notification_saved_search_page.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_page_filter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:arabicmarketplace/screens/search_page/controller/search_provider.dart';
@@ -12,11 +13,13 @@ import 'package:easy_localization/easy_localization.dart';
 class SearchResultsPage extends StatefulWidget {
   final SearchFilters filters;
   final String? initialQuery;
+  final String? categoryName; // ADD: To display category name properly
   
   const SearchResultsPage({
     Key? key, 
     required this.filters,
     this.initialQuery,
+    this.categoryName,
   }) : super(key: key);
 
   @override
@@ -26,30 +29,81 @@ class SearchResultsPage extends StatefulWidget {
 class _SearchResultsPageState extends State<SearchResultsPage> {
   late SearchProvider _searchProvider;
   bool _isInitialized = false;
+  String? _displayCategoryName;
 
   @override
   void initState() {
     super.initState();
+    _displayCategoryName = widget.categoryName;
+    // Call initialization but don't await it to avoid setState during build
     _initializeSearch();
   }
 
-  void _initializeSearch() async {
-    // Use existing SearchProvider or create new one
-    _searchProvider = Provider.of<SearchProvider>(context, listen: false);
-    
-    // Apply filters and execute search
-    _searchProvider.updateFilters(widget.filters);
-    
-    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-      await _searchProvider.performImmediateSearch(widget.initialQuery);
-    } else {
-      // Trigger search with current filters
-      await _searchProvider.performImmediateSearch('');
-    }
-    
-    setState(() {
-      _isInitialized = true;
+  void _initializeSearch() {
+    // Use post-frame callback to ensure we're not in the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        
+        print('SearchResultsPage initializing with filters: ${widget.filters.selectedCategory}');
+        
+        // Use existing SearchProvider
+        _searchProvider = Provider.of<SearchProvider>(context, listen: false);
+        
+        // IMPORTANT: Apply filters BEFORE executing search
+        print('Applying filters to SearchProvider...');
+        _searchProvider.updateFilters(widget.filters);
+        
+        // If we have a category but no category name, try to get it
+        if (widget.filters.selectedCategory != null && _displayCategoryName == null) {
+          _displayCategoryName = await _getCategoryName(widget.filters.selectedCategory!);
+          print('Loaded category name: $_displayCategoryName');
+        }
+        
+        // IMPORTANT: Execute search with the applied filters
+        print('Executing search with query: "${widget.initialQuery ?? ""}"');
+        
+        if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
+          await _searchProvider.performImmediateSearch(widget.initialQuery!);
+        } else {
+          // For filter-only searches, use empty query to trigger filtered search
+          await _searchProvider.performImmediateSearch('');
+        }
+        
+        print('Search completed. Results: ${_searchProvider.searchResults.length}');
+        
+        // Safe to call setState now
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+          });
+        }
+      } catch (e) {
+        print('Error initializing SearchResultsPage: $e');
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+          });
+        }
+      }
     });
+  }
+
+  // NEW: Get category name from ID
+  Future<String?> _getCategoryName(String categoryId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('categories')
+          .doc(categoryId)
+          .get();
+      
+      if (doc.exists) {
+        return doc.data()?['name'];
+      }
+    } catch (e) {
+      print('Error getting category name: $e');
+    }
+    return null;
   }
 
   void _showSaveSearchDialog() async {
@@ -87,7 +141,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
           ),
         ),
         title: Text(
-          'Search Results',
+          'Search Results'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w500,
@@ -115,6 +169,12 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                 _searchProvider.updateFilters(newFilters);
                 // Re-trigger search with new filters
                 await _searchProvider.performImmediateSearch(widget.initialQuery ?? '');
+                
+                // Update category name if changed
+                if (newFilters.selectedCategory != widget.filters.selectedCategory) {
+                  _displayCategoryName = await _getCategoryName(newFilters.selectedCategory ?? '');
+                  setState(() {});
+                }
               }
             },
             icon: const Icon(Icons.tune, color: Colors.black),
@@ -171,7 +231,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  searchProvider.getSearchSummary(),
+                  _getCustomSearchSummary(searchProvider),
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -186,17 +246,17 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${searchProvider.searchResults.length} results found',
+                '${searchProvider.searchResults.length} ${"results found".tr()}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: Colors.blue[600],
                 ),
               ),
-              if (searchProvider.searchResults.isNotEmpty)
+              if (searchProvider.searchResults.isNotEmpty || searchProvider.hasFilters)
                 TextButton.icon(
                   onPressed: _showSaveSearchDialog,
                   icon: const Icon(Icons.bookmark_add, size: 16),
-                  label: const Text('Save'),
+                  label: Text('Save'.tr()),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.blue[700],
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -209,14 +269,57 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
+  // NEW: Custom search summary that shows category name properly
+  String _getCustomSearchSummary(SearchProvider searchProvider) {
+    List<String> parts = [];
+    
+    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
+      parts.add('"${widget.initialQuery!}"');
+    }
+    
+    if (_displayCategoryName != null) {
+      parts.add('in $_displayCategoryName');
+    }
+    
+    if (searchProvider.filters.minPrice != null || searchProvider.filters.maxPrice != null) {
+      if (searchProvider.filters.minPrice != null && searchProvider.filters.maxPrice != null) {
+        parts.add('\$${searchProvider.filters.minPrice!.toStringAsFixed(0)} - \$${searchProvider.filters.maxPrice!.toStringAsFixed(0)}');
+      } else if (searchProvider.filters.minPrice != null) {
+        parts.add('above \$${searchProvider.filters.minPrice!.toStringAsFixed(0)}');
+      } else if (searchProvider.filters.maxPrice != null) {
+        parts.add('below \$${searchProvider.filters.maxPrice!.toStringAsFixed(0)}');
+      }
+    }
+    
+    if (searchProvider.filters.cityName != null) {
+      String locationText = searchProvider.filters.districtName != null 
+          ? '${searchProvider.filters.districtName}, ${searchProvider.filters.cityName}'
+          : searchProvider.filters.cityName!;
+      parts.add('in $locationText');
+    }
+    
+    if (searchProvider.filters.adType != null && searchProvider.filters.adType != 'All') {
+      parts.add('${searchProvider.filters.adType} ads');
+    }
+    
+    return parts.isNotEmpty ? parts.join(' • ') : 'All items';
+  }
+
   Widget _buildActiveFilters(SearchProvider searchProvider) {
     final filters = searchProvider.filters;
     final activeFilters = <Widget>[];
 
-    if (filters.selectedCategory != null) {
+    // UPDATED: Show category name instead of ID
+    if (filters.selectedCategory != null && _displayCategoryName != null) {
       activeFilters.add(_buildFilterChip(
-        'Category: ${filters.selectedCategory}',
-        () => searchProvider.clearFilters(),
+        'Category: $_displayCategoryName',
+        () {
+          // Create new filters without category
+          final newFilters = filters.copyWith(selectedCategory: null);
+          searchProvider.updateFilters(newFilters);
+          _displayCategoryName = null;
+          setState(() {});
+        },
       ));
     }
 
@@ -226,28 +329,54 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
           : filters.cityName!;
       activeFilters.add(_buildFilterChip(
         'Location: $locationText',
-        () => searchProvider.clearFilters(),
+        () {
+          // Create new filters without location
+          final newFilters = filters.copyWith(
+            cityId: null,
+            cityName: null,
+            districtId: null,
+            districtName: null,
+            latitude: null,
+            longitude: null,
+            location: null,
+          );
+          searchProvider.updateFilters(newFilters);
+        },
       ));
     }
 
     if (filters.minPrice != null || filters.maxPrice != null) {
       String priceText = '';
       if (filters.minPrice != null && filters.maxPrice != null) {
-        priceText = 'Price: \$${filters.minPrice!.toStringAsFixed(0)} - \$${filters.maxPrice!.toStringAsFixed(0)}';
+        priceText = '${"Price:".tr()} \$${filters.minPrice!.toStringAsFixed(0)} - \$${filters.maxPrice!.toStringAsFixed(0)}';
       } else if (filters.minPrice != null) {
-        priceText = 'Min Price: \$${filters.minPrice!.toStringAsFixed(0)}';
+        priceText = '${"Min Price:".tr()} \$${filters.minPrice!.toStringAsFixed(0)}';
       } else if (filters.maxPrice != null) {
-        priceText = 'Max Price: \$${filters.maxPrice!.toStringAsFixed(0)}';
+        priceText = '${"Max Price:".tr()} \$${filters.maxPrice!.toStringAsFixed(0)}';
       }
       if (priceText.isNotEmpty) {
-        activeFilters.add(_buildFilterChip(priceText, () => searchProvider.clearFilters()));
+        activeFilters.add(_buildFilterChip(
+          priceText, 
+          () {
+            // Create new filters without price range
+            final newFilters = filters.copyWith(
+              minPrice: null,
+              maxPrice: null,
+            );
+            searchProvider.updateFilters(newFilters);
+          },
+        ));
       }
     }
 
     if (filters.adType != null && filters.adType != 'All') {
       activeFilters.add(_buildFilterChip(
         'Type: ${filters.adType}',
-        () => searchProvider.clearFilters(),
+        () {
+          // Create new filters without ad type
+          final newFilters = filters.copyWith(adType: 'All');
+          searchProvider.updateFilters(newFilters);
+        },
       ));
     }
 
@@ -264,7 +393,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Active Filters',
+                  'Active Filters'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -272,9 +401,13 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => searchProvider.clearFilters(),
+                  onPressed: () {
+                    searchProvider.clearFilters();
+                    _displayCategoryName = null;
+                    setState(() {});
+                  },
                   child: Text(
-                    'Clear All',
+                    'Clear All'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.red,
@@ -312,13 +445,13 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   Widget _buildResultsSection(SearchProvider searchProvider) {
     if (searchProvider.isSearching) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(color: Color(0xFF0D5E2A)),
             SizedBox(height: 16),
-            Text('Searching...'),
+            Text('Searching...'.tr()),
           ],
         ),
       );
@@ -332,7 +465,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'Search Error',
+              'Search Error'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -354,7 +487,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0D5E2A),
               ),
-              child: const Text('Retry'),
+              child: Text('Retry'.tr()),
             ),
           ],
         ),
@@ -369,7 +502,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No Results Found',
+              'No Results Found'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -378,7 +511,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Try adjusting your search criteria or filters',
+              'Try adjusting your search criteria or filters'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -387,7 +520,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Save this search to get notified when new items are added',
+              'Save this search to get notified when new items are added'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: Colors.grey[500],
@@ -398,7 +531,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             OutlinedButton.icon(
               onPressed: _showSaveSearchDialog,
               icon: const Icon(Icons.bookmark_add, size: 18),
-              label: const Text('Save Search'),
+              label: Text('Save Search'.tr()),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF0D5E2A),
                 side: const BorderSide(color: Color(0xFF0D5E2A)),
@@ -409,13 +542,207 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: searchProvider.searchResults.length,
-      itemBuilder: (context, index) {
-        final product = searchProvider.searchResults[index];
-        return _buildProductCard(product);
+    // UPDATED: Better grid layout for product cards
+    return RefreshIndicator(
+      onRefresh: () async {
+         _initializeSearch();
       },
+      child: searchProvider.searchResults.length > 4 
+          ? GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.7,
+              ),
+              itemCount: searchProvider.searchResults.length,
+              itemBuilder: (context, index) {
+                final product = searchProvider.searchResults[index];
+                return _buildProductGridCard(product);
+              },
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: searchProvider.searchResults.length,
+              itemBuilder: (context, index) {
+                final product = searchProvider.searchResults[index];
+                return _buildProductCard(product);
+              },
+            ),
+    );
+  }
+
+  // NEW: Grid card layout for better space utilization
+  Widget _buildProductGridCard(ProductModel product) {
+    return Container(
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context, 
+            MaterialPageRoute(
+              builder: (context) => ProductDetailScreen(productId: product.id)
+            )
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image Container
+              Expanded(
+                flex: 3,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Product Image
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        child: product.imageUrls.isNotEmpty
+                            ? Image.network(
+                                product.imageUrls.first,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[200],
+                                    child: Icon(
+                                      Icons.image, 
+                                      size: 30, 
+                                      color: Colors.grey[400]
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                color: Colors.grey[200],
+                                child: Icon(
+                                  Icons.image, 
+                                  size: 30, 
+                                  color: Colors.grey[400]
+                                ),
+                              ),
+                      ),
+                      
+                      // Favorite Icon
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.favorite_border,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ),
+                      ),
+                      
+                      // Negotiable Tag
+                      if (product.allowPriceNegotiation)
+                        Positioned(
+                          bottom: 6,
+                          left: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.yellow[700],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              AppLocalizations.negotiable.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Content Section
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        product.title ?? 'No Title',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Price
+                      Text(
+                        '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const Spacer(),
+                      
+                      // Location and Time
+                      Text(
+                        product.locationAddress ?? 'Location not set',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10, 
+                          color: Colors.grey[600]
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        _getTimeSincePosted(product.createdAt),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10, 
+                          color: Colors.grey[600]
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -597,7 +924,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           ),
                         ),
                         Text(
-                          product.category ?? '',
+                          product.categoryName ?? product.category ?? '',
                           style: GoogleFonts.poppins(
                             fontSize: 12, 
                             color: Colors.grey[600]

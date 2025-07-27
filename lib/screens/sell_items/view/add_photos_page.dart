@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:arabicmarketplace/main.dart';
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
@@ -6,6 +7,7 @@ import 'package:arabicmarketplace/screens/sell_items/view/review_publish.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:easy_localization/easy_localization.dart' as easy;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -427,102 +429,202 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     }
   }
 
-  // Enhanced watermark function with better positioning and styling
-  Future<XFile?> _addWatermarkToImage(XFile originalImage) async {
-    try {
-      // Read original image
-      final bytes = await originalImage.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
+ // Enhanced watermark function with logo image
+// Fixed watermark function with logo
+Future<XFile?> _addWatermarkToImage(XFile originalImage) async {
+  try {
+    print('Starting watermark process for: ${originalImage.path}');
+    
+    // Read original image
+    final bytes = await originalImage.readAsBytes();
+    print('Original image size: ${bytes.length} bytes');
+    
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final image = frame.image;
+    print('Original image dimensions: ${image.width}x${image.height}');
 
-      // Create a recorder for drawing
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      
-      // Draw original image
-      canvas.drawImage(image, Offset.zero, Paint());
-      
-      // Calculate watermark size based on image size
-      final imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      final watermarkFontSize = (imageSize.width * 0.04).clamp(16.0, 32.0);
-      
-      // Create watermark text
-      final textSpan = TextSpan(
-        text: 'Delloni',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: watermarkFontSize,
-          fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(
-              blurRadius: 3,
-              color: Colors.black.withOpacity(0.8),
-              offset: Offset(1, 1),
-            ),
-            Shadow(
-              blurRadius: 6,
-              color: Colors.black.withOpacity(0.3),
-              offset: Offset(2, 2),
-            ),
-          ],
-        ),
+    // Load logo from assets
+    final ByteData logoData = await rootBundle.load('assets/icons/logo_two.jpeg');
+    final Uint8List logoBytes = logoData.buffer.asUint8List();
+    print('Logo loaded, size: ${logoBytes.length} bytes');
+    
+    final ui.Codec logoCodec = await ui.instantiateImageCodec(logoBytes);
+    final ui.FrameInfo logoFrame = await logoCodec.getNextFrame();
+    final ui.Image logoImage = logoFrame.image;
+    print('Logo dimensions: ${logoImage.width}x${logoImage.height}');
+
+    // Create a recorder for drawing
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    
+    // Draw original image
+    canvas.drawImage(image, Offset.zero, Paint());
+    
+    // Calculate logo size (smaller and safer positioning)
+    final imageSize = Size(image.width.toDouble(), image.height.toDouble());
+    final logoWidth = imageSize.width * 0.08; // Reduced from 0.10 to 0.08
+    final logoAspectRatio = logoImage.width / logoImage.height;
+    final logoHeight = logoWidth / logoAspectRatio;
+    
+    print('Calculated logo size: ${logoWidth}x${logoHeight}');
+    
+    // IMPROVED: Calculate safe zone for watermark (avoids crop areas)
+    final safeMarginX = imageSize.width * 0.05; // 5% margin from edges
+    final safeMarginY = imageSize.height * 0.05; // 5% margin from edges
+    
+    // Position logo in bottom right but within safe zone
+    final logoPosition = Offset(
+      imageSize.width - logoWidth - safeMarginX,
+      imageSize.height - logoHeight - safeMarginY,
+    );
+    
+    print('Logo position: ${logoPosition.dx}, ${logoPosition.dy}');
+    
+    // Add semi-transparent background for better visibility
+    final backgroundRect = Rect.fromLTWH(
+      logoPosition.dx - 6,
+      logoPosition.dy - 6,
+      logoWidth + 12,
+      logoHeight + 12,
+    );
+    
+    final backgroundPaint = Paint()
+      ..color = Colors.black.withOpacity(0.7) // Darker background for better visibility
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(backgroundRect, Radius.circular(6)),
+      backgroundPaint,
+    );
+    
+    // Draw the logo with slight transparency
+    final logoPaint = Paint()
+      ..colorFilter = ColorFilter.mode(
+        Colors.white.withOpacity(0.9),
+        BlendMode.modulate,
       );
+    
+    final logoRect = Rect.fromLTWH(logoPosition.dx, logoPosition.dy, logoWidth, logoHeight);
+    canvas.drawImageRect(
+      logoImage,
+      Rect.fromLTWH(0, 0, logoImage.width.toDouble(), logoImage.height.toDouble()),
+      logoRect,
+      logoPaint,
+    );
+    
+    print('Logo drawn successfully');
+    
+    // Convert to image
+    final picture = recorder.endRecording();
+    final finalImage = await picture.toImage(image.width, image.height);
+    final byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
+    
+    if (byteData != null) {
+      // Save watermarked image
+      final tempDir = await Directory.systemTemp.createTemp();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final watermarkedFile = File('${tempDir.path}/watermarked_$timestamp.png');
+      await watermarkedFile.writeAsBytes(byteData.buffer.asUint8List());
       
-      final textPainter = TextPainter(
-        text: textSpan,
-        textDirection: TextDirection.ltr,
-      );
+      print('Watermarked image saved: ${watermarkedFile.path}');
+      print('Watermarked image size: ${await watermarkedFile.length()} bytes');
       
-      textPainter.layout();
-      
-      // Position watermark at bottom right with padding
-      final padding = imageSize.width * 0.03;
-      final position = Offset(
-        imageSize.width - textPainter.width - padding,
-        imageSize.height - textPainter.height - padding,
-      );
-      
-      // Add semi-transparent background for better visibility
-      final backgroundRect = Rect.fromLTWH(
-        position.dx - 8,
-        position.dy - 4,
-        textPainter.width + 16,
-        textPainter.height + 8,
-      );
-      
-      final backgroundPaint = Paint()
-        ..color = Colors.black.withOpacity(0.3)
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(backgroundRect, Radius.circular(4)),
-        backgroundPaint,
-      );
-      
-      // Paint the watermark text
-      textPainter.paint(canvas, position);
-      
-      // Convert to image
-      final picture = recorder.endRecording();
-      final finalImage = await picture.toImage(image.width, image.height);
-      final byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
-      
-      if (byteData != null) {
-        // Save watermarked image
-        final tempDir = await Directory.systemTemp.createTemp();
-        final watermarkedFile = File('${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.png');
-        await watermarkedFile.writeAsBytes(byteData.buffer.asUint8List());
-        
-        return XFile(watermarkedFile.path);
-      }
-    } catch (e) {
-      print('Error adding watermark: $e');
+      return XFile(watermarkedFile.path);
     }
     
-    // Return original image if watermarking fails
+    print('Failed to generate byteData');
+    return originalImage;
+    
+  } catch (e) {
+    print('Error adding watermark: $e');
+    print('Stack trace: ${StackTrace.current}');
     return originalImage;
   }
+}
+// Optional: Add text watermark alongside logo
+Future<void> _addTextWatermark(Canvas canvas, Size imageSize, Offset logoPosition, Size logoSize) async {
+  try {
+    // Calculate text size based on image size
+    final watermarkFontSize = (imageSize.width * 0.025).clamp(12.0, 24.0);
+    
+    // Create watermark text
+    final textSpan = TextSpan(
+      text: 'Delloni',
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: watermarkFontSize,
+        fontWeight: FontWeight.bold,
+        shadows: [
+          Shadow(
+            blurRadius: 2,
+            color: Colors.black.withOpacity(0.7),
+            offset: Offset(1, 1),
+          ),
+        ],
+      ),
+    );
+    
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    
+    textPainter.layout();
+    
+    // Position text below the logo
+    final textPosition = Offset(
+      logoPosition.dx + (logoSize.width - textPainter.width) / 2, // Center align with logo
+      logoPosition.dy + logoSize.height + 8, // 8px below logo
+    );
+    
+    // Add semi-transparent background for text
+    final textBackgroundRect = Rect.fromLTWH(
+      textPosition.dx - 4,
+      textPosition.dy - 2,
+      textPainter.width + 8,
+      textPainter.height + 4,
+    );
+    
+    final textBackgroundPaint = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(textBackgroundRect, Radius.circular(4)),
+      textBackgroundPaint,
+    );
+    
+    // Paint the watermark text
+    textPainter.paint(canvas, textPosition);
+  } catch (e) {
+    print('Error adding text watermark: $e');
+    // Continue without text if it fails
+  }
+}
+
+// Helper function to calculate appropriate logo size
+Size _calculateLogoSize(Size imageSize, ui.Image logoImage) {
+  // Logo should be 8-12% of image width for good visibility
+  final double targetLogoWidth = imageSize.width * 0.10; // 10% of image width
+  
+  // Calculate aspect ratio of logo
+  final double logoAspectRatio = logoImage.width / logoImage.height;
+  
+  // Calculate final logo dimensions maintaining aspect ratio
+  final double logoWidth = targetLogoWidth;
+  final double logoHeight = targetLogoWidth / logoAspectRatio;
+  
+  // Ensure logo doesn't exceed 15% of image height
+  final double maxLogoHeight = imageSize.height * 0.15;
+  if (logoHeight > maxLogoHeight) {
+    final double adjustedHeight = maxLogoHeight;
+    final double adjustedWidth = adjustedHeight * logoAspectRatio;
+    return Size(adjustedWidth, adjustedHeight);
+  }
+  
+  return Size(logoWidth, logoHeight);
+}
 void _showImageSourceDialog(BuildContext context) {
   final requirements = _getCategoryPhotoRequirements();
   final isUnlimitedCategory = requirements['type'] == AppLocalizations.realEstate.tr() || requirements['type'] == AppLocalizations.vehicle.tr();
@@ -563,13 +665,13 @@ void _showImageSourceDialog(BuildContext context) {
                 ),
               ),
               SizedBox(height: 8),
-              // Text(
-              //   AppLocalizations.recommendedPhotos.tr(args: ['${requirements['recommended']}', '${requirements['max']}']),
-              //   style: GoogleFonts.jost(
-              //     fontSize: 12,
-              //     color: Colors.grey[600],
-              //   ),
-              // ),
+              Text(
+                AppLocalizations.recommendedPhotos.tr(),
+                style: GoogleFonts.jost(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
               SizedBox(height: 16),
               
               // Photo suggestions for unlimited categories
@@ -608,40 +710,60 @@ void _showImageSourceDialog(BuildContext context) {
                 SizedBox(height: 20),
               ],
               
-              // Photo source options
-              // Row(
-              //   children: [
-              //     Expanded(
-              //       child: _buildImageSourceOption(
-              //         AppLocalizations.camera.tr(),
-              //         Icons.camera_alt,
-              //         Colors.blue,
-              //         () => _pickImage(dialogContext, source: ImageSource.camera),
-              //       ),
-              //     ),
-              //     SizedBox(width: 16),
-              //     Expanded(
-              //       child: _buildImageSourceOption(
-              //         AppLocalizations.gallery.tr(),
-              //         Icons.photo_library,
-              //         Colors.green,
-              //         () => _pickImage(dialogContext, source: ImageSource.gallery),
-              //       ),
-              //     ),
-              //   ],
-              // ),
+              // Photo source options - SINGLE PHOTO
+              Text(
+              'Single Photo',
+                style: GoogleFonts.jost(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildImageSourceOption(
+                      AppLocalizations.camera.tr(),
+                      Icons.camera_alt,
+                      Colors.blue,
+                      () => _pickImage(dialogContext, source: ImageSource.camera),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  // Expanded(
+                  //   child: _buildImageSourceOption(
+                  //     AppLocalizations.gallery.tr(),
+                  //     Icons.photo_library,
+                  //     Colors.green,
+                  //     () => _pickImage(dialogContext, source: ImageSource.gallery),
+                  //   ),
+                  // ),
+                ],
+              ),
               
-              SizedBox(height: 16),
+              SizedBox(height: 20),
               
-              // Multiple photos option - FIXED: Always show the dialog and use proper dialogContext
+              // Multiple photos option
+              Text(
+                // AppLocalizations.gallery.tr(),
+                AppLocalizations.multiplePhotos.tr() ?? 'Multiple Photos',
+                style: GoogleFonts.jost(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 child: _buildImageSourceOption(
-                  AppLocalizations.multiplePhotos.tr(),
+                  AppLocalizations.gallery.tr(),
+                  // AppLocalizations.selectMultiplePhotos.tr() ?? 'Select Multiple from Gallery',
                   Icons.photo_library_outlined,
                   ColorsController.primaryColor,
-                  () => _pickMultipleImages(dialogContext), // Use dialogContext here
-                  subtitle:' ${AppLocalizations.selectMultiplePhotos.tr()}${_maxImages - Provider.of<ItemProvider>(context, listen: false).images.length}' ,
+                  () => _pickMultipleImages(dialogContext),
+                  subtitle: '${AppLocalizations.selectMultiplePhotos.tr()}',
                 ),
               ),
               
@@ -743,12 +865,12 @@ void _showImageSourceDialog(BuildContext context) {
         final categoryType = requirements['type'] as String;
         
         return Scaffold(
-          backgroundColor: Colors.white,
+          // backgroundColor: Colors.white,
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            // backgroundColor: Colors.white,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              icon: const Icon(Icons.arrow_back,),
               onPressed: () => Navigator.of(context).pop(),
             ),
             title: Text(
@@ -756,7 +878,7 @@ void _showImageSourceDialog(BuildContext context) {
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+               
               ),
             ),
             centerTitle: true,
@@ -767,279 +889,282 @@ void _showImageSourceDialog(BuildContext context) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header Section with category info
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${AppLocalizations.addPhotos.tr()}',
-                            style: GoogleFonts.jost(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black,
-                            ),
-                          ),
-                          Text(
-                            categoryType == AppLocalizations.realEstate.tr()
-                                ? AppLocalizations.showPropertyDetails.tr()
-                                : '${AppLocalizations.greatPhotosHelp.tr()}',
-                            style: GoogleFonts.jost(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Category indicator
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
-                            ? Colors.blue[50] 
-                            : Colors.grey[50],
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
-                              ? Colors.blue 
-                              : Colors.grey,
-                        ),
-                      ),
-                      child: Text(
-                        categoryType,
-                        style: GoogleFonts.jost(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
-                              ? Colors.blue[700] 
-                              : Colors.grey[700],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Enhanced Progress Indicator
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: itemProvider.images.length >= minPhotos 
-                        ? Colors.green[50] 
-                        : Colors.orange[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: itemProvider.images.length >= minPhotos 
-                          ? Colors.green 
-                          : Colors.orange,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            itemProvider.images.length >= minPhotos 
-                                ? Icons.check_circle 
-                                : Icons.info_outline,
-                            size: 20,
-                            color: itemProvider.images.length >= minPhotos 
-                                ? Colors.green[700] 
-                                : Colors.orange[700],
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            '${itemProvider.images.length}/$maxPhotos photos',
-                            style: GoogleFonts.jost(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: itemProvider.images.length >= minPhotos 
-                                  ? Colors.green[700] 
-                                  : Colors.orange[700],
-                            ),
-                          ),
-                          Spacer(),
-                          if (categoryType == AppLocalizations.realEstate.tr() || categoryType == AppLocalizations.vehicle.tr())
-                            Text(
-                              AppLocalizations.unlimited.tr(),
-                              style: GoogleFonts.jost(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue[700],
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${AppLocalizations.addPhotos.tr()}',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      // color: Colors.black,
+                                    ),
+                                  ),
+                                  Text(
+                                    categoryType == AppLocalizations.realEstate.tr()
+                                        ? AppLocalizations.showPropertyDetails.tr()
+                                        : '${AppLocalizations.greatPhotosHelp.tr()}',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                        ],
-                      ),
-                      SizedBox(height: 8),
-                      // Progress bar
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (itemProvider.images.length / maxPhotos).clamp(0.0, 1.0),
-                          backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            itemProvider.images.length >= minPhotos 
-                                ? Colors.green 
-                                : Colors.orange,
-                          ),
-                          minHeight: 6,
+                            // Category indicator
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
+                                    ? Colors.blue[50]
+                                    : Colors.grey[50],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
+                                      ? Colors.blue
+                                      : Colors.grey,
+                                ),
+                              ),
+                              child: Text(
+                                categoryType,
+                                style: GoogleFonts.jost(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: (categoryType == 'Real Estate' || categoryType == 'Vehicle')
+                                      ? Colors.blue[700]
+                                      : Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        itemProvider.images.length < minPhotos
-                            ? '"Minimum $maxPhotos photos required'
-                            // AppLocalizations.minimumPhotosRequired.tr(args: ['$minPhotos'])
-                            : (categoryType == AppLocalizations.realEstate.tr() || categoryType == AppLocalizations.vehicle.tr())
-                                ? categoryType == AppLocalizations.vehicle.tr() 
-                                    ? AppLocalizations.addMorePhotosVehicle.tr()
-                                    : AppLocalizations.addMorePhotosProperty.tr()
-                                : AppLocalizations.greatAddMorePhotos.tr(args: ['${maxPhotos - itemProvider.images.length}']),
-                        style: GoogleFonts.jost(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Upload Area
-                GestureDetector(
-                  onTap: itemProvider.images.length < maxPhotos && !_isProcessingImage 
-                      ? () => _showImageSourceDialog(context)
-                      : null,
-                  child: Container(
-                    width: double.infinity,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: itemProvider.images.length < maxPhotos 
-                            ? ColorsController.primaryColor.withOpacity(0.3)
-                            : Colors.grey[300]!,
-                        style: BorderStyle.solid,
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      color: itemProvider.images.length < maxPhotos 
-                          ? ColorsController.primaryColor.withOpacity(0.05)
-                          : Colors.grey[50],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                        const SizedBox(height: 16),
+
+                        // Enhanced Progress Indicator
                         Container(
                           padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: itemProvider.images.length < maxPhotos 
-                                ? ColorsController.primaryColor.withOpacity(0.1)
-                                : Colors.grey[200],
-                            shape: BoxShape.circle,
+                            color: itemProvider.images.length >= minPhotos
+                                ? Colors.green[50]
+                                : Colors.orange[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: itemProvider.images.length >= minPhotos
+                                  ? Colors.green
+                                  : Colors.orange,
+                            ),
                           ),
-                          child: Icon(
-                            _isProcessingImage 
-                                ? Icons.hourglass_empty
-                                : itemProvider.images.length < maxPhotos 
-                                    ? Icons.camera_alt_outlined
-                                    : Icons.block,
-                            size: 32,
-                            color: _isProcessingImage 
-                                ? Colors.orange
-                                : itemProvider.images.length < maxPhotos 
-                                    ? ColorsController.primaryColor
-                                    : Colors.grey[400],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _isProcessingImage 
-                              ? AppLocalizations.processingImages.tr()
-                              : itemProvider.images.length < maxPhotos 
-                                  ? AppLocalizations.tapToAddPhotos.tr()
-                                  : AppLocalizations.maximumPhotosReached.tr(),
-                          style: GoogleFonts.jost(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: _isProcessingImage 
-                                ? Colors.orange
-                                : itemProvider.images.length < maxPhotos 
-                                    ? Colors.black
-                                    : Colors.grey[500],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          (categoryType == 'Real Estate' || categoryType == 'Vehicle')
-                              ? AppLocalizations.selectMultiplePhotosGallery.tr()
-                              : AppLocalizations.singleMultiplePhotos.tr(),
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Photo Grid Header
-                if (itemProvider.images.isNotEmpty) ...[
-                  Row(
-                    children: [
-                      Text(
-                        '${AppLocalizations.yourPhotos.tr()}',
-                        style: GoogleFonts.jost(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: ColorsController.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${itemProvider.images.length}',
-                          style: GoogleFonts.jost(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: ColorsController.primaryColor,
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    itemProvider.images.length >= minPhotos
+                                        ? Icons.check_circle
+                                        : Icons.info_outline,
+                                    size: 20,
+                                    color: itemProvider.images.length >= minPhotos
+                                        ? Colors.green[700]
+                                        : Colors.orange[700],
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    '${itemProvider.images.length}/$maxPhotos ${"photos".tr()}',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: itemProvider.images.length >= minPhotos
+                                          ? Colors.green[700]
+                                          : Colors.orange[700],
+                                    ),
+                                  ),
+                                  Spacer(),
+                                  if (categoryType == AppLocalizations.realEstate.tr() || categoryType == AppLocalizations.vehicle.tr())
+                                    Text(
+                                      AppLocalizations.unlimited.tr(),
+                                      style: GoogleFonts.jost(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.blue[700],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              SizedBox(height: 8),
+                              // Progress bar
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: (itemProvider.images.length / maxPhotos).clamp(0.0, 1.0),
+                                  backgroundColor: Colors.grey[300],
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    itemProvider.images.length >= minPhotos
+                                        ? Colors.green
+                                        : Colors.orange,
+                                  ),
+                                  minHeight: 6,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                itemProvider.images.length < minPhotos
+                                    ? '"${"Minimum".tr()} $minPhotos ${"photos required".tr()}'
+                                // AppLocalizations.minimumPhotosRequired.tr(args: ['$minPhotos'])
+                                    : (categoryType == AppLocalizations.realEstate.tr() || categoryType == AppLocalizations.vehicle.tr())
+                                    ? categoryType == AppLocalizations.vehicle.tr()
+                                    ? AppLocalizations.addMorePhotosVehicle.tr()
+                                    : AppLocalizations.addMorePhotosProperty.tr()
+                                    : AppLocalizations.greatAddMorePhotos.tr(args: ['${maxPhotos - itemProvider.images.length}']),
+                                style: GoogleFonts.jost(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      Spacer(),
-                      if (itemProvider.images.isNotEmpty)
-                        TextButton.icon(
-                          onPressed: () => _showClearAllDialog(itemProvider),
-                          icon: Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                          label: Text(
-                            '${AppLocalizations.clearAll.tr()}',
-                            style: GoogleFonts.jost(
-                              fontSize: 12,
-                              color: Colors.red,
+                        const SizedBox(height: 24),
+
+                        // Upload Area
+                        GestureDetector(
+                          onTap: itemProvider.images.length < maxPhotos && !_isProcessingImage
+                              ? () => _showImageSourceDialog(context)
+                              : null,
+                          child: Container(
+                            width: double.infinity,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: itemProvider.images.length < maxPhotos
+                                    ? ColorsController.primaryColor.withOpacity(0.3)
+                                    : Colors.grey[300]!,
+                                style: BorderStyle.solid,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              color: itemProvider.images.length < maxPhotos
+                                  ? ColorsController.primaryColor.withOpacity(0.05)
+                                  : Colors.grey[50],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: itemProvider.images.length < maxPhotos
+                                        ? ColorsController.primaryColor.withOpacity(0.1)
+                                        : Colors.grey[200],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    _isProcessingImage
+                                        ? Icons.hourglass_empty
+                                        : itemProvider.images.length < maxPhotos
+                                        ? Icons.camera_alt_outlined
+                                        : Icons.block,
+                                    size: 32,
+                                    color: _isProcessingImage
+                                        ? Colors.orange
+                                        : itemProvider.images.length < maxPhotos
+                                        ? ColorsController.primaryColor
+                                        : Colors.grey[400],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _isProcessingImage
+                                      ? AppLocalizations.processingImages.tr()
+                                      : itemProvider.images.length < maxPhotos
+                                      ? AppLocalizations.tapToAddPhotos.tr()
+                                      : AppLocalizations.maximumPhotosReached.tr(),
+                                  style: GoogleFonts.jost(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: _isProcessingImage
+                                        ? Colors.orange
+                                        : itemProvider.images.length < maxPhotos
+                                        ? Colors.black
+                                        : Colors.grey[500],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  (categoryType == 'Real Estate' || categoryType == 'Vehicle')
+                                      ? AppLocalizations.selectMultiplePhotosGallery.tr()
+                                      : AppLocalizations.singleMultiplePhotos.tr(),
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.jost(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                ],
-                
-                // Photo Grid
-                Expanded(
-                  child: itemProvider.images.isEmpty
-                      ? Center(
+
+                        const SizedBox(height: 24),
+
+                        // Photo Grid Header
+                        if (itemProvider.images.isNotEmpty) ...[
+                          Row(
+                            children: [
+                              Text(
+                                '${AppLocalizations.yourPhotos.tr()}',
+                                style: GoogleFonts.jost(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: ColorsController.primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${itemProvider.images.length}',
+                                  style: GoogleFonts.jost(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: ColorsController.primaryColor,
+                                  ),
+                                ),
+                              ),
+                              Spacer(),
+                              if (itemProvider.images.isNotEmpty)
+                                TextButton.icon(
+                                  onPressed: () => _showClearAllDialog(itemProvider),
+                                  icon: Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                  label: Text(
+                                    '${AppLocalizations.clearAll.tr()}',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 12,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                        ],
+
+                        // Photo Grid
+                        itemProvider.images.isEmpty
+                            ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -1058,7 +1183,8 @@ void _showImageSourceDialog(BuildContext context) {
                               ),
                               SizedBox(height: 8),
                               Text(
-                                easy.tr('add_at_least_photos', args: ['${minPhotos}']),
+                                '${"Add at least".tr()} $minPhotos ${"photos to continue"}',
+                                // easy.tr('add_at_least_photos', args: ['${minPhotos}']),
                                 style: GoogleFonts.jost(
                                   fontSize: 12,
                                   color: Colors.grey[500],
@@ -1067,7 +1193,9 @@ void _showImageSourceDialog(BuildContext context) {
                             ],
                           ),
                         )
-                      : GridView.builder(
+                            : GridView.builder(
+                          physics: NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: (categoryType == 'Real Estate' || categoryType == 'Vehicle') ? 2 : 3,
                             crossAxisSpacing: 8,
@@ -1083,10 +1211,13 @@ void _showImageSourceDialog(BuildContext context) {
                             }
                           },
                         ),
+
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
                 ),
-                
-                const SizedBox(height: 16),
-                
+
                 // Bottom Buttons
                 Row(
                   children: [
@@ -1124,11 +1255,11 @@ void _showImageSourceDialog(BuildContext context) {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         child: Text(
-                          _isProcessingImage 
+                          _isProcessingImage
                               ? AppLocalizations.processing.tr()
-                              : itemProvider.images.length >= minPhotos 
+                              : itemProvider.images.length >= minPhotos
                                   ? AppLocalizations.next.tr()
-                                  : AppLocalizations.addMorePhotos.tr(args: ['${minPhotos - itemProvider.images.length}']),
+                                  :"${"Add More".tr()} ${'${minPhotos - itemProvider.images.length}'}",
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

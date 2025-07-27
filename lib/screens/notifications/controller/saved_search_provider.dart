@@ -8,6 +8,7 @@ import 'package:arabicmarketplace/controller/notification_provider.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/search_page/controller/search_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -204,9 +205,9 @@ class SavedSearchModel {
       if (minPrice != null && maxPrice != null) {
         parts.add('\$${minPrice!.toStringAsFixed(0)} - \$${maxPrice!.toStringAsFixed(0)}');
       } else if (minPrice != null) {
-        parts.add('above \$${minPrice!.toStringAsFixed(0)}');
+        parts.add('${"above".tr()} \$${minPrice!.toStringAsFixed(0)}');
       } else if (maxPrice != null) {
-        parts.add('below \$${maxPrice!.toStringAsFixed(0)}');
+        parts.add('${"below".tr()} \$${maxPrice!.toStringAsFixed(0)}');
       }
     }
     
@@ -222,10 +223,10 @@ class SavedSearchModel {
     }
     
     if (radiusKm != null && radiusKm! > 0) {
-      parts.add('within ${radiusKm!.toStringAsFixed(0)}km');
+      parts.add('${"within".tr()} ${radiusKm!.toStringAsFixed(0)}km');
     }
     
-    return parts.isNotEmpty ? parts.join(' • ') : 'All items';
+    return parts.isNotEmpty ? parts.join(' • ') : 'All items'.tr();
   }
 
   // Get search summary for notifications

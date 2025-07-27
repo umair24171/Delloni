@@ -11,7 +11,7 @@ class SuccessPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -44,7 +44,8 @@ class SuccessPage extends StatelessWidget {
                           width: 80,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.red,
+                            color: Colors.black,
+                            // color: Colors.black,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -53,7 +54,8 @@ class SuccessPage extends StatelessWidget {
                           width: 60,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.red,
+                            color: Colors.black,
+                            // color: Colors.red,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -62,7 +64,8 @@ class SuccessPage extends StatelessWidget {
                           width: 70,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.red,
+                            color: Colors.black,
+                            // color: Colors.red,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -72,7 +75,7 @@ class SuccessPage extends StatelessWidget {
                           width: 40,
                           height: 40,
                           decoration: const BoxDecoration(
-                            color: Colors.red,
+                            color: Colors.black,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -109,7 +112,7 @@ class SuccessPage extends StatelessWidget {
                 style: GoogleFonts.jost(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  // color: Colors.black,
                   height: 1.2,
                 ),
                 textAlign: TextAlign.center,
@@ -136,6 +139,7 @@ class SuccessPage extends StatelessWidget {
                     Navigator.of(context).push(MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()));
                   },
                   style: ElevatedButton.styleFrom(
+                    // elevation: 0,
                     backgroundColor: ColorsController.primaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),
@@ -146,6 +150,8 @@ class SuccessPage extends StatelessWidget {
                     style: GoogleFonts.jost(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+
+
                       color: Colors.white,
                     ),
                   ),

@@ -85,7 +85,8 @@ class _MessagesScreenState extends State<MessagesScreen>
     return ChangeNotifierProvider.value(
       value: _chatProvider,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
+        
         appBar: _buildEnhancedAppBar(),
         body: Consumer<IndividualChatProvider>(
           builder: (context, provider, child) {
@@ -136,10 +137,12 @@ class _MessagesScreenState extends State<MessagesScreen>
   // ENHANCED: AppBar with clickable user name and better menu
   PreferredSizeWidget _buildEnhancedAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).appBarTheme.backgroundColor ,
+      // backgroundColor: Colors.white,
       elevation: 0,
+       surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+        icon: const Icon(Icons.arrow_back_ios, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
       title: Consumer<IndividualChatProvider>(
@@ -176,7 +179,7 @@ class _MessagesScreenState extends State<MessagesScreen>
                         style: GoogleFonts.jost(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          // color: Colors.black,
                         ),
                       ),
                       // ENHANCED: Show last seen instead of just offline

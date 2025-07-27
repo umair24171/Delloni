@@ -239,7 +239,7 @@ class _UniversalImageState extends State<UniversalImage> with AutomaticKeepAlive
         bytes,
         width: widget.width,
         height: widget.height,
-        fit: widget.fit ?? BoxFit.cover,
+        fit: widget.fit ?? BoxFit.fill,
         errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
         gaplessPlayback: true,
         
@@ -365,7 +365,7 @@ class ProductCardImage extends StatelessWidget {
         imageUrl: imageUrl,
         width: width,
         height: height,
-        fit: fit ?? BoxFit.cover,
+        fit: fit ?? BoxFit.fill,
         borderRadius: borderRadius,
         highQuality: true, // Always use high quality for product images
         errorWidget: Container(
@@ -539,5 +539,85 @@ class OptimizedUniversalImage extends StatelessWidget {
       return (avgSize * 0.3).clamp(24.0, 80.0);
     }
     return 40.0;
+  }
+}
+
+class WatermarkPreservingImage extends StatelessWidget {
+  final String imageUrl;
+  final double width;
+  final double height;
+  final BoxFit fit;
+  final BorderRadius? borderRadius;
+  final bool preserveWatermark;
+
+  const WatermarkPreservingImage({
+    Key? key,
+    required this.imageUrl,
+    required this.width,
+    required this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.preserveWatermark = true,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.zero,
+      child: Container(
+        width: width,
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Main image with cover fit
+            UniversalImage(
+              imageUrl: imageUrl,
+              width: width,
+              height: height,
+              fit: fit,
+              errorWidget: Container(
+                color: Colors.grey[200],
+                child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
+              ),
+            ),
+            
+            // Watermark overlay (only if preserveWatermark is true)
+            if (preserveWatermark)
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/icons/logo_two.jpeg',
+                        width: 16,
+                        height: 16,
+                        fit: BoxFit.contain,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Delloni',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

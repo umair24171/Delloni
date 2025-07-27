@@ -1,4 +1,5 @@
 import 'package:arabicmarketplace/resources/colors_controller.dart';
+import 'package:arabicmarketplace/screens/account/view/currency_page.dart';
 import 'package:arabicmarketplace/screens/account/view/favorite_ads.dart';
 import 'package:arabicmarketplace/screens/account/view/help_contact_pag.dart';
 import 'package:arabicmarketplace/screens/account/view/language_screen.dart';
@@ -113,7 +114,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                 ),
                               ),
                               child: Text(
-                                user?.type.toUpperCase() ?? AppLocalizations.user.tr(),
+                                user?.type.toUpperCase().tr() ?? AppLocalizations.user.tr(),
                                 style: GoogleFonts.jost(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -144,7 +145,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     
                     // Dark Mode Toggle
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 33.0),
                       child: Consumer<ThemeProvider>(
                         builder: (context, themeProvider, _) {
                           final isDark = themeProvider.themeMode == ThemeMode.dark;
@@ -152,7 +153,7 @@ class _AccountScreenState extends State<AccountScreen> {
                             contentPadding: EdgeInsets.zero,
                             leading: Icon(Icons.dark_mode, color: isDark ? ColorsController.primaryColor : Colors.grey[700]),
                             title: Text(
-                              'Dark Mode',
+                              'Dark Mode'.tr(),
                               style: GoogleFonts.jost(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -235,6 +236,13 @@ class _AccountScreenState extends State<AccountScreen> {
                             },
                           ),
                           _buildMenuItem(
+                            icon: Icons.currency_exchange_outlined,
+                            title: '${AppLocalizations.currency.tr()}',
+                            onTap: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => CurrencyPage()));
+                            },
+                          ),
+                          _buildMenuItem(
                             icon: Icons.logout_outlined,
                             title: '${AppLocalizations.logout.tr()}',
                             iconColor: Colors.orange[700],
@@ -301,11 +309,11 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildDefaultAvatar() {
     return Container(
-      color: Theme.of(context).colorScheme.surface,
+      // color: Theme.of(context).colorScheme.surface,
       child: const Icon(
         Icons.person,
         size: 60,
-        color: Colors.white,
+        // color: Colors.white,
       ),
     );
   }
@@ -315,6 +323,7 @@ class _AccountScreenState extends State<AccountScreen> {
     IconData? icon,
     Color? iconColor,
     required VoidCallback onTap,
+    bool? isDark=false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -350,7 +359,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     ),
                   ),
                 ),
-                Image.asset('assets/icons/arrow_next.png', height: 14, width: 24)
+                Transform.rotate(angle: context.locale.languageCode=='ar'?3.14 : 0,child: Image.asset('assets/icons/arrow_next.png', color: Theme.of(context).colorScheme.onBackground,height: 14, width: 24))
               ],
             ),
           ),

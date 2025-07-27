@@ -5,6 +5,7 @@ import 'package:arabicmarketplace/screens/product_detail/view/product_detail_scr
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/view/item_details_screen.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart';
+import 'package:arabicmarketplace/widgets/image_optimise.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -50,6 +51,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
         appBar: AppBar(
           backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
           elevation: 0,
+          surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
           leading: IconButton(
             icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onBackground),
             onPressed: () => Navigator.pop(context),
@@ -280,7 +282,7 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
       margin: EdgeInsets.all(16),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
+        // color: Theme.of(context).colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -413,16 +415,16 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        // color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
+        // boxShadow: [
+        //   BoxShadow(
+        //     color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+        //     spreadRadius: 1,
+        //     blurRadius: 4,
+        //     offset: Offset(0, 2),
+        //   ),
+        // ],
       ),
       child: InkWell(
         onTap: () {
@@ -451,12 +453,14 @@ class _MyAdsPageState extends State<MyAdsPage> with TickerProviderStateMixin {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: ad.imageUrls.isNotEmpty
-                          ? Image.network(
-                              ad.imageUrls.first,
+                          ? WatermarkPreservingImage(
+                            height: 80,
+                            width: 80,
+                            imageUrl:   ad.imageUrls.first,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Icon(Icons.image, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
-                              },
+                              // errorBuilder: (context, error, stackTrace) {
+                              //   return Icon(Icons.image, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5));
+                              // },
                             )
                           : Icon(Icons.image, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                     ),
@@ -1014,9 +1018,12 @@ void _editAd(ProductModel ad) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          AppLocalizations.searchMyAds.tr(),
+          "Search My Ads".tr(),
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1027,7 +1034,7 @@ void _editAd(ProductModel ad) {
           controller: _searchController,
           style: GoogleFonts.jost(fontSize: 14),
           decoration: InputDecoration(
-            hintText: AppLocalizations.enterSearchTerms.tr(),
+            hintText: "Enter Search Terms".tr(),
             hintStyle: GoogleFonts.jost(fontSize: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1069,9 +1076,12 @@ void _editAd(ProductModel ad) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          '${AppLocalizations.searchResults.tr()} (${results.length})',
+          '${"Search Result".tr()} (${results.length})',
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1089,7 +1099,7 @@ void _editAd(ProductModel ad) {
                       Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                       SizedBox(height: 16),
                       Text(
-                        AppLocalizations.noAdsFound.tr(),
+                        "No Ads Found".tr(),
                         style: GoogleFonts.jost(
                           fontSize: 16,
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),

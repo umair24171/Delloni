@@ -482,80 +482,117 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                     ),
                   ),
                 
-                ..._currencies.map((currency) {
-                  final convertedAmount = currency['code'] == _selectedCurrency 
-                      ? amount 
-                      : amount * (_exchangeRates[currency['code']] ?? 1.0);
-                  
-                  return Container(
-                    margin: EdgeInsets.only(bottom: 12),
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: currency['code'] == _selectedCurrency 
-                          ? ColorsController.primaryColor.withOpacity(0.1)
-                          : Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: currency['code'] == _selectedCurrency 
-                            ? ColorsController.primaryColor
-                            : Colors.grey[200]!,
-                      ),
+               // In the _showCurrencyConverter() method, replace the currency mapping section with this:
+
+..._currencies.map((currency) {
+  final convertedAmount = currency['code'] == _selectedCurrency 
+      ? amount 
+      : amount * (_exchangeRates[currency['code']] ?? 1.0);
+  
+  return Column(
+    children: [
+      Container(
+        margin: EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: currency['code'] == _selectedCurrency 
+              ? ColorsController.primaryColor.withOpacity(0.1)
+              : Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: currency['code'] == _selectedCurrency 
+                ? ColorsController.primaryColor
+                : Colors.grey[200]!,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(
+              currency['flag']!,
+              style: TextStyle(fontSize: 24),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    currency['name']!,
+                    style: GoogleFonts.jost(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
-                    child: Row(
-                      children: [
-                        Text(
-                          currency['flag']!,
-                          style: TextStyle(fontSize: 24),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                currency['name']!,
-                                style: GoogleFonts.jost(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                currency['code']!,
-                                style: GoogleFonts.jost(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'PKR' ? 0 : 2)}',
-                              style: GoogleFonts.jost(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: currency['code'] == _selectedCurrency 
-                                    ? ColorsController.primaryColor
-                                    : Colors.black,
-                              ),
-                            ),
-                            if (currency['code'] != 'PKR')
-                              Text(
-                                '1 PKR = ${_exchangeRates[currency['code']]?.toStringAsFixed(currency['code'] == 'SYP' ? 2 : 4)} ${currency['code']}',
-                                style: GoogleFonts.jost(
-                                  fontSize: 10,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
+                  ),
+                  Text(
+                    currency['code']!,
+                    style: GoogleFonts.jost(
+                      fontSize: 12,
+                      color: Colors.grey[600],
                     ),
-                  );
-                }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'PKR' ? 0 : 2)}',
+                  style: GoogleFonts.jost(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: currency['code'] == _selectedCurrency 
+                        ? ColorsController.primaryColor
+                        : Colors.black,
+                  ),
+                ),
+                if (currency['code'] != 'PKR')
+                  Text(
+                    '1 PKR = ${_exchangeRates[currency['code']]?.toStringAsFixed(currency['code'] == 'SYP' ? 2 : 4)} ${currency['code']}',
+                    style: GoogleFonts.jost(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      // Add Syrian Bank dependency note for SYP
+      if (currency['code'] == 'SYP')
+        Container(
+          margin: EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.account_balance,
+                color: Colors.blue[700],
+                size: 16,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Syrian Pound rate depends on Syrian Central Bank official rates',
+                  style: GoogleFonts.jost(
+                    fontSize: 11,
+                    color: Colors.blue[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+    ],
+  );
+}).toList(),
                 SizedBox(height: 10),
               ],
             ),

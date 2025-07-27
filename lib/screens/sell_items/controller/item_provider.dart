@@ -415,6 +415,24 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
     this.selectedDistrictName = districtName; // ADD
     notifyListeners();
   }
+   void updateLocationFromCityDistrict({
+    double? latitude,
+    double? longitude,
+    String? locationAddress,
+    String? cityId,        // ADD
+    String? cityName,      // ADD
+    String? districtId,    // ADD
+    String? districtName,  // ADD
+  }) {
+    this.latitude = latitude;
+    this.longitude = longitude;
+    this.locationAddress = locationAddress;
+    this.selectedCityId = cityId;           // ADD
+    this.selectedCityName = cityName;       // ADD
+    this.selectedDistrictId = districtId;   // ADD
+    this.selectedDistrictName = districtName; // ADD
+    notifyListeners();
+  }
   Future<void> selectCityDistrict(BuildContext context) async {
     final result = await Navigator.push(
       context,
@@ -846,10 +864,10 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
       developer.log('Starting publish process for category: $categoryName...');
 
       // Validate form data first
-      if (!_validateFormData()) {
-        _setPublishing(false);
-        return false;
-      }
+      // if (!_validateFormData()) {
+      //   _setPublishing(false);
+      //   return false;
+      // }
 
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       final user = userProvider.currentUser;

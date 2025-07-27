@@ -34,6 +34,9 @@ class ProfileProvider with ChangeNotifier {
   XFile? _selectedImage;
   String? _profileImageUrl;
 
+  // NEW: Editing mode toggle
+  bool _isEditingMode = false;
+
   // Getters
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
@@ -42,6 +45,7 @@ class ProfileProvider with ChangeNotifier {
   bool get isPasswordVisible => _isPasswordVisible;
   XFile? get selectedImage => _selectedImage;
   String? get profileImageUrl => _profileImageUrl;
+  bool get isEditingMode => _isEditingMode;
 
   ProfileProvider() {
     _initializeProfile();
@@ -53,7 +57,7 @@ class ProfileProvider with ChangeNotifier {
       await _loadUserProfile();
     } catch (e) {
       _setError('Failed to load profile: $e');
-      log('ProfileProvider initialization error: $e');
+      print('ProfileProvider initialization error: $e');
     }
   }
 
@@ -74,6 +78,11 @@ class ProfileProvider with ChangeNotifier {
 
   void togglePasswordVisibility() {
     _isPasswordVisible = !_isPasswordVisible;
+    notifyListeners();
+  }
+
+  void toggleEditingMode() {
+    _isEditingMode = !_isEditingMode;
     notifyListeners();
   }
 
@@ -104,7 +113,7 @@ class ProfileProvider with ChangeNotifier {
       }
     } catch (e) {
       _setError('Failed to load profile: $e');
-      log('Error loading user profile: $e');
+      print('Error loading user profile: $e');
     }
   }
 
@@ -115,9 +124,8 @@ class ProfileProvider with ChangeNotifier {
     // Use companyName for both individual and company users
     usernameController.text = _userProfile!.companyName ?? '';
     
-    // Handle about field - show actual data if exists, empty string if not (placeholder will show)
+    // Handle about field - show actual data if exists, empty string if not
     String aboutText = _userProfile!.bio ?? '';
-    // Don't set placeholder text as actual text value
     if (aboutText.isEmpty || aboutText == 'Tell us about yourself...' || aboutText == 'Tell us about your company...') {
       aboutController.text = '';
     } else {
@@ -145,7 +153,7 @@ class ProfileProvider with ChangeNotifier {
       }
     } catch (e) {
       _setError('Failed to pick image: $e');
-      log('Error picking image: $e');
+      print('Error picking image: $e');
     }
   }
 
@@ -166,12 +174,89 @@ class ProfileProvider with ChangeNotifier {
       final String downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      log('Error uploading profile image: $e');
+      print('Error uploading profile image: $e');
       return null;
     }
   }
 
-  // NEW: Save only the about field (limited editing)
+  // NEW: Complete profile save method
+  Future<bool> saveProfileChanges() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      _setError('User not authenticated');
+      return false;
+    }
+
+    // Validate all form data
+    if (!validateForm()) {
+      return false;
+    }
+
+    try {
+      _setSaving(true);
+      _setError(null);
+
+      // Upload profile image if selected
+      String? imageUrl = await _uploadProfileImage();
+      
+      // Prepare update data for all fields
+      Map<String, dynamic> updateData = {
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Update all editable fields
+      String nameText = usernameController.text.trim();
+      String aboutText = aboutController.text.trim();
+      String emailText = emailController.text.trim();
+      String phoneText = phoneController.text.trim();
+
+      // Update Firestore fields
+      if (nameText.isNotEmpty) {
+        updateData['companyName'] = nameText;
+      }
+      
+      updateData['bio'] = aboutText.isEmpty ? '' : aboutText;
+      
+      if (emailText.isNotEmpty && emailText != _userProfile?.email) {
+        // Update email in both Auth and Firestore
+        await _updateEmailIfChanged(emailText);
+        updateData['email'] = emailText;
+      }
+      
+      if (phoneText.isNotEmpty) {
+        updateData['phone'] = phoneText;
+      }
+      
+      // Update profile image if changed
+      if (imageUrl != null) {
+        updateData['profileImage'] = imageUrl;
+        _profileImageUrl = imageUrl;
+      }
+
+      // Update Firestore document
+      await _firestore.collection('users').doc(currentUser.uid).update(updateData);
+
+      // Update local user profile
+      _userProfile = _userProfile?.copyWith(
+        companyName: nameText.isNotEmpty ? nameText : _userProfile?.companyName,
+        email: emailText.isNotEmpty ? emailText : _userProfile?.email,
+        phone: phoneText.isNotEmpty ? phoneText : _userProfile?.phone,
+        profileImage: imageUrl ?? _userProfile?.profileImage,
+      );
+
+      _selectedImage = null; // Clear selected image
+      _setSaving(false);
+      
+      return true;
+    } catch (e) {
+      _setError('Failed to save profile: $e');
+      _setSaving(false);
+      print('Error saving profile: $e');
+      return false;
+    }
+  }
+
+  // KEPT: Save only about field and profile image (for limited editing mode)
   Future<bool> saveAboutOnly() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -183,7 +268,7 @@ class ProfileProvider with ChangeNotifier {
       _setSaving(true);
       _setError(null);
 
-      // Upload profile image if selected (allow profile image changes)
+      // Upload profile image if selected
       String? imageUrl = await _uploadProfileImage();
       
       // Prepare update data - only about field and profile image
@@ -206,8 +291,7 @@ class ProfileProvider with ChangeNotifier {
 
       // Update local user profile
       _userProfile = _userProfile?.copyWith(
-        bio: aboutText.isEmpty ? '' : aboutText,
-        profileImage: imageUrl,
+        profileImage: imageUrl ?? _userProfile?.profileImage,
       );
 
       _selectedImage = null; // Clear selected image
@@ -217,33 +301,35 @@ class ProfileProvider with ChangeNotifier {
     } catch (e) {
       _setError('Failed to save about info: $e');
       _setSaving(false);
-      log('Error saving about info: $e');
+      print('Error saving about info: $e');
       return false;
     }
   }
 
-  // MODIFIED: Original save profile method (kept for compatibility but limited)
+  // UPDATED: Flexible save profile method
   Future<bool> saveProfile() async {
-    // For the new UI, redirect to saveAboutOnly since other fields are read-only
-    return await saveAboutOnly();
+    // Use comprehensive save method by default
+    return await saveProfileChanges();
   }
 
-  // Update email (requires re-authentication) - kept for admin/support use
-  Future<void> _updateEmail(String newEmail) async {
+  // Helper method to update email if changed
+  Future<void> _updateEmailIfChanged(String newEmail) async {
     final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
+    if (currentUser == null || currentUser.email == newEmail) return;
 
     try {
+      // Note: This might require re-authentication for security
       await currentUser.updateEmail(newEmail);
     } catch (e) {
       if (e.toString().contains('requires-recent-login')) {
-        throw Exception('Please re-login to update your email address');
+        // Handle re-authentication requirement
+        throw Exception('Email update requires recent login. Please sign out and sign in again, then try updating your email.');
       }
       throw e;
     }
   }
 
-  // Update password (still allowed)
+  // Update password
   Future<bool> updatePassword(String currentPassword, String newPassword) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -271,7 +357,7 @@ class ProfileProvider with ChangeNotifier {
     } catch (e) {
       _setError('Failed to update password: $e');
       _setSaving(false);
-      log('Error updating password: $e');
+      print('Error updating password: $e');
       return false;
     }
   }
@@ -292,22 +378,57 @@ class ProfileProvider with ChangeNotifier {
     await _loadUserProfile();
   }
 
-  // MODIFIED: Validate form data (only for about field now)
+  // UPDATED: Comprehensive form validation
   bool validateForm() {
-    // Since most fields are now read-only, we only validate what can be changed
-    // About field is optional, so no validation needed
-    
     _setError(null);
+    
+    // Validate name/company name
+    String nameText = usernameController.text.trim();
+    if (nameText.isEmpty) {
+      _setError('Name/Company name is required');
+      return false;
+    }
+    if (nameText.length < 2) {
+      _setError('Name must be at least 2 characters');
+      return false;
+    }
+    
+    // Validate email
+    String emailText = emailController.text.trim();
+    if (emailText.isEmpty) {
+      _setError('Email is required');
+      return false;
+    }
+    if (!_isValidEmail(emailText)) {
+      _setError('Please enter a valid email address');
+      return false;
+    }
+    
+    // Validate phone
+    String phoneText = phoneController.text.trim();
+    if (phoneText.isEmpty) {
+      _setError('Phone number is required');
+      return false;
+    }
+    if (phoneText.length < 10) {
+      _setError('Please enter a valid phone number');
+      return false;
+    }
+    
+    // Validate about field (optional but has max length)
+    String aboutText = aboutController.text.trim();
+    if (aboutText.length > 500) {
+      _setError('About section cannot exceed 500 characters');
+      return false;
+    }
+    
     return true;
   }
 
-  // Helper method to validate about field if needed
+  // Validate only about field
   bool validateAboutField() {
-    // About field validation (optional)
     String aboutText = aboutController.text.trim();
     
-    // You can add validation rules here if needed
-    // For example, max length check:
     if (aboutText.length > 500) {
       _setError('About section cannot exceed 500 characters');
       return false;
@@ -321,7 +442,7 @@ class ProfileProvider with ChangeNotifier {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  // Get user stats (for profile display)
+  // Get user stats
   Future<Map<String, int>> getUserStats() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return {};
@@ -359,19 +480,19 @@ class ProfileProvider with ChangeNotifier {
         'chats': chatsQuery.docs.length,
       };
     } catch (e) {
-      log('Error getting user stats: $e');
+      print('Error getting user stats: $e');
       return {};
     }
   }
 
-  // NEW: Method to check if user can edit personal info (for future admin features)
+  // UPDATED: Flexible editing permissions
   bool canEditPersonalInfo() {
-    // This could be extended to check user roles/permissions
-    // For now, return false since personal info requires support contact
-    return false;
+    // Return true to allow direct editing
+    // You can add role-based permissions here if needed
+    return true;
   }
 
-  // NEW: Method to get contact support info
+  // Contact support info (for cases where support is still needed)
   Map<String, String> getContactSupportInfo() {
     return {
       'email': 'support@yourapp.com',
@@ -379,6 +500,25 @@ class ProfileProvider with ChangeNotifier {
       'website': 'https://yourapp.com/support',
       'hours': '24/7 Support Available',
     };
+  }
+
+  // NEW: Reset form to original values
+  void resetForm() {
+    _populateFormControllers();
+    _selectedImage = null;
+    _setError(null);
+    notifyListeners();
+  }
+
+  // NEW: Check if form has unsaved changes
+  bool hasUnsavedChanges() {
+    if (_userProfile == null) return false;
+    
+    return usernameController.text.trim() != (_userProfile!.companyName ?? '') ||
+           aboutController.text.trim() != (_userProfile!.bio ?? '') ||
+           emailController.text.trim() != _userProfile!.email ||
+           phoneController.text.trim() != _userProfile!.phone ||
+           _selectedImage != null;
   }
 
   @override
@@ -392,9 +532,13 @@ class ProfileProvider with ChangeNotifier {
   }
 }
 
-// Extended UserModel with additional profile fields
+// UPDATED: Enhanced UserModel extension
 extension UserModelProfile on UserModel {
-  String? get bio => null; // You can add this to your UserModel if needed
+  String? get bio {
+    // Add this field to your UserModel if it doesn't exist
+    // For now, return empty string or add bio field to UserModel
+    return ''; // Replace with actual bio field
+  }
   
   UserModel copyWithProfile({
     String? name,
@@ -405,7 +549,6 @@ extension UserModelProfile on UserModel {
     String? profileImage,
   }) {
     return copyWith(
-      // name: name,
       companyName: companyName,
       email: email,
       phone: phone,
@@ -414,37 +557,37 @@ extension UserModelProfile on UserModel {
   }
 }
 
-// UPDATED: Profile validation helper (simplified for limited editing)
+// UPDATED: Comprehensive validation helper
 class ProfileValidator {
   static String? validateName(String? value) {
-    // Since name is read-only, this is for display purposes only
     if (value == null || value.trim().isEmpty) {
-      return 'Name is required - Contact support to update';
+      return 'Name is required';
     }
     if (value.trim().length < 2) {
-      return 'Name must be at least 2 characters - Contact support to update';
+      return 'Name must be at least 2 characters';
+    }
+    if (value.trim().length > 50) {
+      return 'Name cannot exceed 50 characters';
     }
     return null;
   }
 
   static String? validateEmail(String? value) {
-    // Since email is read-only, this is for display purposes only
     if (value == null || value.trim().isEmpty) {
-      return 'Email is required - Contact support to update';
+      return 'Email is required';
     }
     if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
-      return 'Invalid email format - Contact support to update';
+      return 'Please enter a valid email address';
     }
     return null;
   }
 
   static String? validatePhone(String? value) {
-    // Since phone is read-only, this is for display purposes only
     if (value == null || value.trim().isEmpty) {
-      return 'Phone number is required - Contact support to update';
+      return 'Phone number is required';
     }
     if (value.trim().length < 10) {
-      return 'Invalid phone number - Contact support to update';
+      return 'Please enter a valid phone number';
     }
     return null;
   }
@@ -459,11 +602,19 @@ class ProfileValidator {
     return null;
   }
 
-  // NEW: Validate about field
   static String? validateAbout(String? value) {
-    // About field is optional
     if (value != null && value.length > 500) {
       return 'About section cannot exceed 500 characters';
+    }
+    return null;
+  }
+
+  static String? validateConfirmPassword(String? password, String? confirmPassword) {
+    if (confirmPassword == null || confirmPassword.trim().isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (password != confirmPassword) {
+      return 'Passwords do not match';
     }
     return null;
   }

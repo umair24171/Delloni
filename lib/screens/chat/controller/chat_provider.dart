@@ -193,34 +193,54 @@ class ChatProvider with ChangeNotifier {
 
   // FIXED: Enhanced chat creation with proper field initialization
   Future<String?> createOrGetChatEnhanced({
-    required String otherUserId,
-    required String otherUserName,
-    String? otherUserImage,
-    String? productId,
-    String? productTitle,
-    String? productImage,
-    double? productPrice,
-    String? productOwnerId,
-  }) async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      _setError('User not authenticated');
-      return null;
-    }
+  required String otherUserId,
+  required String otherUserName,
+  String? otherUserImage,
+  String? productId,
+  String? productTitle,
+  String? productImage,
+  double? productPrice,
+  String? productOwnerId,
+}) async {
+  final currentUser = _auth.currentUser;
+  if (currentUser == null) {
+    _setError('User not authenticated');
+    return null;
+  }
 
-    try {
-      final chatId = _generateChatId(currentUser.uid, otherUserId);
-      
-      // Check if chat already exists
-      final existingChat = await _firestore.collection('chats').doc(chatId).get();
-      
-      if (existingChat.exists) {
-        // Update existing chat with current product info
+  try {
+    final chatId = _generateChatId(currentUser.uid, otherUserId, productId ?? '');
+
+    // Check if chat already exists
+    final existingChat = await _firestore.collection('chats').doc(chatId).get();
+
+    if (existingChat.exists) {
+      final chatData = existingChat.data() as Map<String, dynamic>;
+      final deletedBy = List<String>.from(chatData['deletedBy'] ?? []);
+
+      if (deletedBy.contains(currentUser.uid)) {
+        final batch = _firestore.batch();
+
+        // Clear messages
+        final messagesQuery = await _firestore
+            .collection('chats')
+            .doc(chatId)
+            .collection('messages')
+            .get();
+        for (var doc in messagesQuery.docs) {
+          batch.delete(doc.reference);
+        }
+
+        // Update chat with current product info and reactivate
         Map<String, dynamic> updateData = {
+          'deletedBy': FieldValue.arrayRemove([currentUser.uid]),
+          'lastMessage': '',
           'lastMessageTime': FieldValue.serverTimestamp(),
-          'isActive': true, // Ensure chat is active
+          'lastMessageSenderId': '',
+          'unreadCount.${currentUser.uid}': 0,
+          'isActive': true,
         };
-        
+
         if (productId != null) {
           updateData.addAll({
             'productId': productId,
@@ -228,79 +248,112 @@ class ChatProvider with ChangeNotifier {
             'productImage': productImage,
             'productPrice': productPrice,
             'productOwnerId': productOwnerId,
+            'chatType': productOwnerId == currentUser.uid ? 'selling' : 'buying',
           });
         }
-        
+
+        // Update participant info
+        updateData['participantNames.${currentUser.uid}'] = currentUser.displayName ?? 'Unknown User';
+        updateData['participantNames.$otherUserId'] = otherUserName;
+        updateData['participantImages.${currentUser.uid}'] = currentUser.photoURL ?? '';
+        updateData['participantImages.$otherUserId'] = otherUserImage ?? '';
+
+        batch.update(_firestore.collection('chats').doc(chatId), updateData);
+        await batch.commit();
+      } else {
+        // Update existing chat with current product info
+        Map<String, dynamic> updateData = {
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'isActive': true,
+        };
+
+        if (productId != null) {
+          updateData.addAll({
+            'productId': productId,
+            'productTitle': productTitle,
+            'productImage': productImage,
+            'productPrice': productPrice,
+            'productOwnerId': productOwnerId,
+            'chatType': productOwnerId == currentUser.uid ? 'selling' : 'buying',
+          });
+        }
+
+        updateData['participantNames.${currentUser.uid}'] = currentUser.displayName ?? 'Unknown User';
+        updateData['participantNames.$otherUserId'] = otherUserName;
+        updateData['participantImages.${currentUser.uid}'] = currentUser.photoURL ?? '';
+        updateData['participantImages.$otherUserId'] = otherUserImage ?? '';
+
         await _firestore.collection('chats').doc(chatId).update(updateData);
-        return chatId;
       }
 
-      // Get current user info
-      final currentUserDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-      final currentUserData = currentUserDoc.data() ?? {};
-      final currentUserName = currentUserData['companyName'] ?? 
-                             currentUserData['name'] ?? 
-                             currentUser.displayName ?? 
-                             'Unknown User';
-
-      // Determine chat type based on product ownership
-      String chatType = 'general';
-      if (productId != null && productOwnerId != null) {
-        chatType = productOwnerId == currentUser.uid ? 'selling' : 'buying';
-      }
-
-      // FIXED: Create new chat with proper field initialization
-      await _firestore.collection('chats').doc(chatId).set({
-        'participants': [currentUser.uid, otherUserId],
-        'participantNames': {
-          currentUser.uid: currentUserName,
-          otherUserId: otherUserName,
-        },
-        'participantImages': {
-          currentUser.uid: currentUserData['profileImage'] ?? currentUser.photoURL ?? '',
-          otherUserId: otherUserImage ?? '',
-        },
-        'lastMessage': '',
-        'lastMessageTime': FieldValue.serverTimestamp(),
-        'lastMessageSenderId': '',
-        'productId': productId,
-        'productTitle': productTitle,
-        'productImage': productImage,
-        'productPrice': productPrice,
-        'productOwnerId': productOwnerId,
-        'unreadCount': {
-          currentUser.uid: 0,
-          otherUserId: 0,
-        },
-        'isTyping': {
-          currentUser.uid: false,
-          otherUserId: false,
-        },
-        'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
-        'chatType': chatType,
-        'deletedBy': [], // FIXED: Initialize as empty array
-      });
-
-      log('✅ Created new chat: $chatId');
       return chatId;
-    } catch (e) {
-      _setError('Failed to create chat: $e');
-      log('❌ Error creating enhanced chat: $e');
-      return null;
     }
-  }
 
+    // Get current user info
+    final currentUserDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+    final currentUserData = currentUserDoc.data() ?? {};
+    final currentUserName = currentUserData['companyName'] ??
+        currentUserData['name'] ??
+        currentUser.displayName ??
+        'Unknown User';
+
+    // Determine chat type based on product ownership
+    String chatType = 'general';
+    if (productId != null && productOwnerId != null) {
+      chatType = productOwnerId == currentUser.uid ? 'selling' : 'buying';
+    }
+
+    // Create new chat with proper field initialization
+    await _firestore.collection('chats').doc(chatId).set({
+      'participants': [currentUser.uid, otherUserId],
+      'participantNames': {
+        currentUser.uid: currentUserName,
+        otherUserId: otherUserName,
+      },
+      'participantImages': {
+        currentUser.uid: currentUserData['profileImage'] ?? currentUser.photoURL ?? '',
+        otherUserId: otherUserImage ?? '',
+      },
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': '',
+      'productId': productId,
+      'productTitle': productTitle,
+      'productImage': productImage,
+      'productPrice': productPrice,
+      'productOwnerId': productOwnerId,
+      'unreadCount': {
+        currentUser.uid: 0,
+        otherUserId: 0,
+      },
+      'isTyping': {
+        currentUser.uid: false,
+        otherUserId: false,
+      },
+      'createdAt': FieldValue.serverTimestamp(),
+      'isActive': true,
+      'chatType': chatType,
+      'deletedBy': [],
+    });
+
+    log('✅ Created new chat: $chatId');
+    return chatId;
+  } catch (e) {
+    _setError('Failed to create chat: $e');
+    log('❌ Error creating enhanced chat: $e');
+    return null;
+  }
+}
   // Rest of your existing methods...
   void changeTab(int index) {
     _selectedTabIndex = index;
     notifyListeners();
   }
 
-  String _generateChatId(String userId1, String userId2) {
-    List<String> ids = [userId1, userId2];
-    ids.sort();
-    return '${ids[0]}_${ids[1]}';
+  String _generateChatId(String userId1, String userId2, String productId) {
+  List<String> ids = [userId1, userId2];
+  ids.sort();
+  return '${ids[0]}_${ids[1]}_$productId';
   }
 
   int getTotalUnreadCount() {
@@ -336,37 +389,53 @@ class ChatProvider with ChangeNotifier {
       log('Error marking chat as unread: $e');
     }
   }
-
-  // FIXED: Enhanced delete chat with better error handling
-  Future<bool> deleteChat(String chatId) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        log('❌ Cannot delete chat: User not authenticated');
-        return false;
-      }
-
-      log('🗑️ Deleting chat: $chatId for user: ${currentUser.uid}');
-
-      // Add current user to deletedBy array
-      await _firestore.collection('chats').doc(chatId).update({
-        'deletedBy': FieldValue.arrayUnion([currentUser.uid]),
-      });
-
-      // FIXED: Remove from local lists immediately for better UX
-      _allChats.removeWhere((chat) => chat.id == chatId);
-      _buyingChats.removeWhere((chat) => chat.id == chatId);
-      _sellingChats.removeWhere((chat) => chat.id == chatId);
-      
-      log('✅ Chat deleted successfully: $chatId');
-      notifyListeners();
-      return true;
-    } catch (e) {
-      log('❌ Error deleting chat: $e');
-      _setError('Failed to delete chat: $e');
+Future<bool> deleteChat(String chatId) async {
+  try {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      log('❌ Cannot delete chat: User not authenticated');
       return false;
     }
+
+    log('🗑️ Deleting chat: $chatId for user: ${currentUser.uid}');
+
+    // Delete all messages in the chat's messages subcollection
+    final messagesQuery = await _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .get();
+
+    final batch = _firestore.batch();
+    for (var doc in messagesQuery.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Add current user to deletedBy array and clear last message info
+    batch.update(_firestore.collection('chats').doc(chatId), {
+      'deletedBy': FieldValue.arrayUnion([currentUser.uid]),
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': '',
+      'unreadCount.${currentUser.uid}': 0,
+    });
+
+    await batch.commit();
+
+    // Remove from local lists immediately for better UX
+    _allChats.removeWhere((chat) => chat.id == chatId);
+    _buyingChats.removeWhere((chat) => chat.id == chatId);
+    _sellingChats.removeWhere((chat) => chat.id == chatId);
+
+    log('✅ Chat deleted successfully: $chatId');
+    notifyListeners();
+    return true;
+  } catch (e) {
+    log('❌ Error deleting chat: $e');
+    _setError('Failed to delete chat: $e');
+    return false;
   }
+}
 
   // FIXED: Enhanced refresh with proper error handling
   Future<void> refreshChats() async {

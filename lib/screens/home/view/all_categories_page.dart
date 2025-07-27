@@ -96,7 +96,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w500,color: Colors.black
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -316,7 +316,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                       subCategory['name'] ?? 'Subcategory',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w600,color: Colors.black
                       ),
                     ),
                     if (subCategory['description'] != null)
@@ -509,7 +509,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                       subSubCategory['name'] ?? 'Sub-subcategory',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w600,color: Colors.black
                       ),
                     ),
                     if (subSubCategory['description'] != null)
@@ -634,9 +634,12 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
               _loadProducts();
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date')),
-              PopupMenuItem(value: 'price', child: Text('Sort by Price')),
-              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views')),
+              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date',style:  TextStyle(color: Colors.black
+              ),)),
+              PopupMenuItem(value: 'price', child: Text('Sort by Price',style:  TextStyle(color: Colors.black
+              ))),
+              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views',style:  TextStyle(color: Colors.black
+              ))),
             ],
           ),
         ],

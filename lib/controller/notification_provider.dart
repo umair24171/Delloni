@@ -5,12 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'dart:async';
-import 'dart:developer';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class NotificationProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -54,6 +48,7 @@ class NotificationProvider with ChangeNotifier {
 
   // Initialize provider
   void _initializeProvider() {
+
     _authSubscription = _auth.authStateChanges().listen((User? user) {
       if (user != null) {
         _setupNotificationListener(user.uid);
@@ -61,6 +56,7 @@ class NotificationProvider with ChangeNotifier {
       } else {
         _clearNotifications();
       }
+      // sendTestNotification();
     });
   }
 
@@ -459,22 +455,27 @@ class NotificationProvider with ChangeNotifier {
   }
 }
 
-// Simplified NotificationService - Only what you need
+// Enhanced NotificationService that actually sends push notifications
 class SimpleNotificationService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Send message notification
-  static Future<void> sendMessageNotification({
+  // Send message notification with actual push notification
+  static Future<bool> sendMessageNotification({
     required String recipientId,
     required String senderName,
     required String messagePreview,
     required String chatId,
+    String? senderAvatar,
   }) async {
     try {
       // Check if user has message notifications enabled
       final preferences = await _getUserNotificationPreferences(recipientId);
-      if (preferences['newMessage'] != true) return;
+      if (preferences['newMessage'] != true) {
+        log('User has disabled message notifications');
+        return false;
+      }
 
+      // Store notification in Firestore
       await _firestore
           .collection('users')
           .doc(recipientId)
@@ -486,48 +487,303 @@ class SimpleNotificationService {
         'data': {
           'chatId': chatId,
           'senderName': senderName,
+          'senderAvatar': senderAvatar,
+          'messagePreview': messagePreview,
+          'action': 'open_chat',
         },
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
       });
+
+      // Send actual push notification using the comprehensive NotificationService
+      final success = await NotificationService.instance.sendMessageNotification(
+        recipientId: recipientId,
+        senderName: senderName,
+        messagePreview: messagePreview,
+        chatId: chatId,
+        senderAvatar: senderAvatar,
+      );
+
+      log('Message notification sent: $success');
+      return success;
+
     } catch (e) {
-      print('Error sending message notification: $e');
+      log('Error sending message notification: $e');
+      return false;
     }
   }
 
-  // Send saved search notification
-  static Future<void> sendSavedSearchNotification({
+  // Send saved search notification with actual push notification
+  static Future<bool> sendSavedSearchNotification({
     required String userId,
     required String itemTitle,
     required String itemId,
     required String savedSearchName,
     required String location,
+    String? price,
+    String? imageUrl,
   }) async {
     try {
       // Check if user has saved search notifications enabled
       final preferences = await _getUserNotificationPreferences(userId);
-      if (preferences['savedSearch'] != true) return;
+      if (preferences['savedSearch'] != true) {
+        log('User has disabled saved search notifications');
+        return false;
+      }
 
+      // Store notification in Firestore
       await _firestore
           .collection('users')
           .doc(userId)
           .collection('notifications')
           .add({
         'type': 'savedSearch',
-        'title': 'New item matches your search!',
-        'body': 'A new "$itemTitle" matches your "$savedSearchName" search in $location',
+        'title': 'New Match for "$savedSearchName"',
+        'body': '$itemTitle${price != null ? ' • \$$price' : ''} • $location',
         'data': {
           'itemId': itemId,
+          'itemTitle': itemTitle,
           'savedSearchName': savedSearchName,
+          'location': location,
+          'price': price,
+          'imageUrl': imageUrl,
+          'action': 'view_item',
         },
         'createdAt': FieldValue.serverTimestamp(),
         'read': false,
       });
+
+      // Send actual push notification using the comprehensive NotificationService
+      final success = await NotificationService.instance.sendSavedSearchNotification(
+        userId: userId,
+        itemTitle: itemTitle,
+        itemId: itemId,
+        savedSearchName: savedSearchName,
+        location: location,
+        price: price,
+        imageUrl: imageUrl,
+      );
+
+      log('Saved search notification sent: $success');
+      return success;
+
     } catch (e) {
-      print('Error sending saved search notification: $e');
+      log('Error sending saved search notification: $e');
+      return false;
     }
   }
 
+  // Send item sold notification
+  static Future<void> sendItemSoldNotification({
+    required String sellerId,
+    required String itemTitle,
+    required String itemId,
+    required String buyerName,
+    String? price,
+  }) async {
+    try {
+      final preferences = await _getUserNotificationPreferences(sellerId);
+      if (preferences['itemSold'] != true) {
+        log('User has disabled item sold notifications');
+        // return false;
+      }
+
+      final title = 'Item Sold!';
+      final body = 'Your "$itemTitle" was sold to $buyerName${price != null ? ' for \$$price' : ''}';
+
+      // Store notification in Firestore
+      await _firestore
+          .collection('users')
+          .doc(sellerId)
+          .collection('notifications')
+          .add({
+        'type': 'itemSold',
+        'title': title,
+        'body': body,
+        'data': {
+          'itemId': itemId,
+          'itemTitle': itemTitle,
+          'buyerName': buyerName,
+          'price': price,
+          'action': 'view_sold_items',
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      // Send actual push notification
+      final success = await NotificationService.instance.sendNotificationToUser(
+        userId: sellerId,
+        title: title,
+        body: body,
+        type: 'itemSold',
+        data: {
+          'itemId': itemId,
+          'itemTitle': itemTitle,
+          'buyerName': buyerName,
+          'price': price,
+        },
+      );
+
+      log('Item sold notification sent: ');
+      // return success;
+
+    } catch (e) {
+      log('Error sending item sold notification: $e');
+      // return false;
+    }
+  }
+
+  // Send new follower notification
+  static Future<bool> sendNewFollowerNotification({
+    required String userId,
+    required String followerName,
+    required String followerId,
+    String? followerAvatar,
+  }) async {
+    try {
+      final preferences = await _getUserNotificationPreferences(userId);
+      if (preferences['newFollower'] != true) {
+        log('User has disabled new follower notifications');
+        return false;
+      }
+
+      final title = 'New Follower';
+      final body = '$followerName started following you';
+
+      // Store notification in Firestore
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .add({
+        'type': 'newFollower',
+        'title': title,
+        'body': body,
+        'data': {
+          'followerId': followerId,
+          'followerName': followerName,
+          'followerAvatar': followerAvatar,
+          'action': 'view_profile',
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      // Send actual push notification
+      await NotificationService.instance.sendNotificationToUser(
+        userId: userId,
+        title: title,
+        body: body,
+        type: 'newFollower',
+        data: {
+          'followerId': followerId,
+          'followerName': followerName,
+          'followerAvatar': followerAvatar,
+        },
+        imageUrl: followerAvatar,
+      );
+
+      log('New follower notification sent');
+      return true;
+
+    } catch (e) {
+      log('Error sending new follower notification: $e');
+      return false;
+    }
+  }
+
+  // Send price reduction notification
+  static Future<bool> sendPriceReductionNotification({
+    required String userId,
+    required String itemTitle,
+    required String itemId,
+    required String oldPrice,
+    required String newPrice,
+    String? imageUrl,
+  }) async {
+    try {
+      final preferences = await _getUserNotificationPreferences(userId);
+      if (preferences['priceReduction'] != true) {
+        log('User has disabled price reduction notifications');
+        return false;
+      }
+
+      final title = 'Price Drop Alert!';
+      final body = '$itemTitle price dropped from \$$oldPrice to \$$newPrice';
+
+      // Store notification in Firestore
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .add({
+        'type': 'priceReduction',
+        'title': title,
+        'body': body,
+        'data': {
+          'itemId': itemId,
+          'itemTitle': itemTitle,
+          'oldPrice': oldPrice,
+          'newPrice': newPrice,
+          'imageUrl': imageUrl,
+          'action': 'view_item',
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      // Send actual push notification
+      await NotificationService.instance.sendNotificationToUser(
+        userId: userId,
+        title: title,
+        body: body,
+        type: 'priceReduction',
+        data: {
+          'itemId': itemId,
+          'itemTitle': itemTitle,
+          'oldPrice': oldPrice,
+          'newPrice': newPrice,
+        },
+        imageUrl: imageUrl,
+      );
+
+      log('Price reduction notification sent');
+      return true;
+
+    } catch (e) {
+      log('Error sending price reduction notification: $e');
+      return false;
+    }
+  }
+
+  // Send notification to multiple users (bulk notification)
+  static Future<void> sendBulkNotification({
+    required List<String> userIds,
+    required String title,
+    required String body,
+    required String type,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+  }) async {
+    try {
+      // Use the comprehensive NotificationService for bulk sending
+      await NotificationService.instance.sendNotificationToMultipleUsers(
+        userIds: userIds,
+        title: title,
+        body: body,
+        type: type,
+        data: data,
+        imageUrl: imageUrl,
+      );
+
+      log('Bulk notification sent to ${userIds.length} users');
+    } catch (e) {
+      log('Error sending bulk notification: $e');
+    }
+  }
+
+  // Get user notification preferences
   static Future<Map<String, bool>> _getUserNotificationPreferences(String userId) async {
     try {
       final doc = await _firestore
@@ -542,18 +798,72 @@ class SimpleNotificationService {
         return {
           'newMessage': data['newMessage'] ?? true,
           'savedSearch': data['savedSearch'] ?? true,
+          'itemSold': data['itemSold'] ?? true,
+          'newFollower': data['newFollower'] ?? true,
+          'priceReduction': data['priceReduction'] ?? true,
+          'itemExpiring': data['itemExpiring'] ?? true,
         };
       }
 
       return {
         'newMessage': true,
         'savedSearch': true,
+        'itemSold': true,
+        'newFollower': true,
+        'priceReduction': true,
+        'itemExpiring': true,
       };
     } catch (e) {
+      log('Error getting notification preferences: $e');
       return {
         'newMessage': true,
         'savedSearch': true,
+        'itemSold': true,
+        'newFollower': true,
+        'priceReduction': true,
+        'itemExpiring': true,
       };
+    }
+  }
+
+  // Helper method to send custom notification
+  static Future<bool> sendCustomNotification({
+    required String userId,
+    required String title,
+    required String body,
+    required String type,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+  }) async {
+    try {
+      // Store in Firestore
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .add({
+        'type': type,
+        'title': title,
+        'body': body,
+        'data': data ?? {},
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      // Send push notification
+      await NotificationService.instance.sendNotificationToUser(
+        userId: userId,
+        title: title,
+        body: body,
+        type: type,
+        data: data,
+        imageUrl: imageUrl,
+      );
+
+      return true;
+    } catch (e) {
+      log('Error sending custom notification: $e');
+      return false;
     }
   }
 }

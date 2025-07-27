@@ -249,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -264,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                  // color: Colors.black,
                 ),
               ),
 
@@ -288,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                               color: isIndividualSelected
-                                  ? Colors.black
+                                  ? null
                                   : const Color(0xFF9CA3AF),
                             ),
                           ),
@@ -296,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             height: 2,
                             color: isIndividualSelected
-                                ? Colors.black
+                                ? null
                                 : Colors.transparent,
                           ),
                         ],
@@ -318,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                               color: !isIndividualSelected
-                                  ? Colors.black
+                                  ? null
                                   : const Color(0xFF9CA3AF),
                             ),
                           ),
@@ -326,7 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             height: 2,
                             color: !isIndividualSelected
-                                ? Colors.black
+                                ? null
                                 : Colors.transparent,
                           ),
                         ],
@@ -647,9 +647,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
+                            // valueColor: AlwaysStoppedAnimation<Color>(
+                            //   // Colors.white,
+                            // ),
                           ),
                         )
                       : Text(
@@ -682,7 +682,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          // color: Colors.white,
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
@@ -711,7 +711,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
+                          // color: Colors.black,
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
@@ -746,7 +746,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black,
+                        // color: Colors.black,
                         decoration: TextDecoration.underline,
                       ),
                     ),
@@ -765,7 +765,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black,
+                        // color: Colors.black,
                         decoration: TextDecoration.underline,
                       ),
                     ),

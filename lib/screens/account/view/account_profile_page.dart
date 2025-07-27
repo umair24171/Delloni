@@ -235,9 +235,9 @@ class AccountProfileProvider with ChangeNotifier {
   
   String get displayName {
     if (isCompany) {
-      return _userProfile?['companyName'] ?? 'Unknown Company';
+      return _userProfile?['companyName'] ?? 'Unknown Company'.tr();
     } else {
-      return _userProfile?['name'] ?? 'Unknown User';
+      return _userProfile?['name'] ?? 'Unknown User'.tr();
     }
   }
 
@@ -255,9 +255,9 @@ class AccountProfileProvider with ChangeNotifier {
 
   String get aboutMe {
     if (isCompany) {
-      return _userProfile?['aboutUs'] ?? 'No company description available.';
+      return _userProfile?['aboutUs'] ?? 'No company description available.'.tr();
     } else {
-      return _userProfile?['aboutMe'] ?? 'No description available.';
+      return _userProfile?['aboutMe'] ?? 'No description available.'.tr();
     }
   }
 
@@ -266,11 +266,11 @@ class AccountProfileProvider with ChangeNotifier {
       DateTime createdAt = (_userProfile!['createdAt'] as Timestamp).toDate();
       return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
     }
-    return 'Unknown';
+    return 'Unknown'.tr();
   }
 
   String get responseTime {
-    return _userProfile?['responseTime'] ?? 'Usually replies within a few hours';
+    return _userProfile?['responseTime'] ?? 'Usually replies within a few hours'.tr();
   }
 
   String get phoneNumber {
@@ -374,7 +374,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
                 
-                Text('User reported successfully.'),
+                Text('User reported successfully.'.tr()),
               ],
             ),
             backgroundColor: Colors.green,
@@ -414,7 +414,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                 Icon(Icons.report, color: Colors.red, size: 24),
                 SizedBox(width: 12),
                 Text(
-                  'Report User',
+                  'Report User'.tr(),
                   style: GoogleFonts.nunito(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -439,7 +439,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel'),
+                    child: Text('Cancel'.tr()),
                   ),
                 ),
                 SizedBox(width: 12),
@@ -453,7 +453,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                     ),
-                    child: Text('Report'),
+                    child: Text('Report'.tr()),
                   ),
                 ),
               ],
@@ -578,7 +578,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                 ),
                 SizedBox(height: 16),
                 Text(
-                  'Starting chat...',
+                  'Starting chat...'.tr(),
                   style: GoogleFonts.nunito(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -635,6 +635,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+         surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.pop(context),
@@ -679,7 +680,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                       ),
                       SizedBox(width: 12),
                       Text(
-                        _hasUserReported ? 'Already Reported' : 'Report User',
+                        _hasUserReported ? 'Already Reported'.tr() : 'Report User'.tr(),
                         style: TextStyle(
                           color: _hasUserReported ? Colors.grey : Colors.red,
                         ),
@@ -706,7 +707,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                   Text(profileProvider.error!),
                   ElevatedButton(
                     onPressed: () => profileProvider.loadUserProfile(widget.userId),
-                    child: Text('Retry'),
+                    child: Text('Retry'.tr()),
                   ),
                 ],
               ),
@@ -714,7 +715,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
           }
 
           if (profileProvider.userProfile == null) {
-            return const Center(child: Text('Profile not found'));
+            return  Center(child: Text('Profile not found'.tr()));
           }
 
           return Padding(
@@ -828,7 +829,6 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                                   style: GoogleFonts.nunito(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: Colors.black,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -892,14 +892,14 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              profileProvider.isCompany ? 'Company' : 'Private Seller',
+                              profileProvider.isCompany ? 'Company'.tr() : 'Private Seller'.tr(),
                               style: GoogleFonts.nunito(
                                 fontSize: 14,
                                 color: Colors.grey[600],
                               ),
                             ),
                             Text(
-                              'Active since ${profileProvider.memberSince}',
+                              '${"Active since".tr()} ${profileProvider.memberSince}',
                               style: GoogleFonts.nunito(
                                 fontSize: 14,
                                 color: Colors.grey[600],
@@ -940,8 +940,8 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                                 const SizedBox(width: 8),
                                 Text(
                                   profileProvider.phoneNumber.isNotEmpty 
-                                    ? 'Call' 
-                                    : 'No Phone',
+                                    ? 'Call'.tr()
+                                    : 'No Phone'.tr(),
                                   style: GoogleFonts.nunito(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -971,7 +971,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                                 const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 20),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Chat',
+                                  'Chat'.tr(),
                                   style: GoogleFonts.nunito(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
@@ -1004,7 +1004,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                             Icon(Icons.report, color: Colors.red, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              'Report User',
+                              'Report User'.tr(),
                               style: GoogleFonts.nunito(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
@@ -1039,7 +1039,7 @@ class _AccountProfilePageState extends State<AccountProfilePage> {
                         GestureDetector(
                           onTap: () => setState(() => _showMyAds = false),
                           child: Text(
-                            'Details',
+                            'Details'.tr(),
                             style: GoogleFonts.nunito(
                               fontSize: 16,
                               fontWeight: !_showMyAds ? FontWeight.w600 : FontWeight.w400,

@@ -195,7 +195,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           const SizedBox(height: 40),
           // Main text
           Text(
-            AppLocalizations.noFavoritesYet.tr(),
+            "You haven't liked anything yet".tr(),
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -205,7 +205,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           const SizedBox(height: 12),
           // Subtitle
           Text(
-            AppLocalizations.collectAllThingsYouLike.tr(),
+            "Collect all things you like in one place".tr(),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 14,
@@ -558,13 +558,16 @@ class _FavoriteAdsState extends State<FavoriteAds> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
             Icon(Icons.warning, color: Theme.of(context).colorScheme.error, size: 24),
             SizedBox(width: 8),
             Text(
-              AppLocalizations.clearAllFavorites.tr(),
+              'Clear all favorites'.tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -574,7 +577,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           ],
         ),
         content: Text(
-          AppLocalizations.areYouSureYouWantToRemoveAllItemsFromYourFavorites.tr(),
+          'Are you sure you want to remove all items from your favorites'.tr(),
           style: GoogleFonts.jost(
             fontSize: 14,
             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
@@ -584,7 +587,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              AppLocalizations.cancel.tr(),
+              'Cancel'.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -609,7 +612,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
               );
             },
             child: Text(
-              AppLocalizations.clearAll.tr(),
+              'Clear All'.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -626,13 +629,16 @@ class _FavoriteAdsState extends State<FavoriteAds> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
             Icon(Icons.search, color: Theme.of(context).colorScheme.error, size: 24),
             SizedBox(width: 8),
             Text(
-              AppLocalizations.searchFavorites.tr(),
+              "Search Favorites".tr(),
               style: GoogleFonts.jost(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -645,7 +651,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           controller: _searchController,
           style: GoogleFonts.jost(fontSize: 14),
           decoration: InputDecoration(
-            hintText: AppLocalizations.searchYourFavoriteProducts.tr(),
+            hintText: "Search your favorite products".tr(),
             hintStyle: GoogleFonts.jost(fontSize: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -656,7 +662,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              AppLocalizations.cancel.tr(),
+             "Cancel".tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -671,7 +677,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
               _showSearchResults(results);
             },
             child: Text(
-              AppLocalizations.search.tr(),
+              'Search'.tr(),
               style: GoogleFonts.jost(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -688,9 +694,12 @@ class _FavoriteAdsState extends State<FavoriteAds> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
-          '${AppLocalizations.searchResults.tr()} (${results.length})',
+          '${'Search Results'.tr()} (${results.length})',
           style: GoogleFonts.jost(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -708,7 +717,7 @@ class _FavoriteAdsState extends State<FavoriteAds> {
                       Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
                       SizedBox(height: 16),
                       Text(
-                        AppLocalizations.noFavoritesFound.tr(),
+                        'No favorites found'.tr(),
                         style: GoogleFonts.jost(
                           fontSize: 16,
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),

@@ -147,7 +147,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -160,7 +160,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  // color: Colors.black,
                   height: 1.2,
                 ),
               ),
@@ -183,7 +183,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                               color: isIndividualSelected
-                                  ? Colors.black
+                                  ? null
                                   : const Color(0xFF9CA3AF),
                             ),
                           ),
@@ -191,7 +191,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           Container(
                             height: 2,
                             color: isIndividualSelected
-                                ? Colors.black
+                                ? null
                                 : Colors.transparent,
                           ),
                         ],
@@ -213,7 +213,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
                               color: !isIndividualSelected
-                                  ? Colors.black
+                                  ? null
                                   : const Color(0xFF9CA3AF),
                             ),
                           ),
@@ -221,7 +221,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                           Container(
                             height: 2,
                             color: !isIndividualSelected
-                                ? Colors.black
+                                ? null
                                 : Colors.transparent,
                           ),
                         ],
@@ -239,7 +239,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       width: 100,
                       height: 100,
                       decoration: BoxDecoration(
-                        color: Colors.black,
+                        color: null,
                         shape: BoxShape.circle,
                         image: _profileImage != null
                             ? DecorationImage(
@@ -450,7 +450,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 child: RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
+                    style: GoogleFonts.inter(fontSize: 14, color: null),
                     children: [
                       TextSpan(
                         text: AppLocalizations.bySigningUpAgree.tr(),
@@ -508,7 +508,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         style: GoogleFonts.jost(
           fontSize: 16,
           fontWeight: FontWeight.w400,
-          color: Colors.black,
+          color: null,
         ),
         decoration: InputDecoration(
           border: OutlineInputBorder(
@@ -560,7 +560,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         style: GoogleFonts.poppins(
           fontSize: 16,
           fontWeight: FontWeight.w400,
-          color: Colors.black,
+          color: null,
         ),
         decoration: InputDecoration(
           border: OutlineInputBorder(
@@ -631,7 +631,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             textStyle: GoogleFonts.jost(
               fontSize: 16,
               fontWeight: FontWeight.w400,
-              color: Colors.black,
+              color: null,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
             showFlag: true,
@@ -644,12 +644,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             dialogTextStyle: GoogleFonts.jost(
               fontSize: 16,
               fontWeight: FontWeight.w400,
-              color: Colors.black,
+              color: null,
             ),
             searchStyle: GoogleFonts.jost(
               fontSize: 16,
               fontWeight: FontWeight.w400,
-              color: Colors.black,
+              color: null,
             ),
             searchDecoration: InputDecoration(
               hintText: AppLocalizations.search.tr(), // Using existing key
@@ -672,7 +672,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               style: GoogleFonts.jost(
                 fontSize: 16,
                 fontWeight: FontWeight.w400,
-                color: Colors.black,
+                color: null,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
@@ -753,7 +753,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: Colors.black,
+                color: null,
               ),
             ),
           ),
@@ -764,7 +764,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: Colors.black,
+                color: null,
               ),
             ),
           ),

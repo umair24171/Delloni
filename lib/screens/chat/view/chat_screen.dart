@@ -14,7 +14,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart'; // Add this import
 
-// UPDATED: ChatPage with search icon and swipe actions
 // FIXED: ChatPage with proper Dismissible widget handling
 class ChatPage extends StatefulWidget {
   const ChatPage({Key? key}) : super(key: key);
@@ -81,23 +80,24 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     return ChangeNotifierProvider.value(
       value: _chatProvider,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          // backgroundColor: Colors.white,
           elevation: 0,
+           surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
           title: Text(
             AppLocalizations.chat.tr(),
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.black,
+              // color: Colors.black,
             ),
           ),
           leading: const SizedBox.shrink(),
           leadingWidth: 0,
           actions: [
             IconButton(
-              icon: Icon(Icons.search, color: Colors.black),
+              icon: Icon(Icons.search),
               onPressed: () {
                 showSearch(
                   context: context,
@@ -146,13 +146,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
-                color: isSelected ? Colors.black : const Color(0xFF9CA3AF),
+                color: isSelected ? Theme.of(context).colorScheme.onBackground : const Color(0xFF9CA3AF),
               ),
             ),
             const SizedBox(height: 8),
             Container(
               height: 4,
-              color: isSelected ? Colors.black : Colors.transparent,
+              color: isSelected ? Theme.of(context).colorScheme.onBackground : Colors.transparent,
             ),
           ],
         ),
@@ -248,7 +248,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Marked as unread'),
+                content: Text('Marked as unread'.tr()),
                 backgroundColor: Colors.blue,
                 duration: Duration(seconds: 2),
               ),
@@ -266,7 +266,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           children: [
             Icon(Icons.mark_email_unread, color: Colors.white),
             SizedBox(width: 8),
-            Text('Mark Unread', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('Mark Unread'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -277,7 +277,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Text('Options', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('Options'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             SizedBox(width: 8),
             Icon(Icons.more_horiz, color: Colors.white),
           ],
@@ -292,10 +292,17 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     try {
       final result = await showModalBottomSheet<String>(
         context: context,
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         builder: (context) => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border(top: BorderSide(width: 2,color: Colors.grey))
+          ),
           padding: EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -310,7 +317,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ),
               SizedBox(height: 20),
               Text(
-                'Chat Options',
+                'Chat Options'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -319,17 +326,17 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               SizedBox(height: 20),
               ListTile(
                 leading: Icon(Icons.report_outlined, color: Colors.orange),
-                title: Text('Report Chat'),
+                title: Text('Report Chat'.tr()),
                 onTap: () => Navigator.pop(context, 'report'),
               ),
               ListTile(
                 leading: Icon(Icons.delete_outline, color: Colors.red),
-                title: Text('Delete Chat'),
+                title: Text('Delete Chat'.tr()),
                 onTap: () => Navigator.pop(context, 'delete'),
               ),
               ListTile(
                 leading: Icon(Icons.cancel_outlined, color: Colors.grey),
-                title: Text('Cancel'),
+                title: Text('Cancel'.tr()),
                 onTap: () => Navigator.pop(context, 'cancel'),
               ),
             ],
@@ -452,55 +459,111 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _showReportDialog(dynamic chat) async {
-    try {
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Report Chat'),
-          content: Text('Report this chat for inappropriate content?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Report', style: TextStyle(color: Colors.orange)),
+Future<void> _showReportDialog(dynamic chat) async {
+  final TextEditingController _reasonController = TextEditingController();
+
+  try {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness != Brightness.dark
+            ? Colors.white
+            : Colors.black,
+        title: Text('Report Chat'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Report this chat for inappropriate content?'.tr()),
+            SizedBox(height: 16),
+            TextField(
+              controller: _reasonController,
+              decoration: InputDecoration(
+                labelText: 'Reason for reporting'.tr(),
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
             ),
           ],
         ),
-      );
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Report'.tr(), style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
 
-      if (result == true && mounted) {
-        // Here you would implement actual report functionality
+    if (result == true && mounted) {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        log('Error: User not authenticated');
+        return;
+      }
+
+      // Save report to Firestore chat_reports collection
+      try {
+        await FirebaseFirestore.instance.collection('chat_reports').add({
+          'chatId': chat.id,
+          'reportedBy': currentUser.uid,
+          'reason': _reasonController.text.trim(),
+          'reportedAt': FieldValue.serverTimestamp(),
+          'productId': chat.productId ?? '',
+          'productOwnerId': chat.productOwnerId ?? '',
+          'participants': chat.participants ?? [],
+          'status': 'pending', // Initial status of the report
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Chat reported successfully'),
+            content: Text('Chat reported successfully'.tr()),
             backgroundColor: Colors.orange,
           ),
         );
+      } catch (e) {
+        log('Error saving report to Firestore: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to report chat: $e'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    } catch (e) {
-      log('Error showing report dialog: $e');
     }
+  } catch (e) {
+    log('Error showing report dialog: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error showing report dialog: $e'.tr()),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    _reasonController.dispose();
   }
-
+}
   Future<bool> _showDeleteConfirmation(dynamic chat) async {
     try {
       final result = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Delete Chat'),
-          content: Text('Are you sure you want to delete this chat? This action cannot be undone.'),
+          backgroundColor: Theme.of(context).brightness != Brightness.dark
+              ? Colors.white
+              : Colors.black,
+          title: Text('Delete Chat'.tr()),
+          content: Text('Are you sure you want to delete this chat? This action cannot be undone.'.tr()),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
+              child: Text('Cancel'.tr()),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Delete', style: TextStyle(color: Colors.red)),
+              child: Text('Delete'.tr(), style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
@@ -539,7 +602,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 30),
           Text(
-            'No conversations yet',
+            'No conversations yet'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -550,7 +613,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Start browsing products and connect with sellers',
+              'Start browsing products and connect with sellers'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -640,7 +703,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                             fontWeight: unreadCount > 0
                                 ? FontWeight.w700
                                 : FontWeight.w600,
-                            color: Colors.black,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -666,17 +728,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       Expanded(
                         child: Text(
                           isTyping
-                              ? 'Typing...'
+                              ? 'Typing...'.tr()
                               : chat.lastMessage.isEmpty
-                              ? 'No messages yet'
+                              ? 'No messages yet'.tr()
                               : chat.lastMessage,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             color: isTyping
                                 ? Colors.green
                                 : unreadCount > 0
-                                ? Colors.black87
-                                : Colors.grey[600],
+                                ?null:null,
                             fontStyle: isTyping
                                 ? FontStyle.italic
                                 : FontStyle.normal,
@@ -864,7 +925,7 @@ class ChatSearchDelegate extends SearchDelegate<String> {
             Icon(Icons.search, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
-              'Search your conversations',
+              'Search your conversations'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -897,7 +958,7 @@ class ChatSearchDelegate extends SearchDelegate<String> {
             Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
-              'No conversations found',
+              'No conversations found'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -905,7 +966,7 @@ class ChatSearchDelegate extends SearchDelegate<String> {
             ),
             SizedBox(height: 8),
             Text(
-              'Try searching with different keywords',
+              'Try searching with different keywords'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -967,17 +1028,19 @@ class ChatSearchDelegate extends SearchDelegate<String> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: unreadCount > 0 ? FontWeight.w700 : FontWeight.w600,
-                      color: Colors.black,
+
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: 4),
                   Text(
-                    chat.lastMessage.isEmpty ? 'No messages yet' : chat.lastMessage,
+                    chat.lastMessage.isEmpty ? 'No messages yet'.tr() : chat.lastMessage,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
-                      color: unreadCount > 0 ? Colors.black87 : Colors.grey[600],
+                      color: unreadCount > 0
+                          ? Colors.grey[600]
+                          : Colors.grey[600],
                       fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
                     ),
                     maxLines: 1,

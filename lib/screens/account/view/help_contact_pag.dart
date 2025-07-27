@@ -122,9 +122,9 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
@@ -136,12 +136,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               ? GoogleFonts.cairo(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black,
+                  // color: Colors.black,
                 )
               : GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black,
+                  // color: Colors.black,
                 ),
         ),
         centerTitle: false,
@@ -452,12 +452,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
                 ? GoogleFonts.cairo(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    // color: Colors.white,
                   )
                 : GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    // color: Colors.white,
                   ),
           ),
           const SizedBox(height: 8),
@@ -475,25 +475,25 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickActionButton(
-                  icon: Icons.chat_bubble_outline,
-                  label: AppLocalizations.liveChat.tr(),
-                  onTap: () => _tabController.animateTo(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQuickActionButton(
-                  icon: Icons.email_outlined,
-                  label: AppLocalizations.email.tr(),
-                  onTap: () => _launchEmail(),
-                ),
-              ),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _buildQuickActionButton(
+          //         icon: Icons.chat_bubble_outline,
+          //         label: AppLocalizations.liveChat.tr(),
+          //         onTap: () => _tabController.animateTo(2),
+          //       ),
+          //     ),
+          //     const SizedBox(width: 12),
+          //     Expanded(
+          //       child: _buildQuickActionButton(
+          //         icon: Icons.email_outlined,
+          //         label: AppLocalizations.email.tr(),
+          //         onTap: () => _launchEmail(),
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
@@ -524,12 +524,12 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
                   ? GoogleFonts.cairo(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: Colors.white,
+                      // color: Colors.white,
                     )
                   : GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: Colors.white,
+                      // color: Colors.white,
                     ),
             ),
           ],
@@ -562,7 +562,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
               ? GoogleFonts.cairo(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  // color: Colors.black,
                 )
               : GoogleFonts.poppins(
                   fontSize: 20,
@@ -593,27 +593,27 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildContactMethodCard(
-                icon: Icons.chat_bubble_outline,
-                title: AppLocalizations.liveChat.tr(),
-                subtitle: AppLocalizations.available24_7.tr(),
-                onTap: () => _showChatDialog(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildContactMethodCard(
-                icon: Icons.bug_report_outlined,
-                title: AppLocalizations.reportBug.tr(),
-                subtitle: AppLocalizations.technicalIssues.tr(),
-                onTap: () => _showBugReportDialog(),
-              ),
-            ),
-          ],
-        ),
+        // Row(
+        //   children: [
+        //     Expanded(
+        //       child: _buildContactMethodCard(
+        //         icon: Icons.chat_bubble_outline,
+        //         title: AppLocalizations.liveChat.tr(),
+        //         subtitle: AppLocalizations.available24_7.tr(),
+        //         onTap: () => _showChatDialog(),
+        //       ),
+        //     ),
+        //     const SizedBox(width: 12),
+        //     Expanded(
+        //       child: _buildContactMethodCard(
+        //         icon: Icons.bug_report_outlined,
+        //         title: AppLocalizations.reportBug.tr(),
+        //         subtitle: AppLocalizations.technicalIssues.tr(),
+        //         onTap: () => _showBugReportDialog(),
+        //       ),
+        //     ),
+        //   ],
+        // ),
       ],
     );
   }
@@ -1165,7 +1165,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             _buildFormField(
               controller: _nameController,
               label: '${AppLocalizations.fullName.tr()}',
-              hint: 'Enter your full name',
+              hint: 'enter_full_name'.tr(),
               validator: (value) => value?.isEmpty == true ? 'Name is required' : null,
             ),
             
@@ -1175,7 +1175,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             _buildFormField(
               controller: _emailController,
               label: '${AppLocalizations.enterEmailAddress.tr()}',
-              hint: 'Enter your email address',
+              hint: 'enter_email_address'.tr(),
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
                 if (value?.isEmpty == true) return 'Email is required';
@@ -1194,7 +1194,6 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.black,
               ),
             ),
             const SizedBox(height: 8),
@@ -1207,19 +1206,23 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _selectedCategory,
+                  value: _selectedCategory.tr(),
+                  style:GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
                   isExpanded: true,
                   onChanged: (value) {
                     setState(() {
                       _selectedCategory = value!;
                     });
                   },
-                  items: const [
-                    DropdownMenuItem(value: 'general', child: Text('General Inquiry')),
-                    DropdownMenuItem(value: 'account', child: Text('Account Issues')),
-                    DropdownMenuItem(value: 'technical', child: Text('Technical Support')),
-                    DropdownMenuItem(value: 'billing', child: Text('Billing & Payments')),
-                    DropdownMenuItem(value: 'feedback', child: Text('Feedback & Suggestions')),
+                  items:  [
+                    DropdownMenuItem(value: 'general', child: Text('General Inquiry'.tr())),
+                    DropdownMenuItem(value: 'account', child: Text('Account Issues'.tr())),
+                    DropdownMenuItem(value: 'technical', child: Text('Technical Support'.tr())),
+                    DropdownMenuItem(value: 'billing', child: Text('Billing & Payments'.tr())),
+                    DropdownMenuItem(value: 'feedback', child: Text('Feedback & Suggestions'.tr())),
                   ],
                 ),
               ),
@@ -1231,8 +1234,8 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             _buildFormField(
               controller: _subjectController,
               label: '${AppLocalizations.subject.tr()}',
-              hint: 'Brief description of your inquiry',
-              validator: (value) => value?.isEmpty == true ? 'Subject is required' : null,
+              hint: 'Brief description of your inquiry'.tr(),
+              validator: (value) => value?.isEmpty == true ? 'Subject is required'.tr() : null,
             ),
             
             const SizedBox(height: 16),
@@ -1241,9 +1244,9 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             _buildFormField(
               controller: _messageController,
               label: '${AppLocalizations.message.tr()}',
-              hint: 'Describe your issue or question in detail...',
+              hint: 'Describe your issue or question in detail...'.tr(),
               maxLines: 5,
-              validator: (value) => value?.isEmpty == true ? 'Message is required' : null,
+              validator: (value) => value?.isEmpty == true ? 'Message is required'.tr() : null,
             ),
             
             const SizedBox(height: 24),
@@ -1301,7 +1304,6 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: Colors.black,
           ),
         ),
         const SizedBox(height: 8),
@@ -1431,7 +1433,7 @@ class _HelpArticlesPageState extends State<HelpArticlesPage> {
                       Icon(Icons.article_outlined, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
-                        'No Articles Available',
+                        'No Articles Available'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -1440,7 +1442,7 @@ class _HelpArticlesPageState extends State<HelpArticlesPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Articles for this category will appear here',
+                        'Articles for this category will appear here'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           color: Colors.grey[500],
@@ -1528,7 +1530,7 @@ class ArticleDetailPage extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Help Article',
+          'Help Article'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1600,7 +1602,7 @@ class _BugReportPageState extends State<BugReportPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Report Bug',
+          'Report Bug'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -1616,7 +1618,7 @@ class _BugReportPageState extends State<BugReportPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Help us improve by reporting bugs',
+                'Help us improve by reporting bugs'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   color: Colors.grey[600],
@@ -1626,37 +1628,37 @@ class _BugReportPageState extends State<BugReportPage> {
               
               _buildFormField(
                 controller: _titleController,
-                label: 'Bug Title',
-                hint: 'Brief description of the bug',
-                validator: (value) => value?.isEmpty == true ? 'Title is required' : null,
+                label: 'Bug Title'.tr(),
+                hint: 'Brief description of the bug'.tr(),
+                validator: (value) => value?.isEmpty == true ? 'Title is required'.tr() : null,
               ),
               
               const SizedBox(height: 16),
               
               _buildFormField(
                 controller: _descriptionController,
-                label: 'Description',
-                hint: 'Detailed description of the bug',
+                label: 'Description'.tr(),
+                hint: 'Detailed description of the bug'.tr(),
                 maxLines: 4,
-                validator: (value) => value?.isEmpty == true ? 'Description is required' : null,
+                validator: (value) => value?.isEmpty == true ? 'Description is required'.tr() : null,
               ),
               
               const SizedBox(height: 16),
               
               _buildFormField(
                 controller: _stepsController,
-                label: 'Steps to Reproduce',
-                hint: '1. Go to...\n2. Click on...\n3. Notice that...',
+                label: 'Steps to Reproduce'.tr(),
+                hint: '${"1. Go to...".tr()}\n${"2. Click on...".tr()}\n${"3. Notice that...".tr()}',
                 maxLines: 4,
-                validator: (value) => value?.isEmpty == true ? 'Steps are required' : null,
+                validator: (value) => value?.isEmpty == true ? 'Steps are required'.tr() : null,
               ),
               
               const SizedBox(height: 16),
               
               _buildFormField(
                 controller: _expectedController,
-                label: 'Expected Behavior',
-                hint: 'What should happen?',
+                label: 'Expected Behavior'.tr(),
+                hint: 'What should happen?'.tr(),
                 maxLines: 3,
               ),
               
@@ -1664,8 +1666,8 @@ class _BugReportPageState extends State<BugReportPage> {
               
               _buildFormField(
                 controller: _actualController,
-                label: 'Actual Behavior',
-                hint: 'What actually happened?',
+                label: 'Actual Behavior'.tr(),
+                hint: 'What actually happened?'.tr(),
                 maxLines: 3,
               ),
               
@@ -1692,7 +1694,7 @@ class _BugReportPageState extends State<BugReportPage> {
                           ),
                         )
                       : Text(
-                          'Submit Bug Report',
+                          'Submit Bug Report'.tr(),
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -1776,10 +1778,10 @@ class _BugReportPageState extends State<BugReportPage> {
       if (result['success']) {
         _showSuccessDialog();
       } else {
-        _showErrorSnackBar(result['message'] ?? 'Failed to submit bug report');
+        _showErrorSnackBar(result['message'] ?? 'Failed to submit bug report'.tr());
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to submit bug report. Please try again.');
+      _showErrorSnackBar('Failed to submit bug report. Please try again.'.tr());
     } finally {
       setState(() => _isSubmitting = false);
     }
@@ -1791,11 +1793,11 @@ class _BugReportPageState extends State<BugReportPage> {
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.check_circle, color: Colors.green, size: 48),
         title: Text(
-          'Bug Report Submitted!',
+          'Bug Report Submitted!'.tr(),
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         content: Text(
-          'Thank you for helping us improve. We\'ll investigate this issue.',
+          'Thank you for helping us improve. We\'ll investigate this issue.'.tr(),
           style: GoogleFonts.poppins(fontSize: 14),
           textAlign: TextAlign.center,
         ),
@@ -1806,7 +1808,7 @@ class _BugReportPageState extends State<BugReportPage> {
               Navigator.of(context).pop();
             },
             child: Text(
-              'OK',
+              'OK'.tr(),
               style: GoogleFonts.poppins(
                 color: const Color(0xFF0D5E2A),
                 fontWeight: FontWeight.w600,

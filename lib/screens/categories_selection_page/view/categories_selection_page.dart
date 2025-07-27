@@ -5,18 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
 class CategorySelectionPage extends StatefulWidget {
   final List<Map<String, dynamic>> categories;
   final List<Map<String, dynamic>> mainCategories;
   final String? selectedMainCategoryId;
-  final bool isForSearch; // NEW: Distinguish between search and add item
+  final bool isForSearch; // Distinguish between search and add item
 
   const CategorySelectionPage({
     Key? key,
     required this.categories,
     required this.mainCategories,
     this.selectedMainCategoryId,
-    this.isForSearch = false, // NEW: Default to add item behavior
+    this.isForSearch = false,
   }) : super(key: key);
 
   @override
@@ -44,20 +45,17 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          widget.isForSearch ? 'Select Category for Search' : AppLocalizations.selectCategoryTitle.tr(),
+          widget.isForSearch ? 'Select Category for Search'.tr() : AppLocalizations.selectCategoryTitle.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -67,62 +65,19 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Breadcrumb
-            if (_selectedMainCategoryId != null || _selectedSubCategoryId != null || _selectedSubSubCategoryId != null)
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    if (_selectedMainCategoryId != null) ...[
-                      Text(
-                        _getSelectedCategoryName(_selectedMainCategoryId!, widget.categories),
-                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      if (_selectedSubCategoryId != null) ...[
-                        Icon(Icons.chevron_right, size: 16),
-                        Text(
-                          _getSelectedCategoryName(_selectedSubCategoryId!, widget.categories),
-                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                      if (_selectedSubSubCategoryId != null) ...[
-                        Icon(Icons.chevron_right, size: 16),
-                        Text(
-                          _getSelectedCategoryName(_selectedSubSubCategoryId!, widget.categories),
-                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                      if (_selectedSubSubSubCategoryId != null) ...[
-                        Icon(Icons.chevron_right, size: 16),
-                        Text(
-                          _getSelectedCategoryName(_selectedSubSubSubCategoryId!, widget.categories),
-                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-           
+            _buildBreadcrumb(),
+            
             SizedBox(height: 16),
 
-            // NEW: Select All button section (only for search)
+            // Select All section (only for search)
             if (widget.isForSearch) ...[
               _buildSelectAllSection(),
               SizedBox(height: 16),
             ],
 
+            // Current level title
             Text(
-              _selectedSubSubSubCategoryId != null 
-                  ? AppLocalizations.chooseSubSubSubcategory.tr()
-                  : _selectedSubSubCategoryId != null 
-                      ? AppLocalizations.chooseSubSubcategory.tr()
-                      : _selectedSubCategoryId != null 
-                          ? AppLocalizations.chooseSubcategory.tr()
-                          : AppLocalizations.chooseMainCategory.tr(),
+              _getCurrentLevelTitle(),
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -130,6 +85,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
             ),
             SizedBox(height: 12),
 
+            // Categories list
             Expanded(
               child: ListView.builder(
                 itemCount: _getCurrentCategories().length,
@@ -140,55 +96,146 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
               ),
             ),
 
-            // Done button (only show when category is selected and no auto-selection occurred)
-            if (_selectedMainCategoryId != null && 
-                _getCurrentCategories().isNotEmpty && 
-                _selectedSubSubSubCategoryId == null &&
-                _subSubSubCategories.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: ElevatedButton(
-                  onPressed: () {
-                    final finalCategoryId = _selectedSubSubSubCategoryId ?? 
-                                          _selectedSubSubCategoryId ?? 
-                                          _selectedSubCategoryId ?? 
-                                          _selectedMainCategoryId;
-                    final categoryName = _getSelectedCategoryName(finalCategoryId!, widget.categories);
-
-                    Navigator.pop(context, {
-                      'mainCategoryId': _selectedMainCategoryId,
-                      'subCategoryId': _selectedSubCategoryId,
-                      'subSubCategoryId': _selectedSubSubCategoryId,
-                      'subSubSubCategoryId': _selectedSubSubSubCategoryId,
-                      'finalCategoryId': finalCategoryId,
-                      'categoryName': categoryName,
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ColorsController.primaryColor,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    AppLocalizations.selectThisCategory.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
+            // Done button (for item adding - allow selection at any level)
+            if (!widget.isForSearch && _selectedMainCategoryId != null)
+              _buildDoneButton(),
           ],
         ),
       ),
     );
   }
 
-  // NEW: Build Select All section
+  Widget _buildBreadcrumb() {
+    if (_selectedMainCategoryId == null) return SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              children: [
+                _buildBreadcrumbItem(_selectedMainCategoryId!, true),
+                if (_selectedSubCategoryId != null) ...[
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey[600]),
+                  _buildBreadcrumbItem(_selectedSubCategoryId!, true),
+                ],
+                if (_selectedSubSubCategoryId != null) ...[
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey[600]),
+                  _buildBreadcrumbItem(_selectedSubSubCategoryId!, true),
+                ],
+                if (_selectedSubSubSubCategoryId != null) ...[
+                  Icon(Icons.chevron_right, size: 16, color: Colors.grey[600]),
+                  _buildBreadcrumbItem(_selectedSubSubSubCategoryId!, false),
+                ],
+              ],
+            ),
+          ),
+          // Back button for navigation
+          if (_selectedSubSubSubCategoryId != null || 
+              _selectedSubSubCategoryId != null || 
+              _selectedSubCategoryId != null)
+            IconButton(
+              icon: Icon(Icons.arrow_back, size: 20),
+              onPressed: _goBackOneLevel,
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreadcrumbItem(String categoryId, bool isClickable) {
+    final name = _getSelectedCategoryName(categoryId, widget.categories);
+    return isClickable 
+        ? InkWell(
+            onTap: () => _navigateToCategoryLevel(categoryId),
+            child: Text(
+              name,
+              style: GoogleFonts.poppins(
+                fontSize: 14, 
+                fontWeight: FontWeight.w500,
+                color: ColorsController.primaryColor,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          )
+        : Text(
+            name,
+            style: GoogleFonts.poppins(
+              fontSize: 14, 
+              fontWeight: FontWeight.w500,
+            ),
+          );
+  }
+
+  void _goBackOneLevel() {
+    setState(() {
+      if (_selectedSubSubSubCategoryId != null) {
+        _selectedSubSubSubCategoryId = null;
+        _subSubSubCategories = [];
+      } else if (_selectedSubSubCategoryId != null) {
+        _selectedSubSubCategoryId = null;
+        _subSubCategories = [];
+        _subSubSubCategories = [];
+      } else if (_selectedSubCategoryId != null) {
+        _selectedSubCategoryId = null;
+        _subCategories = _subCategories; // Keep subcategories
+        _subSubCategories = [];
+        _subSubSubCategories = [];
+      } else if (_selectedMainCategoryId != null) {
+        _selectedMainCategoryId = null;
+        _subCategories = [];
+        _subSubCategories = [];
+        _subSubSubCategories = [];
+      }
+    });
+  }
+
+  void _navigateToCategoryLevel(String categoryId) {
+    // Navigate back to the selected category level
+    final category = widget.categories.firstWhere((cat) => cat['id'] == categoryId);
+    final level = category['level'] ?? 0;
+
+    setState(() {
+      if (level == 0) {
+        _selectedMainCategoryId = categoryId;
+        _selectedSubCategoryId = null;
+        _selectedSubSubCategoryId = null;
+        _selectedSubSubSubCategoryId = null;
+        _loadSubCategories(categoryId);
+      } else if (level == 1) {
+        _selectedSubCategoryId = categoryId;
+        _selectedSubSubCategoryId = null;
+        _selectedSubSubSubCategoryId = null;
+        _loadSubSubCategories(categoryId);
+      } else if (level == 2) {
+        _selectedSubSubCategoryId = categoryId;
+        _selectedSubSubSubCategoryId = null;
+        _loadSubSubSubCategories(categoryId);
+      }
+    });
+  }
+
+  String _getCurrentLevelTitle() {
+    if (_selectedSubSubSubCategoryId != null) {
+      return AppLocalizations.chooseSubSubSubcategory.tr();
+    } else if (_selectedSubSubCategoryId != null) {
+      return AppLocalizations.chooseSubSubcategory.tr();
+    } else if (_selectedSubCategoryId != null) {
+      return AppLocalizations.chooseSubcategory.tr();
+    } else if (_selectedMainCategoryId != null) {
+      return AppLocalizations.chooseSubcategory.tr();
+    } else {
+      return AppLocalizations.chooseMainCategory.tr();
+    }
+  }
+
   Widget _buildSelectAllSection() {
     if (!widget.isForSearch) return SizedBox.shrink();
 
@@ -196,20 +243,18 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
     String categoryName = '';
     bool showSelectAll = false;
 
+    // Show "Select All" when there are subcategories to include
     if (_selectedMainCategoryId != null && _subCategories.isNotEmpty && _selectedSubCategoryId == null) {
-      // Show "Select All Subcategories" under main category
       categoryName = _getSelectedCategoryName(_selectedMainCategoryId!, widget.categories);
-      selectAllText = 'Select All in "$categoryName"';
+      selectAllText = 'Search in all "$categoryName" subcategories';
       showSelectAll = true;
     } else if (_selectedSubCategoryId != null && _subSubCategories.isNotEmpty && _selectedSubSubCategoryId == null) {
-      // Show "Select All Sub-subcategories" under subcategory
       categoryName = _getSelectedCategoryName(_selectedSubCategoryId!, widget.categories);
-      selectAllText = 'Select All in "$categoryName"';
+      selectAllText = 'Search in all "$categoryName" subcategories';
       showSelectAll = true;
     } else if (_selectedSubSubCategoryId != null && _subSubSubCategories.isNotEmpty && _selectedSubSubSubCategoryId == null) {
-      // Show "Select All Sub-sub-subcategories" under sub-subcategory
       categoryName = _getSelectedCategoryName(_selectedSubSubCategoryId!, widget.categories);
-      selectAllText = 'Select All in "$categoryName"';
+      selectAllText = 'Search in all "$categoryName" subcategories';
       showSelectAll = true;
     }
 
@@ -230,7 +275,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
           Text(
             selectAllText,
             style: GoogleFonts.poppins(
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
               color: Colors.blue[700],
             ),
@@ -238,7 +283,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
           ),
           SizedBox(height: 8),
           Text(
-            'Search in all subcategories at once',
+            'Include all subcategories in search results'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: Colors.blue[600],
@@ -249,23 +294,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                // Return the current selected category as "select all"
-                final finalCategoryId = _selectedSubSubCategoryId ?? 
-                                      _selectedSubCategoryId ?? 
-                                      _selectedMainCategoryId;
-                final finalCategoryName = _getSelectedCategoryName(finalCategoryId!, widget.categories);
-
-                Navigator.pop(context, {
-                  'mainCategoryId': _selectedMainCategoryId,
-                  'subCategoryId': _selectedSubCategoryId,
-                  'subSubCategoryId': _selectedSubSubCategoryId,
-                  'subSubSubCategoryId': null,
-                  'finalCategoryId': finalCategoryId,
-                  'categoryName': finalCategoryName,
-                  'isSelectAll': true, // NEW: Flag to indicate this is a "select all"
-                });
-              },
+              onPressed: () => _selectAllSubcategories(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue[600],
                 shape: RoundedRectangleBorder(
@@ -274,7 +303,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
                 padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
-                'Select All',
+                'Select All Subcategories'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -288,11 +317,68 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
     );
   }
 
+  void _selectAllSubcategories() {
+    final finalCategoryId = _selectedSubSubCategoryId ?? 
+                          _selectedSubCategoryId ?? 
+                          _selectedMainCategoryId;
+    final finalCategoryName = _getSelectedCategoryName(finalCategoryId!, widget.categories);
+
+    Navigator.pop(context, {
+      'mainCategoryId': _selectedMainCategoryId,
+      'subCategoryId': _selectedSubCategoryId,
+      'subSubCategoryId': _selectedSubSubCategoryId,
+      'subSubSubCategoryId': null,
+      'finalCategoryId': finalCategoryId,
+      'categoryName': finalCategoryName,
+      'isSelectAll': true,
+    });
+  }
+
+  Widget _buildDoneButton() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 16),
+      child: ElevatedButton(
+        onPressed: () => _selectCurrentCategory(),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: ColorsController.primaryColor,
+          padding: EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: Text(
+          AppLocalizations.selectThisCategory.tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _selectCurrentCategory() {
+    final finalCategoryId = _selectedSubSubSubCategoryId ?? 
+                          _selectedSubSubCategoryId ?? 
+                          _selectedSubCategoryId ?? 
+                          _selectedMainCategoryId;
+    final categoryName = _getSelectedCategoryName(finalCategoryId!, widget.categories);
+
+    Navigator.pop(context, {
+      'mainCategoryId': _selectedMainCategoryId,
+      'subCategoryId': _selectedSubCategoryId,
+      'subSubCategoryId': _selectedSubSubCategoryId,
+      'subSubSubCategoryId': _selectedSubSubSubCategoryId,
+      'finalCategoryId': finalCategoryId,
+      'categoryName': categoryName,
+    });
+  }
+
   List<Map<String, dynamic>> _getCurrentCategories() {
-    if (_selectedSubSubSubCategoryId != null) {
+    if (_selectedSubSubCategoryId != null) {
       return _subSubSubCategories;
-    } else if (_selectedSubSubCategoryId != null) {
-      return _subSubCategories;
     } else if (_selectedSubCategoryId != null) {
       return _subSubCategories;
     } else if (_selectedMainCategoryId != null) {
@@ -308,103 +394,11 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
                       category['id'] == _selectedSubSubCategoryId ||
                       category['id'] == _selectedSubSubSubCategoryId;
 
-    return InkWell(
-      onTap: () async {
-        final categoryId = category['id'];
-        final level = category['level'] ?? 0;
+    // Check if this category has subcategories
+    final hasSubcategories = _hasSubcategories(category['id'], category['level']);
 
-        if (level == 0) {
-          // Main category selected
-          setState(() {
-            _selectedMainCategoryId = categoryId;
-            _selectedSubCategoryId = null;
-            _selectedSubSubCategoryId = null;
-            _selectedSubSubSubCategoryId = null;
-            _loadSubCategories(categoryId);
-          });
-          
-          // Check if there are no subcategories - auto-select
-          await Future.delayed(Duration(milliseconds: 200));
-          if (_subCategories.isEmpty || !widget.isForSearch) {
-            final finalCategoryId = categoryId;
-            final categoryName = category['name'] ?? 'Unknown';
-            
-            Navigator.pop(context, {
-              'mainCategoryId': finalCategoryId,
-              'subCategoryId': null,
-              'subSubCategoryId': null,
-              'subSubSubCategoryId': null,
-              'finalCategoryId': finalCategoryId,
-              'categoryName': categoryName,
-            });
-          }
-        } else if (level == 1) {
-          // Subcategory selected
-          setState(() {
-            _selectedSubCategoryId = categoryId;
-            _selectedSubSubCategoryId = null;
-            _selectedSubSubSubCategoryId = null;
-            _loadSubSubCategories(categoryId);
-          });
-          
-          // Check if there are no sub-subcategories - auto-select
-          await Future.delayed(Duration(milliseconds: 200));
-          if (_subSubCategories.isEmpty || !widget.isForSearch) {
-            final finalCategoryId = categoryId;
-            final categoryName = category['name'] ?? 'Unknown';
-            
-            Navigator.pop(context, {
-              'mainCategoryId': _selectedMainCategoryId,
-              'subCategoryId': finalCategoryId,
-              'subSubCategoryId': null,
-              'subSubSubCategoryId': null,
-              'finalCategoryId': finalCategoryId,
-              'categoryName': categoryName,
-            });
-          }
-        } else if (level == 2) {
-          // Sub-subcategory selected
-          setState(() {
-            _selectedSubSubCategoryId = categoryId;
-            _selectedSubSubSubCategoryId = null;
-            _loadSubSubSubCategories(categoryId);
-          });
-          
-          // Check if there are no sub-sub-subcategories - auto-select
-          await Future.delayed(Duration(milliseconds: 200));
-          if (_subSubSubCategories.isEmpty || !widget.isForSearch) {
-            final finalCategoryId = categoryId;
-            final categoryName = category['name'] ?? 'Unknown';
-            
-            Navigator.pop(context, {
-              'mainCategoryId': _selectedMainCategoryId,
-              'subCategoryId': _selectedSubCategoryId,
-              'subSubCategoryId': finalCategoryId,
-              'subSubSubCategoryId': null,
-              'finalCategoryId': finalCategoryId,
-              'categoryName': categoryName,
-            });
-          }
-        } else if (level == 3) {
-          // Sub-sub-subcategory selected - Auto-select and return
-          setState(() {
-            _selectedSubSubSubCategoryId = categoryId;
-          });
-          
-          // Auto-return with the selected category
-          final finalCategoryId = categoryId;
-          final categoryName = category['name'] ?? 'Unknown';
-          
-          Navigator.pop(context, {
-            'mainCategoryId': _selectedMainCategoryId,
-            'subCategoryId': _selectedSubCategoryId,
-            'subSubCategoryId': _selectedSubSubCategoryId,
-            'subSubSubCategoryId': finalCategoryId,
-            'finalCategoryId': finalCategoryId,
-            'categoryName': categoryName,
-          });
-        }
-      },
+    return InkWell(
+      onTap: () => _onCategoryTap(category),
       child: Container(
         margin: EdgeInsets.only(bottom: 8),
         padding: EdgeInsets.all(16),
@@ -417,40 +411,194 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         ),
         child: Row(
           children: [
-            if (category['icon'] != null)
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: ColorsController.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.category,
-                  color: ColorsController.primaryColor,
-                  size: 20,
-                ),
+            // Category icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: ColorsController.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: category['iconUrl'] != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        category['iconUrl'],
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.category,
+                            color: ColorsController.primaryColor,
+                            size: 20,
+                          );
+                        },
+                      ),
+                    )
+                  : Icon(
+                      Icons.category,
+                      color: ColorsController.primaryColor,
+                      size: 20,
+                    ),
+            ),
             SizedBox(width: 12),
+            
+            // Category name and subtitle
             Expanded(
-              child: Text(
-                category['name'] ?? 'Unknown',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: isSelected ? ColorsController.primaryColor : Colors.black,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category['name'] ?? 'Unknown',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected ? ColorsController.primaryColor : Colors.black,
+                    ),
+                  ),
+                  if (hasSubcategories && widget.isForSearch)
+                    Text(
+                      'Has subcategories',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                ],
               ),
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey[600],
+            
+            // Action buttons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Select this category button (for search)
+                if (widget.isForSearch && _selectedMainCategoryId != null)
+                  InkWell(
+                    onTap: () => _selectSpecificCategory(category),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Text(
+                        'Select',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                
+                if (widget.isForSearch && _selectedMainCategoryId != null)
+                  SizedBox(width: 8),
+                
+                // Navigation arrow
+                Icon(
+                  hasSubcategories ? Icons.arrow_forward_ios : Icons.check_circle_outline,
+                  size: 16,
+                  color: hasSubcategories ? Colors.grey[600] : Colors.green[600],
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  bool _hasSubcategories(String categoryId, int currentLevel) {
+    return widget.categories.any((cat) => 
+        cat['parentId'] == categoryId && cat['level'] == currentLevel + 1);
+  }
+
+  void _onCategoryTap(Map<String, dynamic> category) async {
+    final categoryId = category['id'];
+    final level = category['level'] ?? 0;
+    final hasSubcategories = _hasSubcategories(categoryId, level);
+
+    print('🏷️ Category tapped: ${category['name']} (Level: $level, Has subcategories: $hasSubcategories)');
+
+    if (level == 0) {
+      // Main category selected
+      setState(() {
+        _selectedMainCategoryId = categoryId;
+        _selectedSubCategoryId = null;
+        _selectedSubSubCategoryId = null;
+        _selectedSubSubSubCategoryId = null;
+      });
+      
+      if (hasSubcategories) {
+        _loadSubCategories(categoryId);
+      } else {
+        // No subcategories - auto-select for both search and item adding
+        _selectSpecificCategory(category);
+      }
+      
+    } else if (level == 1) {
+      // Subcategory selected
+      setState(() {
+        _selectedSubCategoryId = categoryId;
+        _selectedSubSubCategoryId = null;
+        _selectedSubSubSubCategoryId = null;
+      });
+      
+      if (hasSubcategories) {
+        _loadSubSubCategories(categoryId);
+      } else {
+        // No subcategories - auto-select for both search and item adding
+        _selectSpecificCategory(category);
+      }
+      
+    } else if (level == 2) {
+      // Sub-subcategory selected
+      setState(() {
+        _selectedSubSubCategoryId = categoryId;
+        _selectedSubSubSubCategoryId = null;
+      });
+      
+      if (hasSubcategories) {
+        _loadSubSubSubCategories(categoryId);
+      } else {
+        // No subcategories - auto-select for both search and item adding
+        _selectSpecificCategory(category);
+      }
+      
+    } else if (level == 3) {
+      // Sub-sub-subcategory selected - always auto-select (deepest level)
+      _selectSpecificCategory(category);
+    }
+  }
+
+  void _selectSpecificCategory(Map<String, dynamic> category) {
+    final categoryId = category['id'];
+    final categoryName = category['name'] ?? 'Unknown';
+    final level = category['level'] ?? 0;
+
+    // Update state based on level
+    if (level == 0) {
+      _selectedMainCategoryId = categoryId;
+    } else if (level == 1) {
+      _selectedSubCategoryId = categoryId;
+    } else if (level == 2) {
+      _selectedSubSubCategoryId = categoryId;
+    } else if (level == 3) {
+      _selectedSubSubSubCategoryId = categoryId;
+    }
+
+    Navigator.pop(context, {
+      'mainCategoryId': level >= 0 ? _selectedMainCategoryId : null,
+      'subCategoryId': level >= 1 ? _selectedSubCategoryId : null,
+      'subSubCategoryId': level >= 2 ? _selectedSubSubCategoryId : null,
+      'subSubSubCategoryId': level >= 3 ? _selectedSubSubSubCategoryId : null,
+      'finalCategoryId': categoryId,
+      'categoryName': categoryName,
+    });
   }
 
   void _loadSubCategories(String mainCategoryId) {
@@ -459,6 +607,8 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         .toList();
     _subSubCategories = [];
     _subSubSubCategories = [];
+    
+    print('📂 Loaded ${_subCategories.length} subcategories for $mainCategoryId');
   }
 
   void _loadSubSubCategories(String subCategoryId) {
@@ -466,12 +616,16 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         .where((cat) => cat['parentId'] == subCategoryId && cat['level'] == 2)
         .toList();
     _subSubSubCategories = [];
+    
+    print('📂 Loaded ${_subSubCategories.length} sub-subcategories for $subCategoryId');
   }
 
   void _loadSubSubSubCategories(String subSubCategoryId) {
     _subSubSubCategories = widget.categories
         .where((cat) => cat['parentId'] == subSubCategoryId && cat['level'] == 3)
         .toList();
+    
+    print('📂 Loaded ${_subSubSubCategories.length} sub-sub-subcategories for $subSubCategoryId');
   }
 
   String _getSelectedCategoryName(String categoryId, List<Map<String, dynamic>> categories) {

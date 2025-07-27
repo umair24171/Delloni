@@ -18,6 +18,7 @@ import 'package:arabicmarketplace/screens/notifications/controller/saved_search_
 import 'package:arabicmarketplace/screens/product_detail/controller/product_detail_provider.dart';
 import 'package:arabicmarketplace/screens/search_page/controller/search_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
+import 'package:arabicmarketplace/screens/sell_items/view/success_page.dart';
 import 'package:arabicmarketplace/splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -117,10 +118,13 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    fetchTestCollection();
+    // fixAllProductsLocation();
+ fetchTestCollection() ;
     _loadSavedLanguage();
     NotificationService().initialize();
   }
+
+  
 
   Future<void> _loadSavedLanguage() async {
     try {
@@ -135,74 +139,304 @@ class _MyAppState extends State<MyApp> {
       print('Error loading saved language: $e');
     }
   }
-
-  fetchTestCollection() async {
-    final testCollection = await FirebaseFirestore.instance.collection('reports').get();
-   var datas = testCollection.docs.map((e) => e.data()).toList();
-   log(datas.first.toString());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
-        return MaterialApp(
-          navigatorKey: navigatorKey,
-          debugShowCheckedModeBanner: false,
-          title: 'Delloni',
-          localizationsDelegates: context.localizationDelegates,
-          supportedLocales: context.supportedLocales,
-          locale: context.locale,
-          theme: ThemeData(
-            scaffoldBackgroundColor: Colors.white,
-            colorScheme: ColorScheme.fromSeed(seedColor: ColorsController.primaryColor),
-            visualDensity: VisualDensity.adaptivePlatformDensity,
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              elevation: 0,
-            ),
-            textTheme: const TextTheme(
-              bodyLarge: TextStyle(color: Colors.black),
-              bodyMedium: TextStyle(color: Colors.black),
-            ),
-          ),
-          darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: ColorsController.darkBackground,
-            colorScheme: ColorScheme.dark(
-              primary: ColorsController.darkPrimaryColor,
-              background: ColorsController.darkBackground,
-              surface: ColorsController.darkSurface,
-              onPrimary: ColorsController.darkText,
-              onBackground: ColorsController.darkText,
-              onSurface: ColorsController.darkText,
-            ),
-            appBarTheme: AppBarTheme(
-              backgroundColor: ColorsController.darkSurface,
-              foregroundColor: ColorsController.darkText,
-              elevation: 0,
-            ),
-            textTheme: const TextTheme(
-              bodyLarge: TextStyle(color: ColorsController.darkText),
-              bodyMedium: TextStyle(color: ColorsController.darkText),
-            ),
-          ),
-          themeMode: themeProvider.themeMode,
-          builder: (context, child) {
-            return Directionality(
-              textDirection: context.locale.languageCode == 'ar'
-                  ? ui.TextDirection.rtl
-                  : ui.TextDirection.ltr,
-              child: child!,
-            );
-          },
-          home: SplashScreen(),
-        );
-      },
-    );
+  // Fix all products to have proper location data
+Future<void> fixAllProductsLocation() async {
+  try {
+    print('🔧 FIXING ALL PRODUCTS LOCATION DATA...');
+    
+    // Get all products with null location data
+    final productsSnapshot = await FirebaseFirestore.instance
+        .collection('items')
+        .where('status', isEqualTo: 'active')
+        .get();
+    
+    print('Found ${productsSnapshot.docs.length} active products to fix');
+    
+    // Use Damascus as default city (most common)
+    final defaultCityId = 'YklpLjwO0CIpXxxZHsKZ'; // Damascus from your list
+    final defaultCityName = 'Damascus';
+    
+    // Get a district in Damascus
+    final districtSnapshot = await FirebaseFirestore.instance
+        .collection('districts')
+        .where('cityId', isEqualTo: defaultCityId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+    
+    String? defaultDistrictId;
+    String? defaultDistrictName;
+    
+    if (districtSnapshot.docs.isNotEmpty) {
+      defaultDistrictId = districtSnapshot.docs.first.id;
+      defaultDistrictName = districtSnapshot.docs.first.data()['name'];
+      print('Using default district: $defaultDistrictName ($defaultDistrictId)');
+    }
+    
+    // Update each product
+    int updatedCount = 0;
+    for (var doc in productsSnapshot.docs) {
+      final data = doc.data();
+      final productTitle = data['itemTitle'] ?? 'Unknown';
+      
+      // Check if product needs location update
+      if (data['cityId'] == null || data['cityId'] == 'null') {
+        await FirebaseFirestore.instance
+            .collection('items')
+            .doc(doc.id)
+            .update({
+              'cityId': defaultCityId,
+              'cityName': defaultCityName,
+              'districtId': defaultDistrictId,
+              'districtName': defaultDistrictName,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+        
+        updatedCount++;
+        print('✅ Updated: $productTitle');
+      }
+    }
+    
+    print('🎉 Successfully updated $updatedCount products with location data');
+    print('All products now have:');
+    print('  - City: $defaultCityName ($defaultCityId)');
+    print('  - District: $defaultDistrictName ($defaultDistrictId)');
+    
+  } catch (e) {
+    print('❌ Error fixing products: $e');
   }
 }
 
-// Add this to your pubspec.yaml dependencies:
-// shared_preferences: ^2.2.2
+// Call once: await fixAllProductsLocation();
+
+  fetchTestCollection() async {
+    final testCollection = await FirebaseFirestore.instance.collection('chat_reports').get();
+
+   var datas = testCollection.docs.map((e) => e.data()).toList();
+   for (var data in datas) {
+    log( 'Product is ${data}');
+   }
+   // log(datas.first.toString());
+  }
+
+  @override
+Widget build(BuildContext context) {
+  return Consumer<ThemeProvider>(
+    builder: (context, themeProvider, _) {
+      return MaterialApp(
+        navigatorKey: navigatorKey,
+        debugShowCheckedModeBanner: false,
+        title: 'Delloni',
+        localizationsDelegates: context.localizationDelegates,
+        supportedLocales: context.supportedLocales,
+        locale: context.locale,
+        theme: ThemeData(
+          scaffoldBackgroundColor: Colors.white,
+          colorScheme: ColorScheme.fromSeed(seedColor: ColorsController.primaryColor),
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: Colors.black),
+            bodyMedium: TextStyle(color: Colors.black),
+          ),
+          // Force white backgrounds for all modal components
+          bottomSheetTheme: const BottomSheetThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            modalBackgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+          ),
+          dialogTheme:  DialogThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          popupMenuTheme: const PopupMenuThemeData(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
+          dropdownMenuTheme: const DropdownMenuThemeData(
+            menuStyle: MenuStyle(
+              backgroundColor: WidgetStatePropertyAll(Colors.white),
+              surfaceTintColor: WidgetStatePropertyAll(Colors.white),
+              shadowColor: WidgetStatePropertyAll(Colors.black26),
+              elevation: WidgetStatePropertyAll(8),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
+              ),
+            ),
+          ),
+          menuTheme: const MenuThemeData(
+            style: MenuStyle(
+              backgroundColor: WidgetStatePropertyAll(Colors.white),
+              surfaceTintColor: WidgetStatePropertyAll(Colors.white),
+              shadowColor: WidgetStatePropertyAll(Colors.black26),
+              elevation: WidgetStatePropertyAll(8),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
+              ),
+            ),
+          ),
+          cardTheme: const CardThemeData(
+            color: Colors.white,
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          timePickerTheme: const TimePickerThemeData(
+            backgroundColor: Colors.white,
+            dialBackgroundColor: Colors.white,
+            entryModeIconColor: Colors.black,
+            helpTextStyle: TextStyle(color: Colors.black),
+            hourMinuteTextStyle: TextStyle(color: Colors.black),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        darkTheme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: ColorsController.darkBackground,
+          colorScheme: ColorScheme.dark(
+            primary: ColorsController.darkPrimaryColor,
+            background: ColorsController.darkBackground,
+            surface: ColorsController.darkSurface,
+            onPrimary: ColorsController.darkText,
+            onBackground: ColorsController.darkText,
+            onSurface: ColorsController.darkText,
+          ),
+          appBarTheme: AppBarTheme(
+            backgroundColor: ColorsController.darkSurface,
+            foregroundColor: ColorsController.darkText,
+            elevation: 0,
+          ),
+          textTheme: const TextTheme(
+            bodyLarge: TextStyle(color: ColorsController.darkText),
+            bodyMedium: TextStyle(color: ColorsController.darkText),
+          ),
+          // FORCE WHITE BACKGROUNDS EVEN IN DARK MODE
+          bottomSheetTheme: const BottomSheetThemeData(
+            backgroundColor: Colors.white, // Always white
+            surfaceTintColor: Colors.white,
+       
+            modalBackgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+          ),
+          dialogTheme: const DialogThemeData(
+            backgroundColor: Colors.white, // Always white
+            surfaceTintColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          popupMenuTheme: const PopupMenuThemeData(
+            color: Colors.white, // Always white
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+          ),
+          dropdownMenuTheme: const DropdownMenuThemeData(
+            menuStyle: MenuStyle(
+              backgroundColor: WidgetStatePropertyAll(Colors.white), // Always white
+              surfaceTintColor: WidgetStatePropertyAll(Colors.white),
+              shadowColor: WidgetStatePropertyAll(Colors.black26),
+              elevation: WidgetStatePropertyAll(8),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
+              ),
+            ),
+          ),
+          menuTheme: const MenuThemeData(
+            style: MenuStyle(
+              backgroundColor: WidgetStatePropertyAll(Colors.white), // Always white
+              surfaceTintColor: WidgetStatePropertyAll(Colors.white),
+              shadowColor: WidgetStatePropertyAll(Colors.black26),
+              elevation: WidgetStatePropertyAll(8),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
+              ),
+            ),
+          ),
+          cardTheme: const CardThemeData(
+            color: Colors.white, // Always white
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white, // Always white
+            surfaceTintColor: Colors.white,
+            shadowColor: Colors.black26,
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          timePickerTheme: const TimePickerThemeData(
+            backgroundColor: Colors.white, // Always white
+            dialBackgroundColor: Colors.white,
+            entryModeIconColor: Colors.black,
+            helpTextStyle: TextStyle(color: Colors.black),
+            hourMinuteTextStyle: TextStyle(color: Colors.black),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        themeMode: themeProvider.themeMode,
+        builder: (context, child) {
+          return Directionality(
+            textDirection: context.locale.languageCode == 'ar'
+                ? ui.TextDirection.rtl
+                : ui.TextDirection.ltr,
+            child: child!,
+          );
+        },
+        home:
+        //  SuccessPage()
+        SplashScreen(),
+      );
+    },
+  );
+}}

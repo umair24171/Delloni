@@ -1,6 +1,7 @@
 
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:rename/platform_file_editors/abs_platform_file_editor.dart';
@@ -105,20 +106,20 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        // backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Select Location',
+          'Select Location'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.black,
+            // color: Colors.black,
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -161,7 +162,7 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                     child: Column(
                       children: [
                         Text(
-                          'Selected Location:',
+                          'Selected Location:'.tr(),
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             color: Colors.blue[700],
@@ -188,15 +189,33 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                     if (_selectedCityId != null)
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _selectedCityId = null;
-                              _selectedCityName = null;
-                              _selectedDistrictId = null;
-                              _selectedDistrictName = null;
-                              _districts = [];
-                            });
-                          },
+                         onPressed: _selectedCityId != null ? () {
+  final fullAddress = _selectedDistrictName != null
+      ? '$_selectedDistrictName, $_selectedCityName'
+      : _selectedCityName!;
+
+  // DEBUG: Print what we're about to return
+  print('🏙️ CITY SELECTION DEBUG:');
+  print('  - Selected City ID: $_selectedCityId');
+  print('  - Selected City Name: $_selectedCityName');
+  print('  - Selected District ID: $_selectedDistrictId');
+  print('  - Selected District Name: $_selectedDistrictName');
+  print('  - Full Address: $fullAddress');
+  
+  final resultData = {
+    'cityId': _selectedCityId,
+    'districtId': _selectedDistrictId,
+    'cityName': _selectedCityName,
+    'districtName': _selectedDistrictName,
+    'fullAddress': fullAddress,
+    'latitude': 0.0,
+    'longitude': 0.0,
+  };
+  
+  print('  - Returning data: $resultData');
+
+  Navigator.pop(context, resultData);
+} : null,
                           style: OutlinedButton.styleFrom(
                             padding: EdgeInsets.symmetric(vertical: 12),
                             side: BorderSide(color: Colors.grey[400]!),
@@ -205,7 +224,7 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                             ),
                           ),
                           child: Text(
-                            'Change City',
+                            'Change City'.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -224,6 +243,12 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                           final fullAddress = _selectedDistrictName != null
                               ? '$_selectedDistrictName, $_selectedCityName'
                               : _selectedCityName!;
+                          print('🏙️ CITY SELECTION DEBUG:');
+                          print('  - Selected City ID: $_selectedCityId');
+                          print('  - Selected City Name: $_selectedCityName');
+                          print('  - Selected District ID: $_selectedDistrictId');
+                          print('  - Selected District Name: $_selectedDistrictName');
+                          print('  - Full Address: $fullAddress');
 
                           Navigator.pop(context, {
                             'cityId': _selectedCityId,
@@ -245,11 +270,11 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                           ),
                         ),
                         child: Text(
-                          'Confirm Location',
+                          'Confirm Location'.tr(),
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            // color: Colors.white,
                           ),
                         ),
                       ),
@@ -281,14 +306,14 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: isActive ? Colors.white : Colors.grey[600],
+                  color: isActive ? null: Colors.grey[600],
                 ),
               ),
             ),
           ),
           SizedBox(height: 4),
           Text(
-            label,
+            label.tr(),
             style: GoogleFonts.poppins(
               fontSize: 12,
               color: isActive ? ColorsController.primaryColor : Colors.grey[600],
@@ -310,16 +335,16 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Select Your City',
+                'Select Your City'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: Colors.black,
+                  // color: Colors.black,
                 ),
               ),
               SizedBox(height: 8),
               Text(
-                'Choose the city where your item is located',
+                'Choose the city where your item is located'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -340,7 +365,7 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                       ),
                       SizedBox(height: 16),
                       Text(
-                        'Loading cities...',
+                        'Loading cities...'.tr(),
                         style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
@@ -354,7 +379,7 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                           Icon(Icons.location_city, size: 64, color: Colors.grey[400]),
                           SizedBox(height: 16),
                           Text(
-                            'No cities available',
+                            'No cities available'.tr(),
                             style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
                           ),
                         ],
@@ -383,7 +408,7 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Select District (Optional)',
+                'Select District (Optional)'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,

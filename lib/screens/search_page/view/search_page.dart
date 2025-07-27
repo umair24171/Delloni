@@ -1,4 +1,5 @@
 
+import 'package:arabicmarketplace/screens/categories_selection_page/view/categories_selection_page.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
 import 'package:arabicmarketplace/screens/notifications/view/notification_saved_search_page.dart';
@@ -11,6 +12,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:arabicmarketplace/screens/search_page/view/search_results_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+// Add other necessary imports for your models and pages
+// Make sure to import SearchResultsPage
+// import 'search_results_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+// Add other necessary imports for your models and pages
+// Make sure to import SearchResultsPage
+// import 'search_results_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({Key? key, this.isMain = false}) : super(key: key);
@@ -24,6 +36,11 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showResults = false;
+  
+  // Add these for dynamic categories
+  List<Map<String, dynamic>> _popularCategories = [];
+  List<Map<String, dynamic>> _allCategories = [];
+  bool _isLoadingCategories = true;
 
   @override
   void initState() {
@@ -32,6 +49,8 @@ class _SearchPageState extends State<SearchPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+    // Load categories dynamically
+    _loadCategories();
   }
 
   @override
@@ -39,6 +58,52 @@ class _SearchPageState extends State<SearchPage> {
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  // NEW: Load categories dynamically from Firestore
+  Future<void> _loadCategories() async {
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+      });
+
+      // Load all categories for navigation
+      final categoriesSnapshot = await FirebaseFirestore.instance
+          .collection('categories')
+          .where('isActive', isEqualTo: true)
+          .orderBy('order')
+          .get();
+
+      _allCategories = categoriesSnapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+
+      // Get popular categories (parent categories with high priority)
+      _popularCategories = _allCategories
+          .where((cat) => cat['level'] == 0) // Parent categories only
+          .toList();
+
+      // Sort by priority and take top categories
+      _popularCategories.sort((a, b) {
+        final priorityA = a['priority'] ?? 0;
+        final priorityB = b['priority'] ?? 0;
+        return priorityB.compareTo(priorityA);
+      });
+
+      // Take top 8 popular categories
+      _popularCategories = _popularCategories.take(8).toList();
+
+      setState(() {
+        _isLoadingCategories = false;
+      });
+    } catch (e) {
+      print('Error loading categories: $e');
+      setState(() {
+        _isLoadingCategories = false;
+      });
+    }
   }
 
   void _performSearch(String query) {
@@ -61,36 +126,103 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _showSaveSearchDialog() {
-  final searchProvider = Provider.of<SearchProvider>(context, listen: false);
-  
-  // Check if there's something to save
-  if (searchProvider.searchQuery.isEmpty && !searchProvider.hasFilters) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Please enter a search query or apply filters first'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-    return;
-  }
-
-  showDialog(
-    context: context,
-    builder: (context) => SaveSearchDialog(
-      currentQuery: searchProvider.searchQuery,
-      currentFilters: searchProvider.filters,
-    ),
-  ).then((result) {
-    if (result == true) {
+    final searchProvider = Provider.of<SearchProvider>(context, listen: false);
+    
+    // Check if there's something to save
+    if (searchProvider.searchQuery.isEmpty && !searchProvider.hasFilters) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Search saved! You\'ll get notified of new matches.'),
-          backgroundColor: Colors.green,
+          content: Text('Please enter a search query or apply filters first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => SaveSearchDialog(
+        currentQuery: searchProvider.searchQuery,
+        currentFilters: searchProvider.filters,
+      ),
+    ).then((result) {
+      if (result == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Search saved! You\'ll get notified of new matches.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    });
+  }
+
+  // NEW: Navigate to category selection page
+  Future<void> _navigateToCategorySelection(String? initialCategoryId, String categoryName) async {
+    try {
+      // Get main categories (level 0)
+      final mainCategories = _allCategories
+          .where((cat) => cat['level'] == 0)
+          .toList();
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CategorySelectionPage(
+            categories: _allCategories,
+            mainCategories: mainCategories,
+            selectedMainCategoryId: initialCategoryId,
+            isForSearch: true, // Enable search mode for "Select All" options
+          ),
+        ),
+      );
+
+      if (result != null) {
+        // Handle the category selection result
+        final finalCategoryId = result['finalCategoryId'];
+        final finalCategoryName = result['categoryName'];
+        final isSelectAll = result['isSelectAll'] ?? false;
+
+        // Create filters with selected category
+        final searchProvider = Provider.of<SearchProvider>(context, listen: false);
+        SearchFilters newFilters = searchProvider.filters.copyWith(
+          selectedCategory: finalCategoryId,
+        );
+
+        // Navigate to SearchResultsPage with the selected category
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SearchResultsPage(
+              filters: newFilters,
+              initialQuery: finalCategoryName,
+              categoryName: finalCategoryName,
+            ),
+          ),
+        );
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isSelectAll 
+                ? 'Searching in all subcategories of $finalCategoryName'
+                : 'Searching in $finalCategoryName',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error navigating to category selection: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading categories: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
-  });
-}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +231,7 @@ class _SearchPageState extends State<SearchPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: widget.isMain?null :IconButton(
+        leading: widget.isMain ? null : IconButton(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(
             Icons.arrow_back_ios,
@@ -109,61 +241,61 @@ class _SearchPageState extends State<SearchPage> {
         ),
         
         title: Text(
-         '${AppLocalizations.search.tr()}',
+          '${AppLocalizations.search.tr()}',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w500,
             color: Colors.black,
           ),
         ),
-        centerTitle:widget.isMain,
+        centerTitle: widget.isMain,
         actions: [
           // Add saved searches button
-  Consumer<SavedSearchProvider>(
-    builder: (context, provider, child) {
-      final count = provider.savedSearches.length;
-      return Stack(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.bookmark_border, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SavedSearchesPage(),
-                ),
+          Consumer<SavedSearchProvider>(
+            builder: (context, provider, child) {
+              final count = provider.savedSearches.length;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.bookmark_border, color: Colors.black),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SavedSearchesPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
-          if (count > 0)
-            Positioned(
-              right: 8,
-              top: 8,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                constraints: const BoxConstraints(
-                  minWidth: 16,
-                  minHeight: 16,
-                ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-        ],
-      );
-    },
-  ),
         ],
       ),
       body: Consumer<SearchProvider>(
@@ -186,7 +318,7 @@ class _SearchPageState extends State<SearchPage> {
                         child: TextField(
                           controller: _searchController,
                           focusNode: _focusNode,
-                          style: GoogleFonts.poppins(fontSize: 14),
+                          style: GoogleFonts.poppins(fontSize: 14, color: Colors.black),
                           onChanged: _onSearchChanged,
                           onSubmitted: _performSearch,
                           decoration: InputDecoration(
@@ -236,10 +368,33 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                         );
                         if (filters != null) {
+                          print('Filters received: ${filters.selectedCategory}, ${filters.minPrice}, ${filters.maxPrice}'); // Debug log
+                          
+                          // Get the category name for display
+                          String? categoryName;
+                          if (filters.selectedCategory != null) {
+                            try {
+                              final doc = await FirebaseFirestore.instance
+                                  .collection('categories')
+                                  .doc(filters.selectedCategory!)
+                                  .get();
+                              if (doc.exists) {
+                                categoryName = doc.data()?['name'];
+                              }
+                            } catch (e) {
+                              print('Error getting category name: $e');
+                            }
+                          }
+                          
+                          // Navigate to SearchResultsPage with filters
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => SearchResultsPage(filters: filters),
+                              builder: (context) => SearchResultsPage(
+                                filters: filters,
+                                initialQuery: _searchController.text.trim(),
+                                categoryName: categoryName,
+                              ),
                             ),
                           );
                         }
@@ -351,7 +506,7 @@ class _SearchPageState extends State<SearchPage> {
         // Categories section
         if (searchProvider.categoryResults.isNotEmpty) ...[
           Text(
-           '${AppLocalizations.categories.tr()}',
+            '${AppLocalizations.categories.tr()}',
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -377,33 +532,32 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
               Row(
-          children: [
-            // ADD this save search button
-            if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters)
-              TextButton.icon(
-                onPressed: _showSaveSearchDialog,
-                icon: const Icon(Icons.bookmark_add, size: 16),
-                label: const Text('Save'),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF0D5E2A),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                ),
+                children: [
+                  // Save search button
+                  if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters)
+                    TextButton.icon(
+                      onPressed: _showSaveSearchDialog,
+                      icon: const Icon(Icons.bookmark_add, size: 16),
+                      label: const Text('Save'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF0D5E2A),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      ),
+                    ),
+                  // Clear filters button
+                  if (searchProvider.hasFilters)
+                    TextButton(
+                      onPressed: () => searchProvider.clearFilters(),
+                      child: Text(
+                        'Clear filters',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            // Keep your existing clear filters button
-            if (searchProvider.hasFilters)
-              TextButton(
-                onPressed: () => searchProvider.clearFilters(),
-                child: Text(
-                  'Clear filters',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.red,
-                  ),
-                ),
-              ),
-          ],
-        ),
-    
             ],
           ),
           const SizedBox(height: 12),
@@ -414,118 +568,140 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildNoResults() {
-  return Consumer<SearchProvider>(
-    builder: (context, searchProvider, child) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No results found',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try different keywords or check your filters',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-            
-            // ADD this save search option for no results
-            if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters) ...[
-              const SizedBox(height: 24),
+    return Consumer<SearchProvider>(
+      builder: (context, searchProvider, child) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
               Text(
-                'Save this search to get notified when new items are added',
+                'No results found',
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try different keywords or check your filters',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
                   color: Colors.grey[500],
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _showSaveSearchDialog,
-                icon: const Icon(Icons.bookmark_add, size: 18),
-                label: const Text('Save Search'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF0D5E2A),
-                  side: const BorderSide(color: Color(0xFF0D5E2A)),
+              
+              // Save search option for no results
+              if (searchProvider.searchQuery.isNotEmpty || searchProvider.hasFilters) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Save this search to get notified when new items are added',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _showSaveSearchDialog,
+                  icon: const Icon(Icons.bookmark_add, size: 18),
+                  label: const Text('Save Search'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0D5E2A),
+                    side: const BorderSide(color: Color(0xFF0D5E2A)),
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
-      );
-    },
-  );
-}
-
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildDefaultContent(SearchProvider searchProvider) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Recent search section
-        if (searchProvider.recentSearches.isNotEmpty) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-               '${AppLocalizations.recentSearch.tr()}',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Recent search section
+          if (searchProvider.recentSearches.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${AppLocalizations.recentSearch.tr()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => searchProvider.clearRecentSearches(),
+                  child: Text(
+                    '${AppLocalizations.clearAll.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...searchProvider.recentSearches.map((search) => _buildSearchItem(search, searchProvider)),
+            const SizedBox(height: 24),
+          ],
+          
+          // Popular Categories section - NOW DYNAMIC
+          Text(
+            '${AppLocalizations.popularCategories.tr()}',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // UPDATED: Dynamic category items
+          if (_isLoadingCategories)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(
+                  color: Color(0xFF0D5E2A),
                 ),
               ),
-              TextButton(
-                onPressed: () => searchProvider.clearRecentSearches(),
+            )
+          else if (_popularCategories.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
                 child: Text(
-              '${AppLocalizations.clearAll.tr()}',
+                  'No categories available',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: Colors.red,
-                    fontWeight: FontWeight.w400,
+                    color: Colors.grey[600],
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...searchProvider.recentSearches.map((search) => _buildSearchItem(search, searchProvider)),
-          const SizedBox(height: 24),
+            )
+          else
+            ..._popularCategories.map((category) => _buildCategoryItem(
+              category['name'] ?? 'Unknown Category',
+              category['id'],
+            )),
         ],
-        
-        // Popular Categories section
-        Text(
-         '${AppLocalizations.popularCategories.tr()}',
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Category items
-        _buildCategoryItem('Mobiles'),
-        _buildCategoryItem('Computer Accessories'),
-        _buildCategoryItem('Property for sale'),
-        _buildCategoryItem('Home Appliances'),
-        _buildCategoryItem('Vehicles'),
-        _buildCategoryItem('Jobs'),
-      ],
+      ),
     );
   }
-  
+
   Widget _buildSearchItem(String text, SearchProvider searchProvider) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -568,22 +744,34 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
   
-  Widget _buildCategoryItem(String text) {
+  // UPDATED: Category item with navigation to subcategory selection
+  Widget _buildCategoryItem(String text, String? categoryId) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        onTap: () {
-          _searchController.text = text;
-          final searchProvider = Provider.of<SearchProvider>(context, listen: false);
-          searchProvider.searchByCategory(text);
-          setState(() {
-            _showResults = true;
-          });
+        onTap: () async {
+          // Navigate to category selection page for subcategory selection
+          await _navigateToCategorySelection(categoryId, text);
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
+              // Category icon
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D5E2A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.category,
+                  color: const Color(0xFF0D5E2A),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   text,
@@ -606,13 +794,14 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // UPDATED: Category result item with navigation to subcategory selection
   Widget _buildCategoryResultItem(CategoryModel category) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        onTap: () {
-          final searchProvider = Provider.of<SearchProvider>(context, listen: false);
-          searchProvider.searchByCategory(category.name);
+        onTap: () async {
+          // Navigate to category selection page for subcategory selection
+          await _navigateToCategorySelection(category.id, category.name);
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -644,16 +833,13 @@ class _SearchPageState extends State<SearchPage> {
                         color: Colors.black,
                       ),
                     ),
-                    // if (category.name != null)
-                    //   Text(
-                    //     category.name!,
-                    //     style: GoogleFonts.poppins(
-                    //       fontSize: 12,
-                    //       color: Colors.grey[600],
-                    //     ),
-                    //     maxLines: 1,
-                    //     overflow: TextOverflow.ellipsis,
-                    //   ),
+                    Text(
+                      'Tap to browse category',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -670,215 +856,216 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildProductResultItem(ProductModel product) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    child: InkWell(
-      onTap: () {
-        // Navigate to product details
-        Navigator.push(
-          context, 
-          MaterialPageRoute(
-            builder: (context) => ProductDetailScreen(productId: product.id)
-          )
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Container
-            Container(
-              height: 170,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () {
+          // Navigate to product details
+          Navigator.push(
+            context, 
+            MaterialPageRoute(
+              builder: (context) => ProductDetailScreen(productId: product.id)
+            )
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 1,
+                blurRadius: 4,
+                offset: Offset(0, 2),
               ),
-              child: Stack(
-                children: [
-                  // Product Image
-                  ClipRRect(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                    child: product.imageUrls.isNotEmpty
-                        ? Image.network(
-                            product.imageUrls.first,
-                            fit: BoxFit.cover,
-                            height: 170,
-                            width: double.infinity,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.image, 
-                                  size: 50, 
-                                  color: Colors.grey[400]
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              Icons.image, 
-                              size: 50, 
-                              color: Colors.grey[400]
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image Container
+              Container(
+                height: 170,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                ),
+                child: Stack(
+                  children: [
+                    // Product Image
+                    ClipRRect(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                      child: product.imageUrls.isNotEmpty
+                          ? Image.network(
+                              product.imageUrls.first,
+                              fit: BoxFit.cover,
+                              height: 170,
+                              width: double.infinity,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    Icons.image, 
+                                    size: 50, 
+                                    color: Colors.grey[400]
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              color: Colors.grey[200],
+                              child: Icon(
+                                Icons.image, 
+                                size: 50, 
+                                color: Colors.grey[400]
+                              ),
+                            ),
+                    ),
+                    
+                    // Favorite Icon
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.favorite_border,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                    
+                    // Negotiable Tag
+                    if (product.allowPriceNegotiation)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.yellow[700],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${AppLocalizations.negotiable.tr()}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
                             ),
                           ),
-                  ),
-                  
-                  // Favorite Icon
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.favorite_border,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  
-                  // Negotiable Tag
-                  if (product.allowPriceNegotiation)
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.yellow[700],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                         '${AppLocalizations.negotiable.tr()}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            
-            // Content Section
-            Padding(
-              padding: EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  Text(
-                    product.title ?? 'No Title',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2),
-                  
-                  // Price
-                  Text(
-                    '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  
-                  // Condition and Time Row
-                  Row(
-                    children: [
-                      Text(
-                        product.condition ?? 'Unknown',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12, 
-                          color: Colors.grey[600]
-                        ),
+              
+              // Content Section
+              Padding(
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      product.title ?? 'No Title',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
-                      Spacer(),
-                      Text(
-                        _getTimeSincePosted(product.createdAt),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12, 
-                          color: Colors.grey[600]
-                        ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 2),
+                    
+                    // Price
+                    Text(
+                      '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                    ],
-                  ),
-                  SizedBox(height: 4),
-                  
-                  // Location and Category Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.locationAddress ?? 'Location not set',
+                    ),
+                    SizedBox(height: 8),
+                    
+                    // Condition and Time Row
+                    Row(
+                      children: [
+                        Text(
+                          product.condition ?? 'Unknown',
                           style: GoogleFonts.poppins(
                             fontSize: 12, 
                             color: Colors.grey[600]
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      Text(
-                        product.category ?? '',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12, 
-                          color: Colors.grey[600]
+                        Spacer(),
+                        Text(
+                          _getTimeSincePosted(product.createdAt),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12, 
+                            color: Colors.grey[600]
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    
+                    // Location and Category Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product.locationAddress ?? 'Location not set',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12, 
+                              color: Colors.grey[600]
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          product.category ?? '',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12, 
+                            color: Colors.grey[600]
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
-String _getTimeSincePosted(DateTime? createdAt) {
-  if (createdAt == null) return 'Unknown';
-  
-  final now = DateTime.now();
-  final difference = now.difference(createdAt);
-  
-  if (difference.inDays > 0) {
-    return '${difference.inDays}d ago';
-  } else if (difference.inHours > 0) {
-    return '${difference.inHours}h ago';
-  } else if (difference.inMinutes > 0) {
-    return '${difference.inMinutes}m ago';
-  } else {
-    return 'Just now';
+    );
+  }
+
+  String _getTimeSincePosted(DateTime? createdAt) {
+    if (createdAt == null) return 'Unknown';
+    
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }
-  }
