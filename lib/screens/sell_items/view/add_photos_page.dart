@@ -15,6 +15,11 @@ import 'dart:ui' as ui;
 
 import 'package:path_provider/path_provider.dart'; // ADDED: For temp directory
 
+// Add these imports at the top of your file
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
+
 class EnhancedAddPhotosPage extends StatefulWidget {
   const EnhancedAddPhotosPage({super.key});
 
@@ -25,7 +30,6 @@ class EnhancedAddPhotosPage extends StatefulWidget {
 class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
   bool _isProcessingImage = false;
   bool _isDialogShowing = false;
-  int _maxImages = 10; // Default max images
   
   // Store the context for safe usage
   BuildContext? _contextRef;
@@ -69,7 +73,7 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _determineMaxImages();
+      // _determineMaxImages();
     });
   }
 
@@ -77,23 +81,6 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _contextRef = context; // Store context reference
-  }
-
-  // Determine max images based on category
-  void _determineMaxImages() {
-    if (!mounted) return;
-    
-    final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    final category = itemProvider.categoryName?.toLowerCase() ?? '';
-    
-    // Check if category allows unlimited photos
-    bool isUnlimited = _unlimitedCategories.any((cat) => category.contains(cat));
-    
-    if (mounted) {
-      setState(() {
-        _maxImages = isUnlimited ? 50 : 10; // 50 for unlimited categories, 10 for others
-      });
-    }
   }
 
   // Get category-specific photo requirements
@@ -166,8 +153,52 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     return navigatorKey.currentContext ?? context;
   }
 
-  // Pick single image
-  Future<void> _pickImage(BuildContext dialogContext, {ImageSource source = ImageSource.gallery}) async {
+  // ✅ ADD THIS COLOR FIX FUNCTION
+  Future<File> fixImageColor(File originalImage) async {
+    // Only apply fix on iOS devices
+    if (!Platform.isIOS) {
+      return originalImage;
+    }
+     
+    try {
+      return await compute(
+        (Map<String, dynamic> params) async {
+          File file = params['file'];
+          final bytes = await file.readAsBytes();
+                 
+          // 🔥 Use img. prefix for all image package functions
+          img.Image? image = img.decodeImage(bytes);
+                 
+          if (image == null) {
+            print("❌ Failed to decode image: ${file.path}");
+            return file; // Return original if decoding fails
+          }
+                 
+          print("✅ Image decoded successfully, applying color fix...");
+                 
+          // Re-encode without resizing to preserve quality, just fix color profile
+          image = img.copyResize(image, width: image.width, height: image.height);
+                 
+          // Create fixed file
+          final outputFile = File('${file.parent.path}/fixed_${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}');
+                 
+          // Encode as JPG with high quality
+          final encodedBytes = img.encodeJpg(image, quality: 90);
+          await outputFile.writeAsBytes(encodedBytes);
+                 
+          print("✅ iOS color fix applied: ${outputFile.path}");
+          return outputFile;
+        },
+        {'file': originalImage}
+      );
+    } catch (e) {
+      print("❌ Error in fixImageColor: $e");
+      return originalImage; // Return original file if fix fails
+    }
+  }
+
+  // ✅ MODIFIED: Pick single image with color fix for camera photos
+  Future<void> _pickImage(BuildContext dialogContext, {ImageSource source = ImageSource.gallery, required ItemProvider itemPro}) async {
     if (_isProcessingImage || !mounted) return;
     
     // Close the source selection dialog first
@@ -177,8 +208,8 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     
     final itemProvider = Provider.of<ItemProvider>(_safeContext, listen: false);
     
-    if (itemProvider.images.length >= _maxImages) {
-      _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['$_maxImages']));
+    if (itemProvider.images.length >= itemProvider.maxImages) {
+      _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['$itemProvider.maxImages']));
       return;
     }
     
@@ -199,10 +230,23 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
       
       if (pickedFile != null && mounted) {
         // Show processing dialog
-        _showProcessingDialog(AppLocalizations.addingWatermark.tr());
+        String processingMessage = source == ImageSource.camera 
+          ?  "Processing camera image..."
+          : AppLocalizations.addingWatermark.tr();
+        _showProcessingDialog(processingMessage);
         
-        // Add watermark to image
-        final watermarkedImage = await _addWatermarkToImage(pickedFile);
+        XFile processedFile = pickedFile;
+        
+        // ✅ Apply color fix ONLY for camera photos
+        if (source == ImageSource.camera) {
+          print("📷 Camera image detected, applying color fix...");
+          final fixedFile = await fixImageColor(File(pickedFile.path));
+          processedFile = XFile(fixedFile.path);
+          print("✅ Color fix completed for camera image");
+        }
+        
+        // Add watermark to image (whether fixed or original)
+        final watermarkedImage = await _addWatermarkToImage(processedFile);
         
         // Hide dialog safely
         _hideProcessingDialog();
@@ -214,7 +258,10 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
             if (!success && itemProvider.error != null) {
               _showErrorSnackBar(itemProvider.error!);
             } else if (success) {
-              _showSuccessSnackBar(AppLocalizations.photoAddedWithWatermark.tr());
+              String successMessage = source == ImageSource.camera
+                ?"Camera photo processed and added successfully!"
+                : AppLocalizations.photoAddedWithWatermark.tr();
+              _showSuccessSnackBar(successMessage);
               // Force rebuild to show the new image
               setState(() {});
             }
@@ -238,7 +285,7 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     }
   }
 
-  // Pick multiple images with intelligent batching
+  // Pick multiple images with intelligent batching (no changes needed here since it's gallery only)
   Future<void> _pickMultipleImages(BuildContext dialogContext) async {
     if (_isProcessingImage || !mounted) return;
     
@@ -248,10 +295,10 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     }
     
     final itemProvider = Provider.of<ItemProvider>(_safeContext, listen: false);
-    final remainingSlots = _maxImages - itemProvider.images.length;
+    final remainingSlots = itemProvider.maxImages - itemProvider.images.length;
     
     if (remainingSlots <= 0) {
-      _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['$_maxImages']));
+      _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['${itemProvider.maxImages}']));
       return;
     }
 
@@ -429,352 +476,276 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
     }
   }
 
- // Enhanced watermark function with logo image
-// Fixed watermark function with logo
-Future<XFile?> _addWatermarkToImage(XFile originalImage) async {
-  try {
-    print('Starting watermark process for: ${originalImage.path}');
-    
-    // Read original image
-    final bytes = await originalImage.readAsBytes();
-    print('Original image size: ${bytes.length} bytes');
-    
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
-    print('Original image dimensions: ${image.width}x${image.height}');
+  // Enhanced watermark function with logo image
+  Future<XFile?> _addWatermarkToImage(XFile originalImage) async {
+    try {
+      print('Starting watermark process for: ${originalImage.path}');
+      
+      // Read original image
+      final bytes = await originalImage.readAsBytes();
+      print('Original image size: ${bytes.length} bytes');
+      
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      print('Original image dimensions: ${image.width}x${image.height}');
 
-    // Load logo from assets
-    final ByteData logoData = await rootBundle.load('assets/icons/logo_two.jpeg');
-    final Uint8List logoBytes = logoData.buffer.asUint8List();
-    print('Logo loaded, size: ${logoBytes.length} bytes');
-    
-    final ui.Codec logoCodec = await ui.instantiateImageCodec(logoBytes);
-    final ui.FrameInfo logoFrame = await logoCodec.getNextFrame();
-    final ui.Image logoImage = logoFrame.image;
-    print('Logo dimensions: ${logoImage.width}x${logoImage.height}');
+      // Load logo from assets
+      final ByteData logoData = await rootBundle.load('assets/icons/logo_two.jpeg');
+      final Uint8List logoBytes = logoData.buffer.asUint8List();
+      print('Logo loaded, size: ${logoBytes.length} bytes');
+      
+      final ui.Codec logoCodec = await ui.instantiateImageCodec(logoBytes);
+      final ui.FrameInfo logoFrame = await logoCodec.getNextFrame();
+      final ui.Image logoImage = logoFrame.image;
+      print('Logo dimensions: ${logoImage.width}x${logoImage.height}');
 
-    // Create a recorder for drawing
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    
-    // Draw original image
-    canvas.drawImage(image, Offset.zero, Paint());
-    
-    // Calculate logo size (smaller and safer positioning)
-    final imageSize = Size(image.width.toDouble(), image.height.toDouble());
-    final logoWidth = imageSize.width * 0.08; // Reduced from 0.10 to 0.08
-    final logoAspectRatio = logoImage.width / logoImage.height;
-    final logoHeight = logoWidth / logoAspectRatio;
-    
-    print('Calculated logo size: ${logoWidth}x${logoHeight}');
-    
-    // IMPROVED: Calculate safe zone for watermark (avoids crop areas)
-    final safeMarginX = imageSize.width * 0.05; // 5% margin from edges
-    final safeMarginY = imageSize.height * 0.05; // 5% margin from edges
-    
-    // Position logo in bottom right but within safe zone
-    final logoPosition = Offset(
-      imageSize.width - logoWidth - safeMarginX,
-      imageSize.height - logoHeight - safeMarginY,
-    );
-    
-    print('Logo position: ${logoPosition.dx}, ${logoPosition.dy}');
-    
-    // Add semi-transparent background for better visibility
-    final backgroundRect = Rect.fromLTWH(
-      logoPosition.dx - 6,
-      logoPosition.dy - 6,
-      logoWidth + 12,
-      logoHeight + 12,
-    );
-    
-    final backgroundPaint = Paint()
-      ..color = Colors.black.withOpacity(0.7) // Darker background for better visibility
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(backgroundRect, Radius.circular(6)),
-      backgroundPaint,
-    );
-    
-    // Draw the logo with slight transparency
-    final logoPaint = Paint()
-      ..colorFilter = ColorFilter.mode(
-        Colors.white.withOpacity(0.9),
-        BlendMode.modulate,
+      // Create a recorder for drawing
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      
+      // Draw original image
+      canvas.drawImage(image, Offset.zero, Paint());
+      
+      // Calculate logo size (smaller and safer positioning)
+      final imageSize = Size(image.width.toDouble(), image.height.toDouble());
+      final logoWidth = imageSize.width * 0.08; // Reduced from 0.10 to 0.08
+      final logoAspectRatio = logoImage.width / logoImage.height;
+      final logoHeight = logoWidth / logoAspectRatio;
+      
+      print('Calculated logo size: ${logoWidth}x${logoHeight}');
+      
+      // IMPROVED: Calculate safe zone for watermark (avoids crop areas)
+      final safeMarginX = imageSize.width * 0.05; // 5% margin from edges
+      final safeMarginY = imageSize.height * 0.05; // 5% margin from edges
+      
+      // Position logo in bottom right but within safe zone
+      final logoPosition = Offset(
+        imageSize.width - logoWidth - safeMarginX,
+        imageSize.height - logoHeight - safeMarginY,
       );
-    
-    final logoRect = Rect.fromLTWH(logoPosition.dx, logoPosition.dy, logoWidth, logoHeight);
-    canvas.drawImageRect(
-      logoImage,
-      Rect.fromLTWH(0, 0, logoImage.width.toDouble(), logoImage.height.toDouble()),
-      logoRect,
-      logoPaint,
-    );
-    
-    print('Logo drawn successfully');
-    
-    // Convert to image
-    final picture = recorder.endRecording();
-    final finalImage = await picture.toImage(image.width, image.height);
-    final byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
-    
-    if (byteData != null) {
-      // Save watermarked image
-      final tempDir = await Directory.systemTemp.createTemp();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final watermarkedFile = File('${tempDir.path}/watermarked_$timestamp.png');
-      await watermarkedFile.writeAsBytes(byteData.buffer.asUint8List());
       
-      print('Watermarked image saved: ${watermarkedFile.path}');
-      print('Watermarked image size: ${await watermarkedFile.length()} bytes');
+      print('Logo position: ${logoPosition.dx}, ${logoPosition.dy}');
       
-      return XFile(watermarkedFile.path);
+      // Add semi-transparent background for better visibility
+      final backgroundRect = Rect.fromLTWH(
+        logoPosition.dx - 6,
+        logoPosition.dy - 6,
+        logoWidth + 12,
+        logoHeight + 12,
+      );
+      
+      final backgroundPaint = Paint()
+        ..color = Colors.black.withOpacity(0.7) // Darker background for better visibility
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(backgroundRect, Radius.circular(6)),
+        backgroundPaint,
+      );
+      
+      // Draw the logo with slight transparency
+      final logoPaint = Paint()
+        ..colorFilter = ColorFilter.mode(
+          Colors.white.withOpacity(0.9),
+          BlendMode.modulate,
+        );
+      
+      final logoRect = Rect.fromLTWH(logoPosition.dx, logoPosition.dy, logoWidth, logoHeight);
+      canvas.drawImageRect(
+        logoImage,
+        Rect.fromLTWH(0, 0, logoImage.width.toDouble(), logoImage.height.toDouble()),
+        logoRect,
+        logoPaint,
+      );
+      
+      print('Logo drawn successfully');
+      
+      // Convert to image
+      final picture = recorder.endRecording();
+      final finalImage = await picture.toImage(image.width, image.height);
+      final byteData = await finalImage.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        // Save watermarked image
+        final tempDir = await Directory.systemTemp.createTemp();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final watermarkedFile = File('${tempDir.path}/watermarked_$timestamp.png');
+        await watermarkedFile.writeAsBytes(byteData.buffer.asUint8List());
+        
+        print('Watermarked image saved: ${watermarkedFile.path}');
+        print('Watermarked image size: ${await watermarkedFile.length()} bytes');
+        
+        return XFile(watermarkedFile.path);
+      }
+      
+      print('Failed to generate byteData');
+      return originalImage;
+      
+    } catch (e) {
+      print('Error adding watermark: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return originalImage;
     }
-    
-    print('Failed to generate byteData');
-    return originalImage;
-    
-  } catch (e) {
-    print('Error adding watermark: $e');
-    print('Stack trace: ${StackTrace.current}');
-    return originalImage;
   }
-}
-// Optional: Add text watermark alongside logo
-Future<void> _addTextWatermark(Canvas canvas, Size imageSize, Offset logoPosition, Size logoSize) async {
-  try {
-    // Calculate text size based on image size
-    final watermarkFontSize = (imageSize.width * 0.025).clamp(12.0, 24.0);
-    
-    // Create watermark text
-    final textSpan = TextSpan(
-      text: 'Delloni',
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: watermarkFontSize,
-        fontWeight: FontWeight.bold,
-        shadows: [
-          Shadow(
-            blurRadius: 2,
-            color: Colors.black.withOpacity(0.7),
-            offset: Offset(1, 1),
-          ),
-        ],
-      ),
-    );
-    
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
-    
-    textPainter.layout();
-    
-    // Position text below the logo
-    final textPosition = Offset(
-      logoPosition.dx + (logoSize.width - textPainter.width) / 2, // Center align with logo
-      logoPosition.dy + logoSize.height + 8, // 8px below logo
-    );
-    
-    // Add semi-transparent background for text
-    final textBackgroundRect = Rect.fromLTWH(
-      textPosition.dx - 4,
-      textPosition.dy - 2,
-      textPainter.width + 8,
-      textPainter.height + 4,
-    );
-    
-    final textBackgroundPaint = Paint()
-      ..color = Colors.black.withOpacity(0.5)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(textBackgroundRect, Radius.circular(4)),
-      textBackgroundPaint,
-    );
-    
-    // Paint the watermark text
-    textPainter.paint(canvas, textPosition);
-  } catch (e) {
-    print('Error adding text watermark: $e');
-    // Continue without text if it fails
-  }
-}
 
-// Helper function to calculate appropriate logo size
-Size _calculateLogoSize(Size imageSize, ui.Image logoImage) {
-  // Logo should be 8-12% of image width for good visibility
-  final double targetLogoWidth = imageSize.width * 0.10; // 10% of image width
-  
-  // Calculate aspect ratio of logo
-  final double logoAspectRatio = logoImage.width / logoImage.height;
-  
-  // Calculate final logo dimensions maintaining aspect ratio
-  final double logoWidth = targetLogoWidth;
-  final double logoHeight = targetLogoWidth / logoAspectRatio;
-  
-  // Ensure logo doesn't exceed 15% of image height
-  final double maxLogoHeight = imageSize.height * 0.15;
-  if (logoHeight > maxLogoHeight) {
-    final double adjustedHeight = maxLogoHeight;
-    final double adjustedWidth = adjustedHeight * logoAspectRatio;
-    return Size(adjustedWidth, adjustedHeight);
-  }
-  
-  return Size(logoWidth, logoHeight);
-}
-void _showImageSourceDialog(BuildContext context) {
-  final requirements = _getCategoryPhotoRequirements();
-  final isUnlimitedCategory = requirements['type'] == AppLocalizations.realEstate.tr() || requirements['type'] == AppLocalizations.vehicle.tr();
-  
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (BuildContext dialogContext) => Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+  void _showImageSourceDialog(BuildContext context) {
+    final requirements = _getCategoryPhotoRequirements();
+    final isUnlimitedCategory = requirements['type'] == AppLocalizations.realEstate.tr() || requirements['type'] == AppLocalizations.vehicle.tr();
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext dialogContext) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                AppLocalizations.addPhotosCategory.tr(),
-                style: GoogleFonts.jost(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                AppLocalizations.recommendedPhotos.tr(),
-                style: GoogleFonts.jost(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-              SizedBox(height: 16),
-              
-              // Photo suggestions for unlimited categories
-              if (isUnlimitedCategory) ...[
+                SizedBox(height: 20),
                 Text(
-                  AppLocalizations.suggestedPhotos.tr(),
+                  AppLocalizations.addPhotosCategory.tr(),
                   style: GoogleFonts.jost(
-                    fontSize: 14,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
+                    color: Colors.black,
                   ),
                 ),
                 SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: (requirements['suggestions'] as List<String>).map((suggestion) {
-                    return Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: ColorsController.primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: ColorsController.primaryColor.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Text(
-                        suggestion,
-                        style: GoogleFonts.jost(
-                          fontSize: 10,
-                          color: ColorsController.primaryColor,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                Text(
+                  AppLocalizations.recommendedPhotos.tr(),
+                  style: GoogleFonts.jost(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
                 ),
-                SizedBox(height: 20),
-              ],
-              
-              // Photo source options - SINGLE PHOTO
-              Text(
-              'Single Photo',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildImageSourceOption(
-                      AppLocalizations.camera.tr(),
-                      Icons.camera_alt,
-                      Colors.blue,
-                      () => _pickImage(dialogContext, source: ImageSource.camera),
+                SizedBox(height: 16),
+                
+                // Photo suggestions for unlimited categories
+                if (isUnlimitedCategory) ...[
+                  Text(
+                    AppLocalizations.suggestedPhotos.tr(),
+                    style: GoogleFonts.jost(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(width: 16),
-                  // Expanded(
-                  //   child: _buildImageSourceOption(
-                  //     AppLocalizations.gallery.tr(),
-                  //     Icons.photo_library,
-                  //     Colors.green,
-                  //     () => _pickImage(dialogContext, source: ImageSource.gallery),
-                  //   ),
-                  // ),
+                  SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: (requirements['suggestions'] as List<String>).map((suggestion) {
+                      return Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: ColorsController.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: ColorsController.primaryColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          suggestion,
+                          style: GoogleFonts.jost(
+                            fontSize: 10,
+                            color: ColorsController.primaryColor,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  SizedBox(height: 20),
                 ],
-              ),
-              
-              SizedBox(height: 20),
-              
-              // Multiple photos option
-              Text(
-                // AppLocalizations.gallery.tr(),
-                AppLocalizations.multiplePhotos.tr() ?? 'Multiple Photos',
-                style: GoogleFonts.jost(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                
+                // Photo source options - SINGLE PHOTO
+                Text(
+                  'Single Photo',
+                  style: GoogleFonts.jost(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
                 ),
-              ),
-              SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                child: _buildImageSourceOption(
-                  AppLocalizations.gallery.tr(),
-                  // AppLocalizations.selectMultiplePhotos.tr() ?? 'Select Multiple from Gallery',
-                  Icons.photo_library_outlined,
-                  ColorsController.primaryColor,
-                  () => _pickMultipleImages(dialogContext),
-                  subtitle: '${AppLocalizations.selectMultiplePhotos.tr()}',
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Consumer<ItemProvider>(
+                        builder: (context, itemProvider, child) {
+                          return _buildImageSourceOption(
+                            AppLocalizations.camera.tr(),
+                            Icons.camera_alt,
+                            Colors.blue,
+                            () => _pickImage(dialogContext, source: ImageSource.camera, itemPro: itemProvider),
+                          );
+                        }
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Consumer<ItemProvider>(
+                        builder: (context, itemProvider, child) {
+                          return _buildImageSourceOption(
+                            AppLocalizations.gallery.tr(),
+                            Icons.photo_library,
+                            Colors.green,
+                            () => _pickImage(dialogContext, source: ImageSource.gallery, itemPro: itemProvider),
+                          );
+                        }
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              
-              SizedBox(height: 10),
-            ],
+                
+                SizedBox(height: 20),
+                
+                // Multiple photos option
+                Text(
+                  AppLocalizations.multiplePhotos.tr() ?? 'Multiple Photos',
+                  style: GoogleFonts.jost(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  child: _buildImageSourceOption(
+                    AppLocalizations.gallery.tr(),
+                    Icons.photo_library_outlined,
+                    ColorsController.primaryColor,
+                    () => _pickMultipleImages(dialogContext),
+                    subtitle: '${AppLocalizations.selectMultiplePhotos.tr()}',
+                  ),
+                ),
+                
+                SizedBox(height: 10),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   Widget _buildImageSourceOption(
     String title,
     IconData icon,
@@ -861,7 +832,7 @@ void _showImageSourceDialog(BuildContext context) {
       builder: (context, itemProvider, child) {
         final requirements = _getCategoryPhotoRequirements();
         final minPhotos = requirements['min'] as int;
-        final maxPhotos = requirements['max'] as int;
+        final maxPhotos = itemProvider.maxImages;
         final categoryType = requirements['type'] as String;
         
         return Scaffold(
@@ -1277,6 +1248,9 @@ void _showImageSourceDialog(BuildContext context) {
       },
     );
   }
+
+
+
 
   Widget _buildPhotoItem(ItemProvider itemProvider, int index, bool isRealEstate) {
     return Container(

@@ -230,6 +230,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   String? _selectedSubSubCategoryId;
   String? _selectedSubSubSubCategoryId;
   String? _selectedCategoryName;
+  String? _selectedMainCategoryName;
 
   // Category-specific fields - NOW DYNAMIC
   Map<String, dynamic> _categorySpecificFields = {};
@@ -2175,6 +2176,7 @@ IconData _getDefaultIconForFieldType(String fieldType) {
                 _selectedSubSubCategoryId = result['subSubCategoryId'];
                 _selectedSubSubSubCategoryId = result['subSubSubCategoryId'];
                 _selectedCategoryName = result['categoryName'];
+                _selectedMainCategoryName = result['mainCategoryName'];
               });
 
               if (_selectedMainCategoryId != null) {
@@ -2195,6 +2197,7 @@ IconData _getDefaultIconForFieldType(String fieldType) {
                 category: finalCategoryId,
                 categoryName: _selectedCategoryName,
               );
+              // itemProvider.setSelectedMainCategoryForImages(_selectedMainCategoryName);
             }
           },
           child: Container(

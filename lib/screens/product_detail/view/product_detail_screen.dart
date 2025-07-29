@@ -1431,7 +1431,7 @@ Widget _buildDetailRow(String label, String value) {
 // Helper widget for feature items
 Widget _buildFeatureItem(IconData icon, String text) {
   return Container(
-    padding: EdgeInsets.all(12),
+    padding: EdgeInsets.all(0),
     decoration: BoxDecoration(
       color: Color(0xFFF8F9FA),
       borderRadius: BorderRadius.circular(8),

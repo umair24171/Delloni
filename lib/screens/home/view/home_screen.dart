@@ -24,8 +24,8 @@ import 'package:html/parser.dart' as parser;
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// How to integrate the backend with your existing MarketplaceHomePage
+// Complete MarketplaceHomePage with SYP as default currency - NO CACHING, REAL-TIME RATES
+// Add this import: import 'package:flutter/foundation.dart'; // for kDebugMode
 
 class MarketplaceHomePage extends StatefulWidget {
   @override
@@ -35,51 +35,48 @@ class MarketplaceHomePage extends StatefulWidget {
 class _MarketplaceHomePageState extends State<MarketplaceHomePage> 
     with AutomaticKeepAliveClientMixin {
   
-  // Keep alive to prevent rebuilding
   @override
   bool get wantKeepAlive => true;
 
-  // Currency management - optimized with caching
+  // FIXED: SYP as default currency (prices stored in SYP)
   String _selectedCurrency = 'SYP';
   bool _isLoadingRates = false;
+  
+  // FIXED: SYP-based exchange rates (SYP as base currency) - NO CACHING
   Map<String, double> _exchangeRates = {
-    'USD': 0.000077,
-    'EUR': 0.000070,
-    'SYP': 1.0,
+    'SYP': 1.0,        // Base currency (prices stored in SYP)
+    'USD': 0.0000775,  // 1 SYP = 0.0000775 USD (fallback)
+    'EUR': 0.0000659,  // 1 SYP = 0.0000659 EUR (fallback)
   };
 
-  // Cache for exchange rates
-  static const String _ratesCacheKey = 'exchange_rates';
-  static const String _ratesTimestampKey = 'rates_timestamp';
-  static const Duration _ratesCacheDuration = Duration(hours: 6);
+  bool _shouldRefreshData(HomeProvider homeProvider) {
+    return false; // Implement your refresh logic
+  }
 
   final List<Map<String, String>> _currencies = [
+    {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'SYP', 'flag': '🇸🇾'}, // SYP first
     {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
     {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
-    {'code': 'SYP', 'name': 'Syrian Pound', 'symbol': 'SYP', 'flag': '🇸🇾'},
   ];
 
-  // Add debouncing for expensive operations
   Timer? _refreshTimer;
   bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    print('🟢 MARKETPLACE HOME - SYP Base Currency');
     _initializePageData();
   }
 
-  // OPTIMIZED: Initialize data with prioritized loading
   Future<void> _initializePageData() async {
     if (_isInitialized) return;
     
-    // Load critical data first (currency preference)
     await _loadUserCurrencyPreference();
     
-    // Load cached exchange rates immediately
-    await _loadCachedRates();
+    // Always fetch fresh exchange rates - NO CACHING
+    await _loadExchangeRates();
     
-    // Initialize home data in background
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeHomeData();
     });
@@ -87,60 +84,21 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     _isInitialized = true;
   }
 
-  // OPTIMIZED: Separate home data initialization
   Future<void> _initializeHomeData() async {
     final homeProvider = context.read<HomeProvider>();
     
-    // Only refresh if data is stale or empty
     if (homeProvider.categories.isEmpty || 
         homeProvider.allProducts.isEmpty ||
         _shouldRefreshData(homeProvider)) {
       await homeProvider.refreshData();
     }
-    
-    // Load exchange rates in background (non-blocking)
-    _loadExchangeRatesInBackground();
   }
 
-  // OPTIMIZED: Check if data needs refreshing
-  bool _shouldRefreshData(HomeProvider homeProvider) {
-    // Add timestamp check logic here
-    // For now, refresh every 30 minutes
-    return false; // Implement your refresh logic
-  }
-
-  // OPTIMIZED: Load exchange rates in background
-  Future<void> _loadExchangeRatesInBackground() async {
-    if (await _areCachedRatesValid()) {
-      return; // Use cached rates
-    }
-    
-    // Load new rates without blocking UI
-    _loadExchangeRates();
-  }
-
-  // OPTIMIZED: Check if cached rates are still valid
-  Future<bool> _areCachedRatesValid() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final timestampStr = prefs.getString(_ratesTimestampKey);
-      
-      if (timestampStr == null) return false;
-      
-      final timestamp = DateTime.parse(timestampStr);
-      final now = DateTime.now();
-      
-      return now.difference(timestamp) < _ratesCacheDuration;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // OPTIMIZED: Load currency preference (cached)
+  // FIXED: Load currency preference with SYP as default
   Future<void> _loadUserCurrencyPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedCurrency = prefs.getString('preferred_currency') ?? 'SYP';
+      final savedCurrency = prefs.getString('preferred_currency') ?? 'SYP'; // Default to SYP
       if (mounted) {
         setState(() {
           _selectedCurrency = savedCurrency;
@@ -151,7 +109,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     }
   }
 
-  // OPTIMIZED: Save currency preference
   Future<void> _saveCurrencyPreference(String currency) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -161,23 +118,21 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     }
   }
 
-  // OPTIMIZED: Load exchange rates with better error handling
   Future<void> _loadExchangeRates() async {
-    if (_isLoadingRates) return; // Prevent multiple requests
+    if (_isLoadingRates) return;
     
     setState(() {
       _isLoadingRates = true;
     });
 
     try {
-      // Use timeout to prevent hanging
+      print('🌐 Loading exchange rates...');
       await Future.any([
         _fetchExchangeRates(),
         Future.delayed(Duration(seconds: 10), () => throw TimeoutException('Timeout')),
       ]);
     } catch (e) {
-      print('Error loading exchange rates: $e');
-      // Keep using cached rates
+      print('❌ Error loading exchange rates: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -187,122 +142,108 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     }
   }
 
-  // OPTIMIZED: Fetch exchange rates with single API call
+  // FIXED: Fetch exchange rates with SYP to other currencies conversion - NO CACHING
   Future<void> _fetchExchangeRates() async {
     try {
-      // Use a single API call for all rates
+      print('🌐 Fetching FRESH exchange rates...');
       final response = await http.get(
-        Uri.parse('https://api.exchangerate-api.com/v4/latest/SYP'),
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
         headers: {'Accept': 'application/json'},
       ).timeout(Duration(seconds: 8));
+      
+      print('📡 API Response Status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final rates = data['rates'] as Map<String, dynamic>;
         
+        final usdToSyp = (rates['SYP'] as num?)?.toDouble() ?? 12904.0;
+        final usdToEur = (rates['EUR'] as num?)?.toDouble() ?? 0.851;
+        
+        print('🔄 Raw API rates: 1 USD = $usdToSyp SYP, 1 USD = $usdToEur EUR');
+        
         if (mounted) {
           setState(() {
+            // FIXED: SYP as base (1 SYP = X other currency)
             _exchangeRates = {
-              'USD': (rates['USD'] as num?)?.toDouble() ?? 0.000077,
-              'EUR': (rates['EUR'] as num?)?.toDouble() ?? 0.000070,
-              'SYP': 1.0,
+              'SYP': 1.0,                           // Base currency
+              'USD': 1.0 / usdToSyp,               // 1 SYP = (1/12904) USD
+              'EUR': usdToEur / usdToSyp,          // 1 SYP = (EUR_rate/SYP_rate) EUR
             };
           });
+          
+          print('✅ REAL-TIME SYP-based rates updated:');
+          print('   SYP: ${_exchangeRates['SYP']} (base)');
+          print('   USD: ${_exchangeRates['USD']} (1 SYP = ${_exchangeRates['USD']} USD)');
+          print('   EUR: ${_exchangeRates['EUR']} (1 SYP = ${_exchangeRates['EUR']} EUR)');
+          
+          // Test conversion example
+          final testSyp = 5000.0;
+          final testUsd = testSyp * _exchangeRates['USD']!;
+          final testEur = testSyp * _exchangeRates['EUR']!;
+          print('💰 TEST: SYP $testSyp = \${testUsd.toStringAsFixed(2)} USD = €${testEur.toStringAsFixed(2)} EUR');
         }
-        
-        await _saveRatesToLocal();
       }
     } catch (e) {
-      print('Error fetching exchange rates: $e');
-      // Use fallback rates
+      print('❌ Error fetching exchange rates: $e');
       _useFallbackRates();
     }
   }
 
-  // OPTIMIZED: Use fallback rates
   void _useFallbackRates() {
     setState(() {
       _exchangeRates = {
-        'USD': 0.000077,
-        'EUR': 0.000070,
-        'SYP': 1.0,
+        'SYP': 1.0,        // Base currency
+        'USD': 0.0000775,  // 1 SYP = 0.0000775 USD (approx 1 USD = 12,904 SYP)
+        'EUR': 0.0000659,  // 1 SYP = 0.0000659 EUR (approx 1 EUR = 15,174 SYP)
       };
     });
+    print('⚠️ Using FALLBACK SYP-based rates:');
+    print('   SYP: ${_exchangeRates['SYP']} (base)');
+    print('   USD: ${_exchangeRates['USD']} (1 SYP = ${_exchangeRates['USD']} USD)');
+    print('   EUR: ${_exchangeRates['EUR']} (1 SYP = ${_exchangeRates['EUR']} EUR)');
+    
+    // Test conversion example
+    final testSyp = 5000.0;
+    final testUsd = testSyp * _exchangeRates['USD']!;
+    final testEur = testSyp * _exchangeRates['EUR']!;
+    print('💰 FALLBACK TEST: SYP $testSyp = \${testUsd.toStringAsFixed(2)} USD = €${testEur.toStringAsFixed(2)} EUR');
   }
 
-  // OPTIMIZED: Save rates with timestamp
-  Future<void> _saveRatesToLocal() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_ratesCacheKey, json.encode(_exchangeRates));
-      await prefs.setString(_ratesTimestampKey, DateTime.now().toIso8601String());
-    } catch (e) {
-      print('Error saving rates: $e');
-    }
-  }
-
-  // OPTIMIZED: Load cached rates
-  Future<void> _loadCachedRates() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ratesJson = prefs.getString(_ratesCacheKey);
-      
-      if (ratesJson != null) {
-        final rates = Map<String, double>.from(json.decode(ratesJson));
-        if (mounted) {
-          setState(() {
-            _exchangeRates = rates;
-          });
-        }
-      }
-    } catch (e) {
-      print('Error loading cached rates: $e');
-    }
-  }
-
-  // OPTIMIZED: Memoized price conversion
-  final Map<String, String> _priceCache = {};
-  
+  // FIXED: Price conversion with SYP as stored currency - NO CACHING
   String _convertPrice(dynamic price, {bool showSymbol = true}) {
     if (price == null) return 'Price not set';
     
-    // Create cache key
-    final cacheKey = '${price}_${_selectedCurrency}_$showSymbol';
-    if (_priceCache.containsKey(cacheKey)) {
-      return _priceCache[cacheKey]!;
-    }
-    
     try {
-      final priceValue = price is num ? price.toDouble() : double.parse(price.toString());
+      // Price is stored in SYP in database
+      final priceInSyp = price is num ? price.toDouble() : double.parse(price.toString());
       String result;
       
       if (_selectedCurrency == 'SYP') {
+        // Display in SYP (original stored currency)
         final symbol = showSymbol ? 'SYP ' : '';
-        result = '$symbol${priceValue.toStringAsFixed(0)}';
+        result = '$symbol${priceInSyp.toStringAsFixed(0)}'; // No decimals for SYP
+        print('💱 Price display (SYP): $priceInSyp SYP → $result');
       } else {
+        // Convert from SYP to selected currency
         final rate = _exchangeRates[_selectedCurrency] ?? 1.0;
-        final convertedAmount = priceValue * rate;
+        final convertedAmount = priceInSyp * rate; // Multiply SYP price by rate
         final currency = _currencies.firstWhere((c) => c['code'] == _selectedCurrency);
         final symbol = showSymbol ? '${currency['symbol']} ' : '';
         
-        result = '$symbol${convertedAmount >= 1 ? convertedAmount.toStringAsFixed(2) : convertedAmount.toStringAsFixed(4)}';
-      }
-      
-      // Cache the result
-      _priceCache[cacheKey] = result;
-      
-      // Limit cache size
-      if (_priceCache.length > 100) {
-        _priceCache.clear();
+        final decimals = 2; // USD and EUR use 2 decimals
+        result = '$symbol${convertedAmount.toStringAsFixed(decimals)}';
+        
+        print('💱 Price conversion: $priceInSyp SYP × $rate = $convertedAmount $_selectedCurrency → $result');
       }
       
       return result;
     } catch (e) {
+      print('❌ Price conversion error: $e');
       return 'Price not set';
     }
   }
 
-  // OPTIMIZED: Debounced refresh
   Future<void> _debouncedRefresh() async {
     _refreshTimer?.cancel();
     _refreshTimer = Timer(Duration(milliseconds: 500), () async {
@@ -313,15 +254,121 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
   }
 
   @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  String _getCurrencySymbol(String currencyCode) {
+    final currency = _currencies.firstWhere(
+      (c) => c['code'] == currencyCode,
+      orElse: () => {'symbol': currencyCode},
+    );
+    return currency['symbol'] ?? currencyCode;
+  }
+
+  // FIXED: Get formatted price with SYP as base
+  String _getFormattedPrice(dynamic price, {String? currency}) {
+    currency ??= _selectedCurrency;
+    
+    if (price == null || price == 0) return 'Free';
+    
+    try {
+      // Price stored in SYP
+      final priceInSyp = price is num ? price.toDouble() : double.parse(price.toString());
+      
+      if (currency == 'SYP') {
+        // Display original SYP price
+        return 'SYP ${priceInSyp.toStringAsFixed(0)}';
+      } else {
+        // Convert from SYP to target currency
+        final rate = _exchangeRates[currency] ?? 1.0;
+        final convertedAmount = priceInSyp * rate;
+        final symbol = _getCurrencySymbol(currency);
+        final decimals = 2; // USD/EUR use 2 decimals
+        
+        return '$symbol${convertedAmount.toStringAsFixed(decimals)}';
+      }
+    } catch (e) {
+      return 'Price error';
+    }
+  }
+
+  Future<void> _switchCurrency(String newCurrency) async {
+    if (newCurrency == _selectedCurrency) return;
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text('Switching to $newCurrency...'),
+            ],
+          ),
+          duration: Duration(milliseconds: 800),
+          backgroundColor: ColorsController.primaryColor,
+        ),
+      );
+    }
+
+    setState(() {
+      _selectedCurrency = newCurrency;
+    });
+    
+    await _saveCurrencyPreference(newCurrency);
+    print('💰 Currency switched to: $newCurrency');
+    
+    // Always fetch fresh rates when switching currency - NO CACHING
+    if (newCurrency != 'SYP') {
+      await _loadExchangeRates();
+    }
+  }
+
+  bool _isValidPrice(dynamic price) {
+    if (price == null) return false;
+    
+    try {
+      final priceValue = price is num ? price.toDouble() : double.parse(price.toString());
+      return priceValue >= 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String _getSafeCurrencyFlag() {
+    try {
+      final currency = _currencies.firstWhere(
+        (c) => c['code'] == _selectedCurrency,
+        orElse: () => _currencies.firstWhere((c) => c['code'] == 'SYP'),
+      );
+      return currency['flag'] ?? '🇸🇾';
+    } catch (e) {
+      print('Error getting currency flag: $e');
+      return '🇸🇾';
+    }
+  }
+
+  bool get isUsingConvertedCurrency => _selectedCurrency != 'SYP';
+
+  @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
     
     return Scaffold(
-       backgroundColor:Theme.of(context).appBarTheme.backgroundColor ,
+      backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
       body: SafeArea(
         child: Consumer<HomeProvider>(
           builder: (context, homeProvider, child) {
-            // OPTIMIZED: Better loading states
             if (homeProvider.isLoading && homeProvider.categories.isEmpty) {
               return _buildShimmerLoading();
             }
@@ -334,24 +381,23 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
               onRefresh: _debouncedRefresh,
               child: CustomScrollView(
                 slivers: [
-                  // OPTIMIZED: Use slivers for better performance
                   SliverToBoxAdapter(
                     child: _buildEnhancedHeader(context, homeProvider),
                   ),
                   
-                  // Categories section
                   if (homeProvider.categories.isNotEmpty)
                     SliverToBoxAdapter(
                       child: _buildCategoriesSection(homeProvider.categories),
                     ),
                   
-                  // Content sections
                   SliverToBoxAdapter(
                     child: Column(
                       children: [
                         SizedBox(height: 8),
                         
-                        // OPTIMIZED: Only build sections with data
+                        if (homeProvider.mostViewedProducts.isNotEmpty)
+                          _buildProductSection("Most Viewed".tr(), homeProvider.mostViewedProducts),
+                        
                         if (homeProvider.featuredProducts.isNotEmpty)
                           _buildFeaturedSection(homeProvider.featuredProducts),
                         
@@ -368,18 +414,14 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                           _buildAdBannersSection(homeProvider.adBanners),
                         ],
                         
-                        // Product sections
-                        if (homeProvider.mostViewedProducts.isNotEmpty)
-                          _buildProductSection(AppLocalizations.mostViewed.tr(), homeProvider.mostViewedProducts),
-                        
                         if (homeProvider.mobilePhones.isNotEmpty)
-                          _buildProductSection(AppLocalizations.mobiles.tr(), homeProvider.mobilePhones),
+                          _buildProductSection("Mobiles".tr(), homeProvider.mobilePhones),
                         
                         if (homeProvider.computers.isNotEmpty)
-                          _buildProductSection(AppLocalizations.computers.tr(), homeProvider.computers),
+                          _buildProductSection("Computers".tr(), homeProvider.computers),
                         
                         if (homeProvider.computerAccessories.isNotEmpty)
-                          _buildProductSection(AppLocalizations.computerAccessories.tr(), homeProvider.computerAccessories),
+                          _buildProductSection("Computer Accessories".tr(), homeProvider.computerAccessories),
                         
                         SizedBox(height: 80),
                       ],
@@ -394,12 +436,10 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     );
   }
 
-  // OPTIMIZED: Shimmer loading
   Widget _buildShimmerLoading() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Header shimmer
           Container(
             padding: EdgeInsets.all(16),
             child: Column(
@@ -462,7 +502,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
             ),
           ),
           
-          // Categories shimmer
           Container(
             padding: EdgeInsets.all(16),
             child: Column(
@@ -513,7 +552,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
             ),
           ),
           
-          // Product cards shimmer
           ...List.generate(3, (index) => 
             Container(
               padding: EdgeInsets.all(16),
@@ -567,7 +605,6 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     );
   }
 
-  // OPTIMIZED: Error state
   Widget _buildErrorState(HomeProvider homeProvider) {
     return Center(
       child: Column(
@@ -613,193 +650,179 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     );
   }
 
-  // Keep all your existing build methods but add RepaintBoundary for performance
- Widget _buildEnhancedHeader(BuildContext context, HomeProvider homeProvider) {
-  return RepaintBoundary(
-    child: Container(
-      padding: EdgeInsets.all(6),
-      child: Column(
-        children: [
-          // Your existing header code...
-          Row(
-            children: [
-              Container(
-                height: 70,
-                width: 62,
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Image.asset('assets/icons/home_logo.png', 
-                  height: 70, width: 62, fit: BoxFit.fill),
-              ),
-              
-              Expanded(
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
-                  },
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!, width: 1.0),
-                    ),
-                    child: Row(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          child: Icon(Icons.search, color: Colors.grey[600]),
-                        ),
-                        Expanded(
-                          child: Text(
-                            AppLocalizations.search.tr(),
-                            style: GoogleFonts.jost(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              
-              SizedBox(width: 9),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
-                },
-                child: Container(
-                  height: 45,
-                  width: 45,
+  Widget _buildEnhancedHeader(BuildContext context, HomeProvider homeProvider) {
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(6),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  height: 80,
+                  width: 75,
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!)
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: SvgPicture.asset('assets/icons/Notification.svg',
-                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
-                    height: 40, width: 40, fit: BoxFit.cover),
+                  child: Image.asset('assets/icons/new_delloni.png',
+                    height: 80, width: 100, fit: BoxFit.cover),
                 ),
-              ),
-            ],
-          ),
-          
-          SizedBox(height: 8),
-          
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 10),
+                
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => SearchPage()));
+                    },
                     child: Container(
                       height: 45,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey[300]!),
+                        border: Border.all(color: Colors.grey[300]!, width: 1.0),
                       ),
                       child: Row(
                         children: [
                           Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                            child: Icon(Icons.search, color: Colors.grey[600]),
                           ),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  AppLocalizations.location.tr(),
-                                  style: GoogleFonts.jost(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w300,
-                                  ),
-                                ),
-                                Text(
-                                  (homeProvider.userLocationAddress != null && homeProvider.userLocationAddress!.isNotEmpty)
-                                    ? (_getCityName(homeProvider.userLocationAddress!) ?? '')
-                                    : 'Location not set'.tr(),
-                                  style: GoogleFonts.jost(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              AppLocalizations.search.tr(),
+                              style: GoogleFonts.jost(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
                           ),
                         ],
                       ),
                     ),
                   ),
                 ),
-              ),
-              
-              SizedBox(width: 9),
-              GestureDetector(
-                onTap: _showCurrencySelector,
-                child: Container(
-                  height: 45,
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // FIX: Use safe currency lookup with fallback
-                      Text(
-                        _getSafeCurrencyFlag(),
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        _selectedCurrency,
-                        style: GoogleFonts.jost(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down, 
-                        size: 16, color: Colors.grey[600]),
-                    ],
+                
+                SizedBox(width: 9),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => NotificationsPage()));
+                  },
+                  child: Container(
+                    height: 45,
+                    width: 45,
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!)
+                    ),
+                    child: SvgPicture.asset('assets/icons/Notification.svg',
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                      height: 40, width: 40, fit: BoxFit.cover),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+            
+            SizedBox(height: 8),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => LocationsPage()));
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Container(
+                        height: 45,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Icon(Icons.location_on_outlined, color: Color(0xFF9CA3AF), size: 20),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    AppLocalizations.location.tr(),
+                                    style: GoogleFonts.jost(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w300,
+                                    ),
+                                  ),
+                                  Text(
+                                    (homeProvider.userLocationAddress != null && homeProvider.userLocationAddress!.isNotEmpty)
+                                      ? (_getCityName(homeProvider.userLocationAddress!) ?? '')
+                                      : 'Location not set'.tr(),
+                                    style: GoogleFonts.jost(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Icon(Icons.keyboard_arrow_right, color: Color(0xFF9CA3AF), size: 24),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                SizedBox(width: 9),
+                GestureDetector(
+                  onTap: _showCurrencySelector,
+                  child: Container(
+                    height: 45,
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _getSafeCurrencyFlag(),
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          _selectedCurrency,
+                          style: GoogleFonts.jost(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.keyboard_arrow_down, 
+                          size: 16, color: Colors.grey[600]),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+          
+          ],
+        ),
       ),
-    ),
-  );
-}
-String _getSafeCurrencyFlag() {
-  try {
-    final currency = _currencies.firstWhere(
-      (c) => c['code'] == _selectedCurrency,
-      orElse: () => _currencies.first, // Fallback to first currency
     );
-    return currency['flag'] ?? '🇸🇾';
-  } catch (e) {
-    print('Error getting currency flag: $e');
-    return '🇸🇾'; // Default flag
   }
-}
 
-
-  // OPTIMIZED: Product card with RepaintBoundary
+  // FIXED: Product card with correct SYP pricing display
   Widget _buildProductCard(Map<String, dynamic> product) {
     return RepaintBoundary(
       child: InkWell(
@@ -814,7 +837,9 @@ String _getSafeCurrencyFlag() {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? Colors.grey[850] 
+                : Colors.white,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
@@ -828,7 +853,6 @@ String _getSafeCurrencyFlag() {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // IMPROVED: Image container with better quality
               Container(
                 height: 170,
                 width: double.infinity,
@@ -843,29 +867,38 @@ String _getSafeCurrencyFlag() {
                       child: _buildProductImage(product),
                     ),
                     
-                    // Currency indicator
-                    if (_selectedCurrency != 'SYP')
+                    // Currency conversion indicator (only show when NOT SYP)
+                    if (isUsingConvertedCurrency)
                       Positioned(
                         top: 8,
                         left: 8,
                         child: Container(
                           padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.blue[700]!.withOpacity(0.9),
-                            borderRadius: BorderRadius.circular(4),
+                            color: ColorsController.primaryColor.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
-                            _selectedCurrency,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _getSafeCurrencyFlag(),
+                                style: TextStyle(fontSize: 10),
+                              ),
+                              SizedBox(width: 2),
+                              Text(
+                                _selectedCurrency,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     
-                    // Favorite button
                     Positioned(
                       top: 8,
                       right: 8,
@@ -933,7 +966,6 @@ String _getSafeCurrencyFlag() {
                       ),
                     ),
                     
-                    // Negotiable badge
                     if (product['allowPriceNegotiation'] == true)
                       Positioned(
                         bottom: 8,
@@ -958,7 +990,6 @@ String _getSafeCurrencyFlag() {
                 ),
               ),
               
-              // Product details (rest of the card remains the same)
               Padding(
                 padding: EdgeInsets.all(12),
                 child: Column(
@@ -969,38 +1000,17 @@ String _getSafeCurrencyFlag() {
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.white 
+                            : Colors.black87,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 2),
+                    SizedBox(height: 4),
                     
-                    // Price with currency conversion
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _convertPrice(product['price']),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        // Show original SYP price if converted
-                        if (_selectedCurrency != 'SYP' && product['price'] != null)
-                          Text(
-                            'ل.س${(product['price'] as num).toStringAsFixed(0)}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              color: Colors.grey[500],
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                          ),
-                      ],
-                    ),
+                    _buildPriceDisplay(product['price']),
+                    
                     SizedBox(height: 8),
                     
                     Row(
@@ -1043,7 +1053,81 @@ String _getSafeCurrencyFlag() {
       ),
     );
   }
-  // OPTIMIZED: Currency selector with better performance
+
+  // FIXED: Price display widget with correct SYP logic - REAL TIME
+  Widget _buildPriceDisplay(dynamic price) {
+    if (price == null || price == 0) {
+      return Text(
+        'Free',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Colors.green[600],
+        ),
+      );
+    }
+
+    try {
+      // Price is stored in SYP
+      final priceInSyp = price is num ? price.toDouble() : double.parse(price.toString());
+      
+      if (_selectedCurrency == 'SYP') {
+        // Show only SYP price (original stored price)
+        print('📱 Displaying SYP price: $priceInSyp');
+        return Text(
+          'SYP ${priceInSyp.toStringAsFixed(0)}',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        );
+      } else {
+        // Show converted price with original SYP crossed out
+        final rate = _exchangeRates[_selectedCurrency] ?? 1.0;
+        final convertedAmount = priceInSyp * rate;
+        final symbol = _getCurrencySymbol(_selectedCurrency);
+        final decimals = 2; // USD/EUR use 2 decimals
+        
+        print('📱 Converting price: $priceInSyp SYP × $rate = $convertedAmount $_selectedCurrency');
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Converted price (prominent)
+            Text(
+              '$symbol${convertedAmount.toStringAsFixed(decimals)}',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+            // Original SYP price (crossed out, smaller)
+            Text(
+              'SYP ${priceInSyp.toStringAsFixed(0)}',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: Colors.grey[500],
+                decoration: TextDecoration.lineThrough,
+                decorationColor: Colors.grey[500],
+              ),
+            ),
+          ],
+        );
+      }
+    } catch (e) {
+      print('❌ Price display error: $e');
+      return Text(
+        'Price error',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: Colors.red[600],
+        ),
+      );
+    }
+  }
+
   void _showCurrencySelector() {
     showModalBottomSheet(
       context: context,
@@ -1100,13 +1184,7 @@ String _getSafeCurrencyFlag() {
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () async {
-                          if (mounted) {
-                            setState(() {
-                              _selectedCurrency = currency['code']!;
-                              _priceCache.clear(); // Clear price cache
-                            });
-                          }
-                          await _saveCurrencyPreference(currency['code']!);
+                          await _switchCurrency(currency['code']!);
                           Navigator.pop(context);
                         },
                         borderRadius: BorderRadius.circular(12),
@@ -1172,11 +1250,9 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Categories section with lazy loading
   Widget _buildCategoriesSection(List<Map<String, dynamic>> categories) {
     return RepaintBoundary(
       child: Container(
-        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1206,7 +1282,7 @@ String _getSafeCurrencyFlag() {
               height: 90,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: math.min(categories.length, 8), // Limit to 8 categories
+                itemCount: math.min(categories.length, 8),
                 itemBuilder: (context, index) {
                   final category = categories[index];
                   return Container(
@@ -1228,13 +1304,11 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Product section with better performance
   Widget _buildProductSection(String title, List<Map<String, dynamic>> products) {
     if (products.isEmpty) return SizedBox.shrink();
     
     return RepaintBoundary(
       child: Container(
-        // color: Colors.white,
         margin: EdgeInsets.only(top: 8),
         padding: EdgeInsets.all(16),
         child: Column(
@@ -1274,12 +1348,10 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Recently added section
   Widget _buildRecentlyAddedSection(List<Map<String, dynamic>> allProducts) {
     if (allProducts.isEmpty) return SizedBox.shrink();
     
-    // Use a more efficient sorting approach
-    final recentProducts = allProducts.take(20).toList(); // Limit processing
+    final recentProducts = allProducts.take(20).toList();
     recentProducts.sort((a, b) {
       try {
         DateTime aDate = a['createdAt'] is Timestamp 
@@ -1298,7 +1370,6 @@ String _getSafeCurrencyFlag() {
     
     return RepaintBoundary(
       child: Container(
-        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1340,14 +1411,11 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Featured section
   Widget _buildFeaturedSection(List<Map<String, dynamic>> featuredProducts) {
     if (featuredProducts.isEmpty) return SizedBox.shrink();
     
     return RepaintBoundary(
       child: Container(
-        // color: Colors.white,
-        // color: ColorsController.darkBackground,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1389,13 +1457,11 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Personalized section
   Widget _buildPersonalizedSection(List<Map<String, dynamic>> personalizedProducts) {
     if (personalizedProducts.isEmpty) return SizedBox.shrink();
     
     return RepaintBoundary(
       child: Container(
-        // color: Colors.white,
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
@@ -1437,8 +1503,7 @@ String _getSafeCurrencyFlag() {
     );
   }
 
-  // OPTIMIZED: Ad banners section
-Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
+  Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
     if (banners.isEmpty) return SizedBox.shrink();
 
     return RepaintBoundary(
@@ -1474,7 +1539,7 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
                           width: double.infinity,
                           height: 180,
                           fit: BoxFit.cover,
-                          highQuality: true, // High quality for banners
+                          highQuality: true,
                           errorWidget: Container(
                             color: Colors.grey[200],
                             child: Center(
@@ -1568,7 +1633,6 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
     );
   }
 
-  // OPTIMIZED: Category item with RepaintBoundary
   Widget _buildCategoryItem(String title, String icon, Color color, {VoidCallback? onTap}) {
     return RepaintBoundary(
       child: InkWell(
@@ -1590,7 +1654,7 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,
-                  highQuality: true, // High quality for category icons
+                  highQuality: true,
                   borderRadius: BorderRadius.circular(25),
                   errorWidget: Container(
                     color: Colors.grey[200],
@@ -1619,34 +1683,33 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
       ),
     );
   }
-  // OPTIMIZED: Product image with better caching
-   Widget _buildProductImage(Map<String, dynamic> product) {
+
+  Widget _buildProductImage(Map<String, dynamic> product) {
     final imageUrls = product['imageUrls'] as List<dynamic>?;
   
-  if (imageUrls != null && imageUrls.isNotEmpty) {
-    return WatermarkPreservingImage(
-      imageUrl: imageUrls.first.toString(),
-      width: double.infinity,
-      height: 170,
-      fit: BoxFit.cover, // Now you can use cover without losing watermark
-      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      preserveWatermark: true,
-    );
-  } else {
-    return Container(
-      width: double.infinity,
-      height: 170,
-      decoration: BoxDecoration(
-        color: Colors.grey[200],
+    if (imageUrls != null && imageUrls.isNotEmpty) {
+      return WatermarkPreservingImage(
+        imageUrl: imageUrls.first.toString(),
+        width: double.infinity,
+        height: 170,
+        fit: BoxFit.cover,
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
-    );
-  }
- 
+        preserveWatermark: true,
+      );
+    } else {
+      return Container(
+        width: double.infinity,
+        height: 170,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Icon(Icons.image, size: 50, color: Colors.grey[400]),
+      );
+    }
   }
 
-  // Helper methods (keep unchanged)
+  // Helper methods
   void _navigateToAllCategories() {
     Navigator.push(
       context,
@@ -1732,7 +1795,6 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
       case 'external':
         if (linkUrl != null) {
           // Use url_launcher package to open external URL
-          // launch(linkUrl);
         }
         break;
     }
@@ -1784,11 +1846,5 @@ Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
     } catch (e) {
       return 'Recently'.tr();
     }
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
   }
 }

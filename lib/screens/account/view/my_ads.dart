@@ -773,109 +773,7 @@ void _editAd(ProductModel ad) {
     );
   }
 
-  void _editPrice(ProductModel ad) {
-    final priceController = TextEditingController(text: ad.price.toString());
-    bool allowNegotiation = ad.allowPriceNegotiation;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            AppLocalizations.editItem.tr(), // Fallback to 'editItem' if 'editPrice' does not exist
-            style: GoogleFonts.jost(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onBackground,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: priceController,
-                style: GoogleFonts.jost(fontSize: 14),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: AppLocalizations.price.tr(),
-                  labelStyle: GoogleFonts.jost(fontSize: 14),
-                  prefixText: 'Rs ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              SizedBox(height: 16),
-              CheckboxListTile(
-                title: Text(AppLocalizations.allowPriceNegotiation.tr(), style: GoogleFonts.jost(fontSize: 14)),
-                value: allowNegotiation,
-                onChanged: (value) => setState(() => allowNegotiation = value ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(AppLocalizations.cancel.tr(), style: GoogleFonts.jost(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                final success = await _adsProvider.updateAdPrice(
-                  ad.id,
-                  double.tryParse(priceController.text) ?? ad.price,
-                  allowNegotiation,
-                );
-                _showActionResult(success, AppLocalizations.priceUpdatedSuccessfully.tr());
-              },
-              child: Text(AppLocalizations.save.tr()),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _editPhotos(ProductModel ad) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          AppLocalizations.photos.tr(), // Fallback to 'photos' if 'editPhotos' does not exist
-          style: GoogleFonts.jost(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onBackground,
-          ),
-        ),
-        content: Text(
-          AppLocalizations.photoEditingFeatureComingSoon.tr(),
-          style: GoogleFonts.jost(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.cancel.tr(), style: GoogleFonts.jost(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7))),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to a full photo editing screen
-              // You can create a dedicated photo editing page
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(AppLocalizations.photoEditingFeatureComingSoon.tr()),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                ),
-              );
-            },
-            child: Text(AppLocalizations.photos.tr()),
-          ),
-        ],
-      ),
-    );
-  }
+ 
 
   void _handleAdAction(String action, ProductModel ad, MyAdsProvider provider) async {
     switch (action) {
@@ -922,97 +820,53 @@ void _editAd(ProductModel ad) {
     );
   }
 
-  void _showDeleteConfirmation(ProductModel ad, MyAdsProvider provider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Row(
-          children: [
-            Icon(Icons.error, color: Theme.of(context).colorScheme.error, size: 24),
-            SizedBox(width: 8),
-            Text(
-              AppLocalizations.deleteAd.tr(),
-              style: GoogleFonts.jost(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onBackground,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppLocalizations.areYouSureDelete.tr(), // Use generic confirmation
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 8),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.5)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Theme.of(context).colorScheme.error, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      AppLocalizations.thisActionCannotBeUndone.tr(),
-                      style: GoogleFonts.jost(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppLocalizations.cancel.tr(),
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final success = await provider.deleteAd(ad.id);
-              _showActionResult(success, AppLocalizations.adDeletedSuccessfully.tr());
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: Text(
-              AppLocalizations.delete.tr(),
-              style: GoogleFonts.jost(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+ void _showDeleteConfirmation(ProductModel ad, MyAdsProvider provider) async {
+  // Get deletion info
+  final deletionInfo = await provider.getDeletionInfo(ad.id);
+  final chatCount = deletionInfo['chatCount'] as int;
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text("Delete Product"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text("This will permanently delete:"),
+          SizedBox(height: 8),
+          Text("• Your product: \"${ad.title}\""),
+          if (chatCount > 0) 
+            Text("• $chatCount related chat${chatCount == 1 ? '' : 's'}"),
+          SizedBox(height: 12),
+          Text("This action cannot be undone!", 
+               style: TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            final success = await provider.deleteAdWithChats(ad.id);
+            // Show result
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(success 
+                  ? "Product and chats deleted successfully" 
+                  : "Failed to delete product"),
+              ),
+            );
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          child: Text("Delete Everything"),
+        ),
+      ],
+    ),
+  );
+}
 
   void _showSearchDialog(MyAdsProvider provider) {
     showDialog(

@@ -1,4 +1,5 @@
 import 'package:arabicmarketplace/resources/colors_controller.dart';
+import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
 import 'package:arabicmarketplace/utills/AppLocalizations.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -360,6 +361,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
   }
 
   void _selectCurrentCategory() {
+
     final finalCategoryId = _selectedSubSubSubCategoryId ?? 
                           _selectedSubSubCategoryId ?? 
                           _selectedSubCategoryId ?? 
@@ -373,6 +375,8 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
       'subSubSubCategoryId': _selectedSubSubSubCategoryId,
       'finalCategoryId': finalCategoryId,
       'categoryName': categoryName,
+      'mainCategoryName': _getSelectedCategoryName(_selectedMainCategoryId!, widget.categories),
+      
     });
   }
 
@@ -401,7 +405,7 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
       onTap: () => _onCategoryTap(category),
       child: Container(
         margin: EdgeInsets.only(bottom: 8),
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(16).copyWith(left:category['iconUrl'] == null? 50:10),
         decoration: BoxDecoration(
           color: isSelected ? ColorsController.primaryColor.withOpacity(0.1) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -412,11 +416,11 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         child: Row(
           children: [
             // Category icon
-            Container(
+       if(category['iconUrl'] != null)     Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: ColorsController.primaryColor.withOpacity(0.1),
+                // color: ColorsController.primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: category['iconUrl'] != null
@@ -428,19 +432,17 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
                         height: 40,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.category,
-                            color: ColorsController.primaryColor,
-                            size: 20,
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 20),
+                            child: SizedBox(width: 20,),
                           );
                         },
                       ),
                     )
-                  : Icon(
-                      Icons.category,
-                      color: ColorsController.primaryColor,
-                      size: 20,
-                    ),
+                  : Padding(
+                    padding: const EdgeInsets.only(left: 20),
+                    child: SizedBox(width: 20,),
+                  ),
             ),
             SizedBox(width: 12),
             
@@ -532,6 +534,8 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
         _selectedSubSubCategoryId = null;
         _selectedSubSubSubCategoryId = null;
       });
+      print('🏷️ Main category selected: ${category['name']}');
+      Provider.of<ItemProvider>(context, listen: false).setSelectedMainCategoryForImages(category['name']);
       
       if (hasSubcategories) {
         _loadSubCategories(categoryId);

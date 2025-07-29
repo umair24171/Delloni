@@ -42,12 +42,21 @@ class ItemProvider with ChangeNotifier {
   String? selectedCityName;
   String? selectedDistrictId;
   String? selectedDistrictName;
+  String? selectedMainCategoryForImages;
 
   // State management
   bool _isUploading = false;
   bool _isPublishing = false;
   String? _error;
   double _uploadProgress = 0.0;
+
+
+  setSelectedMainCategoryForImages(String? category){
+    selectedMainCategoryForImages = category;
+    notifyListeners();
+    developer.log('Selected main category for images: $category');
+  }
+
   // NEW: Check if we're in edit mode
 bool get isEditMode => itemTitle.isNotEmpty && category.isNotEmpty;
 // NEW: Get the item ID for editing (you'll need to store this when loading)
@@ -206,6 +215,7 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
     'house',
     'houses',
     'real estate', 
+    'vehicle',
     'property',
     'apartment',
     'villa',
@@ -244,11 +254,22 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
   int get maxImages {
     if (categoryName != null) {
       final categoryLower = categoryName!.toLowerCase();
+      if(selectedMainCategoryForImages != null){
+        final mainCategoryLower = selectedMainCategoryForImages!.toLowerCase();
+        if(_unlimitedCategories.any((cat) => mainCategoryLower.contains(cat))){
+          return maxImagesRealEstate;
+        }
+      }
       if (_unlimitedCategories.any((cat) => categoryLower.contains(cat))) {
         return maxImagesRealEstate;
       }
     }
     return maxImagesDefault;
+  }
+  setImagesNull(){
+    images.clear();
+    imageUrls.clear();
+    notifyListeners();
   }
 
   bool get isRealEstateCategory {
@@ -967,6 +988,7 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
 
       developer.log('Item published successfully with ${_categorySpecificFields.length} category-specific fields!');
       _setPublishing(false);
+      setImagesNull();
       resetForm();
       return true;
 

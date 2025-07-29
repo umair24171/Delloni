@@ -35,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen> {
         height: double.infinity,
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/icons/main_logo.png'), // Replace with your image path
+            image: AssetImage('assets/icons/new_delloni.png'), // Replace with your image path
             fit: BoxFit.contain, // Covers the whole screen
           ),
         ),

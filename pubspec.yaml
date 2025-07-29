@@ -67,6 +67,7 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
   googleapis_auth: ^2.0.0
+  image: ^4.5.4
   # google_places_flutter: ^2.1.0
 
 dev_dependencies:
@@ -83,10 +84,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icons/logo_two.jpeg"
+  image_path: "assets/icons/new_delloni.png"
   min_sdk_android: 21 # android min sdk min:16, default 21  
   adaptive_icon_background: "#FFFFFF"  # White background
-  adaptive_icon_foreground: "assets/icons/logo_two.jpeg"  # Use your logo as foreground
+  adaptive_icon_foreground: "assets/icons/new_delloni.png"  # Use your logo as foreground
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

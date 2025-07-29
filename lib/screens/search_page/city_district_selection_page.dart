@@ -274,7 +274,8 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            // color: Colors.white,
+
+                            color: Colors.white,
                           ),
                         ),
                       ),

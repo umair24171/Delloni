@@ -1043,6 +1043,7 @@ Future<void> chatWithSeller(BuildContext context) async {
     log('Error starting chat: $e');
   }
 }
+
 Future<String?> _createOrGetChat({
   required String currentUserId,
   required String currentUserName,

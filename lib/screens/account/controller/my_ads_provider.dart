@@ -65,6 +65,115 @@ class MyAdsProvider with ChangeNotifier {
     }
   }
 
+  // COMPLETE DELETION: Delete product and permanently remove all related chats
+Future<bool> deleteAdWithChats(String productId) async {
+  try {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return false;
+
+    log('🗑️ Starting complete deletion of product: $productId');
+
+    // 1. Find all chats related to this product
+    final relatedChatsQuery = await _firestore
+        .collection('chats')
+        .where('productId', isEqualTo: productId)
+        .get();
+
+    // 2. Delete all related chats and their messages
+    for (var chatDoc in relatedChatsQuery.docs) {
+      await _deleteEntireChat(chatDoc.id);
+    }
+
+    // 3. Delete the product itself
+    await _firestore.collection('items').doc(productId).delete();
+
+    // 4. Update local state
+    _allAds.removeWhere((ad) => ad.id == productId);
+    _activeAds.removeWhere((ad) => ad.id == productId);
+    _soldAds.removeWhere((ad) => ad.id == productId);
+    _inactiveAds.removeWhere((ad) => ad.id == productId);
+
+    notifyListeners();
+    return true;
+
+  } catch (e) {
+    log('❌ Error in complete deletion: $e');
+    return false;
+  }
+}
+
+// Helper method to completely delete a chat and all its messages
+Future<void> _deleteEntireChat(String chatId) async {
+  try {
+    // Delete all messages in batches
+    bool hasMoreMessages = true;
+    while (hasMoreMessages) {
+      final messagesQuery = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .limit(100)
+          .get();
+
+      if (messagesQuery.docs.isEmpty) {
+        hasMoreMessages = false;
+        break;
+      }
+
+      final batch = _firestore.batch();
+      for (var messageDoc in messagesQuery.docs) {
+        batch.delete(messageDoc.reference);
+      }
+      await batch.commit();
+    }
+
+    // Delete the chat document itself
+    await _firestore.collection('chats').doc(chatId).delete();
+
+  } catch (e) {
+    log('❌ Error deleting chat $chatId: $e');
+    throw e;
+  }
+}
+// Get count of related chats
+Future<int> getRelatedChatsCount(String productId) async {
+  try {
+    final chatsQuery = await _firestore
+        .collection('chats')
+        .where('productId', isEqualTo: productId)
+        .get();
+    return chatsQuery.docs.length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+// Get detailed info about what will be deleted
+Future<Map<String, dynamic>> getDeletionInfo(String productId) async {
+  try {
+    final chatsQuery = await _firestore
+        .collection('chats')
+        .where('productId', isEqualTo: productId)
+        .get();
+
+    int totalMessages = 0;
+    for (var chatDoc in chatsQuery.docs) {
+      final messagesQuery = await _firestore
+          .collection('chats')
+          .doc(chatDoc.id)
+          .collection('messages')
+          .get();
+      totalMessages += messagesQuery.docs.length;
+    }
+
+    return {
+      'chatCount': chatsQuery.docs.length,
+      'messageCount': totalMessages,
+    };
+  } catch (e) {
+    return {'chatCount': 0, 'messageCount': 0};
+  }
+}
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
@@ -141,16 +250,9 @@ class MyAdsProvider with ChangeNotifier {
   }
 
   // Delete ad
-  Future<bool> deleteAd(String adId) async {
-    try {
-      await _firestore.collection('items').doc(adId).delete();
-      return true;
-    } catch (e) {
-      _setError('Failed to delete ad: $e');
-      log('Error deleting ad: $e');
-      return false;
-    }
-  }
+ Future<bool> deleteAd(String productId) async {
+  return await deleteAdWithChats(productId);
+}
 
   // Promote ad (mark as featured)
   Future<bool> promoteAd(String adId) async {

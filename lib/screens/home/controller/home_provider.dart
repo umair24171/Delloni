@@ -343,77 +343,192 @@ class HomeProvider with ChangeNotifier {
   }
 
   // Categorize products into different sections
-  void _categorizeProducts(List<Map<String, dynamic>> allProducts) {
-    try {
-      // Featured products
-      _featuredProducts = allProducts
-          .where((p) => p['isFeatured'] == true || p['isPromoted'] == true)
-          .take(10)
+ void _categorizeProducts(List<Map<String, dynamic>> allProducts) {
+  try {
+    // MOST VIEWED - ALWAYS GLOBAL (ALL CITIES) - SHOWN AT TOP
+    final viewedProducts = allProducts
+        .where((p) => (p['viewCount'] ?? 0) > 0)
+        .toList();
+    viewedProducts.sort((a, b) => (b['viewCount'] ?? 0).compareTo(a['viewCount'] ?? 0));
+    _mostViewedProducts = viewedProducts.take(10).toList();
+
+    // FEATURED PRODUCTS - GLOBAL (can include promoted items from all cities)
+    _featuredProducts = allProducts
+        .where((p) => p['isFeatured'] == true || p['isPromoted'] == true)
+        .take(10)
+        .toList();
+
+    // PERSONALIZED PRODUCTS - LOCATION-BASED IF LOCATION IS SET
+    if (_userLatitude != null && _userLongitude != null) {
+      // User has location - show nearby products
+      _personalizedProducts = _getLocationBasedProducts(allProducts);
+      log('Showing ${_personalizedProducts.length} location-based personalized products');
+    } else {
+      // No location - show recent/popular products as fallback
+      final fallbackProducts = allProducts
+          .where((p) => p['isFeatured'] != true && p['isPromoted'] != true)
           .toList();
+      
+      // Sort by creation date for recent items
+      fallbackProducts.sort((a, b) {
+        try {
+          DateTime aDate = a['createdAt'] is Timestamp 
+              ? (a['createdAt'] as Timestamp).toDate()
+              : DateTime.parse(a['createdAt'].toString());
+          DateTime bDate = b['createdAt'] is Timestamp 
+              ? (b['createdAt'] as Timestamp).toDate()
+              : DateTime.parse(b['createdAt'].toString());
+          return bDate.compareTo(aDate);
+        } catch (e) {
+          return 0;
+        }
+      });
+      
+      _personalizedProducts = fallbackProducts.take(10).toList();
+      log('No location set - showing ${_personalizedProducts.length} recent products as personalized');
+    }
 
-      // Most viewed products
-      final viewedProducts = allProducts
-          .where((p) => (p['viewCount'] ?? 0) > 0)
-          .toList();
-      viewedProducts.sort((a, b) => (b['viewCount'] ?? 0).compareTo(a['viewCount'] ?? 0));
-      _mostViewedProducts = viewedProducts.take(10).toList();
-
-      // Personalized products
-      if (_userLatitude != null && _userLongitude != null) {
-        _personalizedProducts = _getLocationBasedProducts(allProducts);
-      } else {
-        _personalizedProducts = allProducts
-            .where((p) => p['isFeatured'] != true && p['isPromoted'] != true)
-            .take(10)
-            .toList();
-      }
-
-      // Category-specific products
+    // CATEGORY-SPECIFIC PRODUCTS - CAN BE LOCATION-FILTERED OR GLOBAL
+    
+    // Option 1: Location-based category products (if location is set)
+    if (_userLatitude != null && _userLongitude != null) {
+      _mobilePhones = _getLocationBasedCategoryProducts(
+        allProducts, 
+        _isMobileCategory, 
+        10
+      );
+      _computers = _getLocationBasedCategoryProducts(
+        allProducts, 
+        _isComputerCategory, 
+        10
+      );
+      _computerAccessories = _getLocationBasedCategoryProducts(
+        allProducts, 
+        _isComputerAccessoryCategory, 
+        10
+      );
+    } else {
+      // No location - show global category products
       _mobilePhones = allProducts
           .where((p) => _isMobileCategory(p['category']?.toString() ?? ''))
           .take(10)
           .toList();
-
       _computers = allProducts
           .where((p) => _isComputerCategory(p['category']?.toString() ?? ''))
           .take(10)
           .toList();
-
       _computerAccessories = allProducts
           .where((p) => _isComputerAccessoryCategory(p['category']?.toString() ?? ''))
           .take(10)
           .toList();
-          
-      log('Categorized products: Featured(${_featuredProducts.length}), Viewed(${_mostViewedProducts.length}), Personalized(${_personalizedProducts.length})');
-    } catch (e) {
-      log('Error categorizing products: $e');
     }
+
+    log('Categorized products: Featured(${_featuredProducts.length}), '
+        'Viewed(${_mostViewedProducts.length}), '
+        'Personalized(${_personalizedProducts.length}), '
+        'Mobiles(${_mobilePhones.length}), '
+        'Computers(${_computers.length}), '
+        'Accessories(${_computerAccessories.length})');
+        
+  } catch (e) {
+    log('Error categorizing products: $e');
+  }
+}
+// NEW: Get location-based products for specific categories
+List<Map<String, dynamic>> _getLocationBasedCategoryProducts(
+  List<Map<String, dynamic>> products, 
+  bool Function(String) categoryChecker,
+  int limit
+) {
+  if (_userLatitude == null || _userLongitude == null) {
+    return products
+        .where((p) => categoryChecker(p['category']?.toString() ?? ''))
+        .take(limit)
+        .toList();
   }
 
-  // Get products based on user location
-  List<Map<String, dynamic>> _getLocationBasedProducts(List<Map<String, dynamic>> products) {
-    if (_userLatitude == null || _userLongitude == null) {
-      return products.take(10).toList();
+  const double radiusInKm = 100.0; // Larger radius for category products
+
+  final categoryProducts = products.where((product) {
+    // First check if it matches the category
+    if (!categoryChecker(product['category']?.toString() ?? '')) {
+      return false;
     }
 
-    const double radiusInKm = 50.0;
+    final lat = product['latitude'] as double?;
+    final lng = product['longitude'] as double?;
+    
+    // If no location data, include it (might be older products)
+    if (lat == null || lng == null) return true;
 
-    final localProducts = products.where((product) {
-      final lat = product['latitude'] as double?;
-      final lng = product['longitude'] as double?;
-      
-      if (lat == null || lng == null) return false;
+    final distance = Geolocator.distanceBetween(
+      _userLatitude!,
+      _userLongitude!,
+      lat,
+      lng,
+    );
 
-      final distance = Geolocator.distanceBetween(
-        _userLatitude!,
-        _userLongitude!,
-        lat,
-        lng,
-      );
+    return distance <= radiusInKm * 1000;
+  }).toList();
 
-      return distance <= radiusInKm * 1000;
-    }).toList();
+  // Sort by distance if location data exists, otherwise by date
+  categoryProducts.sort((a, b) {
+    final aLat = a['latitude'] as double?;
+    final aLng = a['longitude'] as double?;
+    final bLat = b['latitude'] as double?;
+    final bLng = b['longitude'] as double?;
 
+    if (aLat != null && aLng != null && bLat != null && bLng != null) {
+      // Both have location - sort by distance
+      final distanceA = Geolocator.distanceBetween(_userLatitude!, _userLongitude!, aLat, aLng);
+      final distanceB = Geolocator.distanceBetween(_userLatitude!, _userLongitude!, bLat, bLng);
+      return distanceA.compareTo(distanceB);
+    } else {
+      // Sort by creation date for products without location
+      try {
+        DateTime aDate = a['createdAt'] is Timestamp 
+            ? (a['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(a['createdAt'].toString());
+        DateTime bDate = b['createdAt'] is Timestamp 
+            ? (b['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(b['createdAt'].toString());
+        return bDate.compareTo(aDate);
+      } catch (e) {
+        return 0;
+      }
+    }
+  });
+
+  return categoryProducts.take(limit).toList();
+}
+
+
+ // Enhanced location-based products with better fallback
+List<Map<String, dynamic>> _getLocationBasedProducts(List<Map<String, dynamic>> products) {
+  if (_userLatitude == null || _userLongitude == null) {
+    return products.take(10).toList();
+  }
+
+  const double radiusInKm = 50.0;
+
+  final localProducts = products.where((product) {
+    final lat = product['latitude'] as double?;
+    final lng = product['longitude'] as double?;
+    
+    if (lat == null || lng == null) return false;
+
+    final distance = Geolocator.distanceBetween(
+      _userLatitude!,
+      _userLongitude!,
+      lat,
+      lng,
+    );
+
+    return distance <= radiusInKm * 1000;
+  }).toList();
+
+  // If we have local products, use them
+  if (localProducts.isNotEmpty) {
     // Sort by distance
     localProducts.sort((a, b) {
       final distanceA = Geolocator.distanceBetween(
@@ -432,7 +547,57 @@ class HomeProvider with ChangeNotifier {
     });
 
     return localProducts.take(10).toList();
+  } else {
+    // No local products found - expand radius or show city-based products
+    log('No products found within ${radiusInKm}km, showing city-based products');
+    return _getCityBasedProducts(products);
   }
+}
+
+// NEW: Get products from the same city when no nearby products
+List<Map<String, dynamic>> _getCityBasedProducts(List<Map<String, dynamic>> products) {
+  if (_userLocationAddress == null) {
+    return products.take(10).toList();
+  }
+
+  // Extract city name from user's location
+  final userCity = _getCityFromAddress(_userLocationAddress!);
+  
+  final cityProducts = products.where((product) {
+    final productLocation = product['locationAddress']?.toString() ?? '';
+    final productCity = product['cityName']?.toString() ?? _getCityFromAddress(productLocation);
+    
+    return productCity.toLowerCase().contains(userCity.toLowerCase()) ||
+           userCity.toLowerCase().contains(productCity.toLowerCase());
+  }).toList();
+
+  if (cityProducts.isNotEmpty) {
+    return cityProducts.take(10).toList();
+  } else {
+    // Fallback to recent products
+    final recentProducts = products.toList();
+    recentProducts.sort((a, b) {
+      try {
+        DateTime aDate = a['createdAt'] is Timestamp 
+            ? (a['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(a['createdAt'].toString());
+        DateTime bDate = b['createdAt'] is Timestamp 
+            ? (b['createdAt'] as Timestamp).toDate()
+            : DateTime.parse(b['createdAt'].toString());
+        return bDate.compareTo(aDate);
+      } catch (e) {
+        return 0;
+      }
+    });
+    return recentProducts.take(10).toList();
+  }
+}
+
+// Helper method to extract city name from address
+String _getCityFromAddress(String address) {
+  final parts = address.split(',');
+  return parts.isNotEmpty ? parts.first.trim() : address;
+}
 
   // Category helper methods
   bool _isMobileCategory(String category) {

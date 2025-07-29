@@ -16,9 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
-import 'package:provider/provider.dart';
-import 'package:flutter/services.dart';
-import 'package:easy_localization/easy_localization.dart';
 
 class EnhancedPricingShippingPage extends StatefulWidget {
   const EnhancedPricingShippingPage({Key? key}) : super(key: key);
@@ -34,18 +31,21 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   late Animation<double> _fadeAnimation;
   final FocusNode _priceFocusNode = FocusNode();
   
-  String _selectedCurrency = 'SYP';
+  // FIXED: Changed default to USD and correct rate format
+  String _selectedCurrency = 'USD';
   String _pricingType = 'Fixed Price';
   bool _showPriceField = true;
   bool _isLoadingRates = false;
   DateTime? _lastRateUpdate;
-  Timer? _rateUpdateTimer; // ADDED: Timer for periodic rate updates
+  Timer? _rateUpdateTimer;
   
+  // FIXED: Correct USD-based format (USD=1.0, others are rates from USD)
   Map<String, double> _exchangeRates = {
-    'USD': 0.000077,
-    'EUR': 0.000070,
-    'SYP': 1.0,
+    'USD': 1.0,
+    'EUR': 0.851,
+    'SYP': 12904.0, // 1 USD = 12904 SYP
   };
+
   final List<Map<String, String>> _currencies = [
     {'code': 'USD', 'name': 'US Dollar', 'symbol': '\$', 'flag': '🇺🇸'},
     {'code': 'EUR', 'name': 'Euro', 'symbol': '€', 'flag': '🇪🇺'},
@@ -79,6 +79,8 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   @override
   void initState() {
     super.initState();
+    print('🟢 FIXED CODE VERSION - Using exchangerate-api.com only!');
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -94,7 +96,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
       }
     });
     
-    // ADDED: Initialize periodic rate updates
+    // Load rates immediately and start periodic updates
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadExchangeRates();
@@ -108,19 +110,20 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     _priceController.dispose();
     _animationController.dispose();
     _priceFocusNode.dispose();
-    _rateUpdateTimer?.cancel(); // ADDED: Cancel timer
+    _rateUpdateTimer?.cancel();
     super.dispose();
   }
 
-  // ADDED: Start periodic rate updates
   void _startPeriodicRateUpdates() {
-    _rateUpdateTimer = Timer.periodic(Duration(minutes: 1), (timer) {
+    _rateUpdateTimer = Timer.periodic(Duration(minutes: 2), (timer) {
       if (mounted) {
+        print('🔄 Auto-refreshing rates...');
         _loadExchangeRates();
       }
     });
   }
 
+  // COMPLETELY REWRITTEN: Only use exchangerate-api.com
   Future<void> _loadExchangeRates() async {
     if (!mounted) return;
     
@@ -129,44 +132,64 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     });
 
     try {
-      print('Loading exchange rates...');
+      print('🌐 Loading exchange rates from API...');
       
-      final sypToUsdRate = await _fetchSyrianCentralBankRate();
-      print('Fetched SYP to USD rate: $sypToUsdRate');
+      // ONLY use exchangerate-api.com - no Central Bank
+      final response = await http.get(
+        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
+      ).timeout(Duration(seconds: 10));
       
-      final eurRate = await _fetchEurRate();
-      print('Fetched EUR rate: $eurRate');
+      print('📡 API Response Status: ${response.statusCode}');
       
-      final sypToEurRate = sypToUsdRate * eurRate;
-      
-      if (mounted) {
-        setState(() {
-          _exchangeRates = {
-            'USD': sypToUsdRate,
-            'EUR': sypToEurRate,
-            'SYP': 1.0,
-          };
-          print('Updated exchange rates: $_exchangeRates');
-          _lastRateUpdate = DateTime.now();
-          _isLoadingRates = false;
-        });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final rates = data['rates'] as Map<String, dynamic>;
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Exchange rates updated successfully'.tr()),
-              ],
+        print('📄 Raw API rates - EUR: ${rates['EUR']}, SYP: ${rates['SYP']}');
+        
+        // CORRECT format: USD as base (1.0)
+        final newRates = {
+          'USD': 1.0,
+          'EUR': (rates['EUR'] as num?)?.toDouble() ?? 0.851,
+          'SYP': (rates['SYP'] as num?)?.toDouble() ?? 12904.0,
+        };
+        
+        if (mounted) {
+          setState(() {
+            _exchangeRates = newRates;
+            _lastRateUpdate = DateTime.now();
+            _isLoadingRates = false;
+          });
+          
+          print('✅ SUCCESS! Exchange rates updated:');
+          print('   USD: 1.0 (base)');
+          print('   EUR: ${_exchangeRates['EUR']}');
+          print('   SYP: ${_exchangeRates['SYP']}');
+          
+          // Test conversion
+          final testSYP = 22.0;
+          final testUSD = testSYP / _exchangeRates['SYP']!;
+          print('🧪 TEST: $testSYP SYP = \$${testUSD.toStringAsFixed(4)} USD');
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('✅ Live rates: 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+          );
+        }
+      } else {
+        throw Exception('API returned status: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error loading exchange rates: $e');
+      print('❌ Error loading exchange rates: $e');
       if (mounted) {
         setState(() {
           _isLoadingRates = false;
@@ -178,7 +201,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
               children: [
                 Icon(Icons.error_outline, color: Colors.white),
                 SizedBox(width: 8),
-                Expanded(child: Text('Failed to update exchange rates. Using cached rates.'.tr())),
+                Expanded(child: Text('❌ Failed to update rates. Using fallback.')),
               ],
             ),
             backgroundColor: Colors.orange,
@@ -187,152 +210,6 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
         );
       }
     }
-  }
-
-  Future<double> _fetchSyrianCentralBankRate() async {
-    try {
-      print('Fetching exchange rate from Syrian Central Bank...');
-      
-      final response = await http.get(
-        Uri.parse('https://www.cb.gov.sy/index.php?lang=2'),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-        },
-      ).timeout(Duration(seconds: 10));
-      
-      if (response.statusCode == 200) {
-        final document = parser.parse(response.body);
-        print('Successfully fetched CB page, parsing...');
-        
-        final tables = document.querySelectorAll('table');
-        for (final table in tables) {
-          final rows = table.querySelectorAll('tr');
-          for (final row in rows) {
-            final cells = row.querySelectorAll('td, th');
-            for (int i = 0; i < cells.length - 1; i++) {
-              final cellText = cells[i].text.toLowerCase().trim();
-              
-              if (cellText.contains('usd') || 
-                  cellText.contains('dollar') || 
-                  cellText.contains('أمريكي') ||
-                  cellText == 'us' ||
-                  cellText.contains('united states')) {
-                
-                for (int j = i + 1; j < cells.length; j++) {
-                  final rateText = cells[j].text.trim();
-                  final RegExp regex = RegExp(r'(\d{1,5}(?:[,.]?\d{3})*(?:[.,]\d{1,4})?)');
-                  final match = regex.firstMatch(rateText);
-                  
-                  if (match != null) {
-                    final rateStr = match.group(1)?.replaceAll(',', '').replaceAll('.', '');
-                    final rate = double.tryParse(rateStr ?? '');
-                    
-                    if (rate != null && rate > 1000 && rate < 50000) {
-                      print('Found USD to SYP rate from table: $rate');
-                      return 1.0 / rate;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        
-        final pageText = document.body?.text ?? '';
-        
-        final patterns = [
-          RegExp(r'USD[\s:]*(\d{4,5})'),
-          RegExp(r'(\d{4,5})[\s]*SYP'),
-          RegExp(r'دولار[\s:]*(\d{4,5})'),
-          RegExp(r'(\d{4,5})[\s]*ليرة'),
-        ];
-        
-        for (final pattern in patterns) {
-          final matches = pattern.allMatches(pageText);
-          for (final match in matches) {
-            final rateStr = match.group(1);
-            final rate = double.tryParse(rateStr ?? '');
-            
-            if (rate != null && rate > 1000 && rate < 50000) {
-              print('Found rate using pattern matching: $rate');
-              return 1.0 / rate;
-            }
-          }
-        }
-        
-        final scripts = document.querySelectorAll('script');
-        for (final script in scripts) {
-          final scriptContent = script.text;
-          if (scriptContent.contains('usd') || scriptContent.contains('USD')) {
-            final RegExp regex = RegExp(r'(\d{4,5}(?:\.\d{1,4})?)');
-            final matches = regex.allMatches(scriptContent);
-            
-            for (final match in matches) {
-              final rateStr = match.group(1);
-              final rate = double.tryParse(rateStr ?? '');
-              
-              if (rate != null && rate > 1000 && rate < 50000) {
-                print('Found rate in script: $rate');
-                return 1.0 / rate;
-              }
-            }
-          }
-        }
-      }
-      
-      print('Could not parse rate from CB website, trying alternative API...');
-      
-      try {
-        final fallbackResponse = await http.get(
-          Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
-        ).timeout(Duration(seconds: 5));
-        
-        if (fallbackResponse.statusCode == 200) {
-          final data = json.decode(fallbackResponse.body);
-          final rates = data['rates'] as Map<String, dynamic>;
-          
-          if (rates.containsKey('SYP')) {
-            final sypRate = (rates['SYP'] as num).toDouble();
-            print('Found SYP rate from alternative API: $sypRate');
-            return 1.0 / sypRate;
-          }
-        }
-      } catch (e) {
-        print('Alternative API also failed: $e');
-      }
-      
-    } catch (e) {
-      print('Error fetching Syrian Central Bank rate: $e');
-    }
-    
-    print('Using fallback rate: 13000 SYP = 1 USD');
-    return 1.0 / 13000;
-  }
-
-  Future<double> _fetchEurRate() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.exchangerate-api.com/v4/latest/USD'),
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final rates = data['rates'] as Map<String, dynamic>;
-        
-        final eurRate = (rates['EUR'] as num?)?.toDouble() ?? 0.91;
-        print('Fetched EUR rate from USD: $eurRate');
-        return eurRate;
-      }
-    } catch (e) {
-      print('Error fetching EUR rate: $e');
-    }
-    
-    return 0.91;
   }
 
   void _onPricingTypeChanged(String newType) {
@@ -352,30 +229,20 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     }
   }
 
-  String _convertPrice(double amount) {
-    if (_selectedCurrency == 'SYP') return amount.toStringAsFixed(0);
-    
-    final rate = _exchangeRates[_selectedCurrency] ?? 1.0;
-    final convertedAmount = amount * rate;
-    
-    return convertedAmount >= 1 
-        ? convertedAmount.toStringAsFixed(2)
-        : convertedAmount.toStringAsFixed(4);
-  }
-
+  
   void _showCurrencyConverter() {
     if (_priceController.text.isEmpty) return;
     
     final amount = double.tryParse(_priceController.text) ?? 0;
     if (amount <= 0) return;
     
-    print('Converting amount: $amount $_selectedCurrency');
-    print('Current exchange rates: $_exchangeRates');
+    print('🔄 Converting amount: $amount $_selectedCurrency');
+    print('📊 Current exchange rates: $_exchangeRates');
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isScrollControlled: true, // ADDED: Allow dynamic height
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setModalState) {
           return Container(
@@ -402,7 +269,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          AppLocalizations.priceInOtherCurrencies.tr(),
+                          'Price in Other Currencies',
                           style: GoogleFonts.jost(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
@@ -411,12 +278,29 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                         ),
                         Row(
                           children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: Text(
+                                'LIVE API',
+                                style: GoogleFonts.jost(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
                             IconButton(
                               onPressed: _isLoadingRates
                                   ? null
                                   : () async {
                                       await _loadExchangeRates();
-                                      setModalState(() {}); // ADDED: Update modal UI
+                                      setModalState(() {});
                                     },
                               icon: _isLoadingRates
                                   ? SizedBox(
@@ -425,13 +309,8 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     )
                                   : Icon(Icons.refresh, size: 20),
-                              tooltip: AppLocalizations.refreshExchangeRates.tr(),
+                              tooltip: 'Refresh exchange rates',
                             ),
-                            // IconButton(
-                            //   onPressed: _testConversion,
-                            //   icon: Icon(Icons.bug_report, size: 20),
-                            //   tooltip: AppLocalizations.testConversionLogic.tr(),
-                            // ),
                           ],
                         ),
                       ],
@@ -447,103 +326,137 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                           ),
                         ),
                       ),
-                    StreamBuilder<Map<String, double>>(
-                      stream: Stream.periodic(Duration(seconds: 5), (_) => _exchangeRates), // ADDED: Periodic updates
-                      initialData: _exchangeRates,
-                      builder: (context, snapshot) {
-                        return Column(
-                          children: _currencies.map((currency) {
-                            double convertedAmount;
-                            if (currency['code'] == _selectedCurrency) {
-                              convertedAmount = amount;
-                            } else if (_selectedCurrency == 'SYP') {
-                              convertedAmount = amount * (snapshot.data![currency['code']] ?? 1.0);
-                              print('Converting $_selectedCurrency to ${currency['code']}: $amount * ${snapshot.data![currency['code']]} = $convertedAmount');
-                            } else {
-                              final sypAmount = amount / (snapshot.data![_selectedCurrency] ?? 1.0);
-                              convertedAmount = sypAmount * (snapshot.data![currency['code']] ?? 1.0);
-                              print('Converting $_selectedCurrency to ${currency['code']}: $amount -> $sypAmount SYP -> $convertedAmount');
-                            }
-                            
-                            return Container(
-                              margin: EdgeInsets.only(bottom: 12),
-                              padding: EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: currency['code'] == _selectedCurrency
-                                    ? ColorsController.primaryColor.withOpacity(0.1)
-                                    : Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: currency['code'] == _selectedCurrency
-                                      ? ColorsController.primaryColor
-                                      : Colors.grey[200]!,
+                    
+                    // Show current rates
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      margin: EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Live Exchange Rates (Base: USD)',
+                            style: GoogleFonts.jost(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '1 USD = ${_exchangeRates['EUR']?.toStringAsFixed(4)} EUR',
+                            style: GoogleFonts.jost(fontSize: 11, color: Colors.blue[600]),
+                          ),
+                          Text(
+                            '1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP',
+                            style: GoogleFonts.jost(fontSize: 11, color: Colors.blue[600], fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Currency conversions
+                    Column(
+                      children: _currencies.map((currency) {
+                        // FIXED: Proper conversion logic
+                        double convertedAmount;
+                        
+                        if (currency['code'] == _selectedCurrency) {
+                          // Same currency
+                          convertedAmount = amount;
+                        } else {
+                          // Convert from selected currency to USD first
+                          double usdAmount;
+                          if (_selectedCurrency == 'USD') {
+                            usdAmount = amount;
+                          } else {
+                            usdAmount = amount / _exchangeRates[_selectedCurrency]!;
+                          }
+                          
+                          // Convert from USD to target currency
+                          if (currency['code'] == 'USD') {
+                            convertedAmount = usdAmount;
+                          } else {
+                            convertedAmount = usdAmount * _exchangeRates[currency['code']]!;
+                          }
+                        }
+                        
+                        print('💱 Converting: $amount $_selectedCurrency → ${convertedAmount.toStringAsFixed(2)} ${currency['code']}');
+                        
+                        return Container(
+                          margin: EdgeInsets.only(bottom: 12),
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: currency['code'] == _selectedCurrency
+                                ? ColorsController.primaryColor.withOpacity(0.1)
+                                : Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: currency['code'] == _selectedCurrency
+                                  ? ColorsController.primaryColor
+                                  : Colors.grey[200]!,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                currency['flag']!,
+                                style: TextStyle(fontSize: 24),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      currency['name']!,
+                                      style: GoogleFonts.jost(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      currency['code']!,
+                                      style: GoogleFonts.jost(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    currency['flag']!,
-                                    style: TextStyle(fontSize: 24),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          currency['name']!,
-                                          style: GoogleFonts.jost(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        Text(
-                                          currency['code']!,
-                                          style: GoogleFonts.jost(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
+                                    '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'SYP' ? 0 : 2)}',
+                                    style: GoogleFonts.jost(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: currency['code'] == _selectedCurrency
+                                          ? ColorsController.primaryColor
+                                          : Colors.black,
                                     ),
                                   ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        '${currency['symbol']}${convertedAmount.toStringAsFixed(currency['code'] == 'SYP' ? 0 : 2)}',
-                                        style: GoogleFonts.jost(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: currency['code'] == _selectedCurrency
-                                              ? ColorsController.primaryColor
-                                              : Colors.black,
-                                        ),
+                                  if (currency['code'] != 'USD')
+                                    Text(
+                                      '1 USD = ${_exchangeRates[currency['code']]?.toStringAsFixed(currency['code'] == 'SYP' ? 0 : 4)} ${currency['code']}',
+                                      style: GoogleFonts.jost(
+                                        fontSize: 10,
+                                        color: Colors.grey[500],
                                       ),
-                                      if (currency['code'] != 'SYP')
-                                        Text(
-                                          '1 SYP = ${snapshot.data![currency['code']]?.toStringAsFixed(6)} ${currency['code']}',
-                                          style: GoogleFonts.jost(
-                                            fontSize: 10,
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                      if (currency['code'] != 'SYP')
-                                        Text(
-                                          '1 ${currency['code']} = ${(1.0 / (snapshot.data![currency['code']] ?? 1.0)).toStringAsFixed(0)} SYP',
-                                          style: GoogleFonts.jost(
-                                            fontSize: 10,
-                                            color: Colors.grey[500],
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                                    ),
                                 ],
                               ),
-                            );
-                          }).toList(),
+                            ],
+                          ),
                         );
-                      },
+                      }).toList(),
                     ),
                     SizedBox(height: 10),
                   ],
@@ -561,7 +474,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     final difference = now.difference(dateTime);
     
     if (difference.inSeconds < 30) {
-      return 'Just now'.tr();
+      return 'Just now';
     } else if (difference.inMinutes < 1) {
       return '${difference.inSeconds} seconds ago';
     } else if (difference.inMinutes < 60) {
@@ -571,23 +484,6 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
     } else {
       return '${difference.inDays} days ago';
     }
-  }
-
-  void _testConversion() {
-    print('=== Testing Currency Conversion ===');
-    
-    final testAmount = 50.0;
-    
-    final eurToUsd = testAmount / 0.91;
-    print('50 EUR = ${eurToUsd.toStringAsFixed(2)} USD');
-    
-    final eurToSyp = testAmount / 0.000070;
-    print('50 EUR = ${eurToSyp.toStringAsFixed(0)} SYP');
-    
-    final sypToUsd = eurToSyp * 0.000077;
-    print('${eurToSyp.toStringAsFixed(0)} SYP = ${sypToUsd.toStringAsFixed(2)} USD');
-    
-    print('=== End Test ===');
   }
 
   @override
@@ -609,6 +505,20 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
           ),
         ),
         centerTitle: true,
+        actions: [
+          // Force refresh button
+          IconButton(
+            icon: _isLoadingRates 
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(Icons.refresh, color: ColorsController.primaryColor),
+            onPressed: _isLoadingRates ? null : _loadExchangeRates,
+            tooltip: 'Refresh live rates',
+          ),
+        ],
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -630,6 +540,33 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                 style: GoogleFonts.jost(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
+                ),
+              ),
+              
+              // ADDED: Status indicator showing fixed version
+              const SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '✅ FIXED VERSION • API Only • 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP • ${_lastRateUpdate != null ? _formatLastUpdate(_lastRateUpdate!) : 'Loading...'}',
+                        style: GoogleFonts.jost(
+                          fontSize: 11,
+                          color: Colors.green[600],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 32),
@@ -890,6 +827,24 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Live rate indicator
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        margin: EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green[300]!, width: 0.5),
+                        ),
+                        child: Text(
+                          '${_exchangeRates['SYP']?.toStringAsFixed(0)}',
+                          style: GoogleFonts.jost(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[600],
+                          ),
+                        ),
+                      ),
                       IconButton(
                         icon: Icon(
                           Icons.currency_exchange,
@@ -1106,6 +1061,23 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                   color: ColorsController.primaryColor,
                 ),
               ),
+              Spacer(),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Text(
+                  'LIVE',
+                  style: GoogleFonts.jost(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
             ],
           ),
           SizedBox(height: 16),
@@ -1213,14 +1185,9 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(AppLocalizations.pricingInformationSaved.tr()),
+                  content: Text('Pricing information saved successfully!'),
                   backgroundColor: Colors.green,
                 ),
-              );
-              
-              itemProvider.updatePricingShipping(
-                price: _pricingType == 'Give Away' ? 0.0 : double.tryParse(_priceController.text),
-                allowPriceNegotiation: _pricingType == 'Negotiable',
               );
                 
               Navigator.push(
