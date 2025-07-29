@@ -31,7 +31,7 @@ class _LocationScreenState extends State<LocationScreen> {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         _showErrorSnackBar(
-          'Location services are disabled. Please enable them.',
+          'Location services are disabled. Please enable them.'.tr(),
         );
         setState(() => isLoading = false);
         return;
@@ -41,7 +41,7 @@ class _LocationScreenState extends State<LocationScreen> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          _showErrorSnackBar('Location permission denied.');
+          _showErrorSnackBar('Location permission denied.'.tr());
           setState(() => isLoading = false);
           return;
         }
@@ -49,7 +49,7 @@ class _LocationScreenState extends State<LocationScreen> {
 
       if (permission == LocationPermission.deniedForever) {
         _showErrorSnackBar(
-          'Location permission permanently denied. Please enable it in settings.',
+          'Location permission permanently denied. Please enable it in settings.'.tr(),
         );
         setState(() => isLoading = false);
         return;
@@ -90,7 +90,7 @@ class _LocationScreenState extends State<LocationScreen> {
           MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()),
         );
       } else {
-        _showErrorSnackBar('User not authenticated. Please log in again.');
+        _showErrorSnackBar('User not authenticated. Please log in again.'.tr());
       }
     } catch (e) {
       _showErrorSnackBar('${AppLocalizations.error.tr()}: $e');

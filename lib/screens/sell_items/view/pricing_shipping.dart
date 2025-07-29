@@ -472,17 +472,26 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
   String _formatLastUpdate(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+    final locale = context.locale.languageCode;
+
     if (difference.inSeconds < 30) {
-      return 'Just now';
+      return 'Just now'.tr();
     } else if (difference.inMinutes < 1) {
-      return '${difference.inSeconds} seconds ago';
+      return  locale == 'ar'
+          ? 'منذ ${difference.inMinutes} ثانية'
+          : '${difference.inSeconds} seconds ago';
     } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes ago';
+      return locale == 'ar'
+          ? 'منذ ${difference.inMinutes} دقيقة'
+          : '${difference.inMinutes} minutes ago';
     } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago';
+      return locale == 'ar'
+          ? 'منذ ${difference.inHours} ساعة'
+          : '${difference.inHours} hours ago';
     } else {
-      return '${difference.inDays} days ago';
+      return locale == 'ar'
+          ? 'منذ ${difference.inDays} يوم'
+          : '${difference.inDays} days ago';
     }
   }
 
@@ -558,7 +567,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '✅ FIXED VERSION • API Only • 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP • ${_lastRateUpdate != null ? _formatLastUpdate(_lastRateUpdate!) : 'Loading...'}',
+                        '${"✅ FIXED VERSION • API Only •".tr()} 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP • ${_lastRateUpdate != null ? _formatLastUpdate(_lastRateUpdate!) : 'Loading...'.tr()}',
                         style: GoogleFonts.jost(
                           fontSize: 11,
                           color: Colors.green[600],
@@ -674,7 +683,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      currency['name']!,
+                      currency['name']!.toString().tr(),
                       style: GoogleFonts.jost(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1070,7 +1079,7 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                   border: Border.all(color: Colors.green[300]!),
                 ),
                 child: Text(
-                  'LIVE',
+                  'LIVE'.tr(),
                   style: GoogleFonts.jost(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,

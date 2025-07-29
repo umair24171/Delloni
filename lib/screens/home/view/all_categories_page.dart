@@ -1,11 +1,16 @@
 // =====================================================
 // ALL CATEGORIES PAGE
 // =====================================================
+// ignore_for_file: deprecated_member_use, library_private_types_in_public_api
+
+import 'dart:developer';
+
 import 'package:arabicmarketplace/resources/colors_controller.dart';
 import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
 import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/widgets/image_optimise.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -25,8 +30,8 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isMultiSelectMode 
-            ? 'Select Categories (${_selectedCategoryIds.length})' 
-            : 'All Categories'),
+            ? '${"Select Categories".tr()} (${_selectedCategoryIds.length})'
+            : 'All Categories'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -62,8 +67,8 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                   padding: EdgeInsets.all(12),
                   child: Text(
                     _selectedCategoryIds.isEmpty 
-                        ? 'Tap categories to select them'
-                        : 'Selected: ${_selectedCategoryNames.values.join(', ')}',
+                        ? 'Tap categories to select them'.tr()
+                        : '${"Selected:".tr()} ${_selectedCategoryNames.values.map((e) => e.tr(),).join(', ')}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: ColorsController.primaryColor,
@@ -107,7 +112,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                       ),
                     ),
                     child: Text(
-                      'View Products from ${_selectedCategoryIds.length} Categories',
+                      '${"View Products from".tr()} ${_selectedCategoryIds.length} ${"Categories".tr()}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -125,7 +130,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
   Widget _buildCategoryCard(Map<String, dynamic> category) {
     final categoryId = category['id'] ?? '';
     final isSelected = _selectedCategoryIds.contains(categoryId);
-
+    String name=category['name']!=null ? category['name'].toString().tr():'Category';
     return InkWell(
       onTap: () {
         if (_isMultiSelectMode) {
@@ -178,7 +183,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8),
                   child: Text(
-                    category['name'] ?? 'Category',
+                    name,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 12,
@@ -252,12 +257,13 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
     final level = category['level'] ?? 0;
 
     if (level == 0) {
+      log("43534");
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SubCategoriesPage(
             categoryId: categoryId,
-            categoryName: categoryName,
+            categoryName: categoryName.toString().tr(),
           ),
         ),
       );
@@ -277,7 +283,7 @@ class _AllCategoriesPageState extends State<AllCategoriesPage> {
         MaterialPageRoute(
           builder: (context) => CategoryProductsPage(
             categoryId: categoryId,
-            categoryName: categoryName,
+            categoryName: categoryName.toString().tr(),
           ),
         ),
       );
@@ -351,7 +357,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isMultiSelectMode 
-            ? 'Select Subcategories (${_selectedCategoryIds.length})' 
+            ? '${"Select Subcategories".tr()} (${_selectedCategoryIds.length})'
             : widget.categoryName),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -382,7 +388,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                       Icon(Icons.category_outlined, size: 64, color: Colors.grey),
                       SizedBox(height: 16),
                       Text(
-                        'No subcategories found',
+                        'No subcategories found'.tr(),
                         style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
                       ),
                       SizedBox(height: 16),
@@ -398,7 +404,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                             ),
                           );
                         },
-                        child: Text('View Products'),
+                        child: Text('View Products'.tr()),
                       ),
                     ],
                   ),
@@ -415,8 +421,8 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                           children: [
                             Text(
                               _selectedCategoryIds.isEmpty 
-                                  ? 'Tap subcategories to select them'
-                                  : 'Selected: ${_selectedCategoryNames.values.join(', ')}',
+                                  ? 'Tap subcategories to select them'.tr()
+                                  : '${'Selected:'.tr()} ${_selectedCategoryNames.values.map((e) => e.tr(),).join(', ')}',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: ColorsController.primaryColor,
@@ -441,7 +447,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                                       });
                                     },
                                     icon: Icon(Icons.select_all, size: 16),
-                                    label: Text('Select All'),
+                                    label: Text('Select All'.tr()),
                                     style: TextButton.styleFrom(
                                       foregroundColor: ColorsController.primaryColor,
                                     ),
@@ -454,7 +460,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                                       });
                                     },
                                     icon: Icon(Icons.clear, size: 16),
-                                    label: Text('Clear All'),
+                                    label: Text('Clear All'.tr()),
                                     style: TextButton.styleFrom(
                                       foregroundColor: Colors.red,
                                     ),
@@ -473,6 +479,13 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                         itemCount: subCategories.length,
                         itemBuilder: (context, index) {
                           final subCategory = subCategories[index];
+                          // log('cat 111111');
+                          // for(var i in subCategories){
+                          //   log(i['name']);
+                          //   if(i['description']!=null)
+                          //     log(i['description']);
+                          // }
+                          // return SizedBox();
                           return _buildSubCategoryItem(subCategory);
                         },
                       ),
@@ -494,7 +507,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                             ),
                           ),
                           child: Text(
-                            'View Products from ${_selectedCategoryIds.length} Subcategories',
+                            "${"View Products from".tr()} ${_selectedCategoryIds.length} ${"Subcategories".tr()}",
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -511,6 +524,9 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
     final categoryId = subCategory['id'] ?? '';
     final isSelected = _selectedCategoryIds.contains(categoryId);
 
+String name =subCategory['name']!=null ? subCategory['name'].toString().tr():'Subcategory';
+String description =subCategory['description']!=null ? subCategory['description'].toString().tr():'';
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -523,7 +539,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
               MaterialPageRoute(
                 builder: (context) => SubSubCategoriesPage(
                   categoryId: subCategory['id'],
-                  categoryName: subCategory['name'],
+                  categoryName: subCategory['name'].toString().tr(),
                 ),
               ),
             );
@@ -594,7 +610,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      subCategory['name'] ?? 'Subcategory',
+                      name,
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -603,7 +619,7 @@ class _SubCategoriesPageState extends State<SubCategoriesPage> {
                     ),
                     if (subCategory['description'] != null)
                       Text(
-                        subCategory['description'],
+                        description,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -716,7 +732,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.categoryName),
+        title: Text(widget.categoryName.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -731,7 +747,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                       Icon(Icons.category_outlined, size: 64, color: Colors.grey),
                       SizedBox(height: 16),
                       Text(
-                        'No sub-subcategories found',
+                        'No sub-subcategories found'.tr(),
                         style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
                       ),
                       SizedBox(height: 16),
@@ -747,7 +763,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                             ),
                           );
                         },
-                        child: Text('View Products'),
+                        child: Text('View Products'.tr()),
                       ),
                     ],
                   ),
@@ -756,6 +772,12 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                   padding: EdgeInsets.all(16),
                   itemCount: subSubCategories.length,
                   itemBuilder: (context, index) {
+                    // log('sub 222222');
+                    // for(var i in subSubCategories){
+                    //   log(i['name']);
+                    //   if (i['description'] != null)
+                    //     log(i['description']);
+                    // }
                     final subSubCategory = subSubCategories[index];
                     return _buildSubSubCategoryItem(subSubCategory);
                   },
@@ -764,6 +786,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
   }
 
   Widget _buildSubSubCategoryItem(Map<String, dynamic> subSubCategory) {
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -818,7 +841,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      subSubCategory['name'] ?? 'Sub-subcategory',
+                      subSubCategory['name']!=null? subSubCategory['name'].toString().tr(): 'Sub-subcategory'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,color: Colors.black
@@ -826,7 +849,7 @@ class _SubSubCategoriesPageState extends State<SubSubCategoriesPage> {
                     ),
                     if (subSubCategory['description'] != null)
                       Text(
-                        subSubCategory['description'],
+                        subSubCategory['description'].toString().tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -928,7 +951,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.categoryName),
+        title: Text(widget.categoryName.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -946,11 +969,11 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
               _loadProducts();
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date',style:  TextStyle(color: Colors.black
+              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date'.tr(),style:  TextStyle(color: Colors.black
               ),)),
-              PopupMenuItem(value: 'price', child: Text('Sort by Price',style:  TextStyle(color: Colors.black
+              PopupMenuItem(value: 'price', child: Text('Sort by Price'.tr(),style:  TextStyle(color: Colors.black
               ))),
-              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views',style:  TextStyle(color: Colors.black
+              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views'.tr(),style:  TextStyle(color: Colors.black
               ))),
             ],
           ),
@@ -966,7 +989,7 @@ class _CategoryProductsPageState extends State<CategoryProductsPage> {
                       Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
                       SizedBox(height: 16),
                       Text(
-                        'No products found in this category',
+                        'No products found in this category'.tr(),
                         style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
                       ),
                     ],
@@ -1240,9 +1263,9 @@ class _MultiCategoryProductsPageState extends State<MultiCategoryProductsPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Selected Categories'),
+            Text('Selected Categories'.tr()),
             Text(
-              '${products.length} products from ${widget.categoryIds.length} categories',
+              '${products.length} ${"products from".tr()} ${widget.categoryIds.length} ${"categories".tr()}',
               style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
@@ -1264,9 +1287,9 @@ class _MultiCategoryProductsPageState extends State<MultiCategoryProductsPage> {
               _loadProducts();
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date', style: TextStyle(color: Colors.black))),
-              PopupMenuItem(value: 'price', child: Text('Sort by Price', style: TextStyle(color: Colors.black))),
-              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views', style: TextStyle(color: Colors.black))),
+              PopupMenuItem(value: 'createdAt', child: Text('Sort by Date'.tr(), style: TextStyle(color: Colors.black))),
+              PopupMenuItem(value: 'price', child: Text('Sort by Price'.tr(), style: TextStyle(color: Colors.black))),
+              PopupMenuItem(value: 'viewCount', child: Text('Sort by Views'.tr(), style: TextStyle(color: Colors.black))),
             ],
           ),
         ],
@@ -1284,7 +1307,7 @@ class _MultiCategoryProductsPageState extends State<MultiCategoryProductsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Categories:',
+                        'Categories:'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1304,7 +1327,7 @@ class _MultiCategoryProductsPageState extends State<MultiCategoryProductsPage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              '${entry.value} ($count)',
+                              '${entry.value.toString().tr()} ($count)',
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 color: ColorsController.primaryColor,
@@ -1328,7 +1351,7 @@ class _MultiCategoryProductsPageState extends State<MultiCategoryProductsPage> {
                               Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
                               SizedBox(height: 16),
                               Text(
-                                'No products found in selected categories',
+                                'No products found in selected categories'.tr(),
                                 style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
                               ),
                             ],
@@ -1545,7 +1568,7 @@ class ProductListPage extends StatelessWidget {
                   Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
-                    'No products found',
+                    'No products found'.tr(),
                     style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
                   ),
                 ],

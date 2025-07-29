@@ -789,7 +789,7 @@ Map<String, dynamic> _normalizeFieldStructureWithIcons(Map<String, dynamic> fiel
             ),
             SizedBox(width: 12),
             Text(
-              'Loading category fields...',
+              'Loading category fields...'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -815,7 +815,7 @@ Map<String, dynamic> _normalizeFieldStructureWithIcons(Map<String, dynamic> fiel
           ),
           const SizedBox(width: 8),
           Text(
-            '${_selectedCategoryName ?? 'Category'} Specific Details',
+            '${_selectedCategoryName ?? 'Category'} ${"Specific Details".tr()}',
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,

@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -126,7 +127,7 @@ class _LocationsPageState extends State<LocationsPage> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location updated to: $address'),
+            content: Text('${"Location updated to:".tr()} $address'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -137,7 +138,7 @@ class _LocationsPageState extends State<LocationsPage> {
 
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = e.toString().replaceFirst("Exception:", "").trim();
       });
       developer.log('Location error: $e');
     } finally {
@@ -210,7 +211,7 @@ class _LocationsPageState extends State<LocationsPage> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Location updated to: $cityName'),
+            content: Text('${"Location updated to:".tr()} $cityName'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -244,7 +245,7 @@ class _LocationsPageState extends State<LocationsPage> {
           ),
         ),
         title: Text(
-          'Locations',
+          'Locations'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w500,
@@ -272,7 +273,7 @@ class _LocationsPageState extends State<LocationsPage> {
                   _searchLocations(value);
                 },
                 decoration: InputDecoration(
-                  hintText: 'Search city',
+                  hintText: 'Search city'.tr(),
                   hintStyle: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.grey[600],
@@ -341,7 +342,7 @@ class _LocationsPageState extends State<LocationsPage> {
                           const Icon(Icons.my_location, size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            'Use current location',
+                            'Use current location'.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -369,7 +370,7 @@ class _LocationsPageState extends State<LocationsPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _error!,
+                        _error!.toString().tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.red[600],
@@ -391,7 +392,7 @@ class _LocationsPageState extends State<LocationsPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Last search',
+                    'Last search'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -401,7 +402,7 @@ class _LocationsPageState extends State<LocationsPage> {
                   TextButton(
                     onPressed: _clearLastSearches,
                     child: Text(
-                      'Clear all',
+                      'Clear all'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: Colors.red,
@@ -418,7 +419,7 @@ class _LocationsPageState extends State<LocationsPage> {
 
             // Choose region section
             Text(
-              'Choose region',
+              'Choose region'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -433,7 +434,7 @@ class _LocationsPageState extends State<LocationsPage> {
               child: _isLoadingCities
                   ? const Center(child: CircularProgressIndicator())
                   : _filteredCities.isEmpty
-                      ? Center(child: Text('No cities found'))
+                      ? Center(child: Text('No cities found'.tr()))
                       : ListView.builder(
                           itemCount: _filteredCities.length,
                           itemBuilder: (context, index) {

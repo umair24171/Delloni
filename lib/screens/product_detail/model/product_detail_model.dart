@@ -2,6 +2,8 @@
 import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+
+import '../../../main.dart';
 class ProductDetailModel {
   final String id;
   final String sellerId;
@@ -339,14 +341,25 @@ class ProductDetailModel {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
 
+    final locale = EasyLocalization.of(navigatorKey.currentContext!)?.locale.languageCode ?? 'en';
+
     if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      final days = difference.inDays;
+      return locale == 'ar'
+          ? 'منذ $days ${days == 1 ? 'يوم' : 'أيام'}'
+          : '$days day${days > 1 ? 's' : ''} ago';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+      final hours = difference.inHours;
+      return locale == 'ar'
+          ? 'منذ $hours ${hours == 1 ? 'ساعة' : 'ساعات'}'
+          : '$hours hour${hours > 1 ? 's' : ''} ago';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+      final minutes = difference.inMinutes;
+      return locale == 'ar'
+          ? 'منذ $minutes ${minutes == 1 ? 'دقيقة' : 'دقائق'}'
+          : '$minutes minute${minutes > 1 ? 's' : ''} ago';
     } else {
-      return 'Just now';
+      return 'Just now'.tr();
     }
   }
 

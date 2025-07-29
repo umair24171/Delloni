@@ -269,15 +269,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String _formatLastUpdate(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+    final locale = context.locale.languageCode;
+
     if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes ago';
+      return 'Just now'.tr();
+    } else  if (difference.inMinutes < 60) {
+      return locale == 'ar'
+          ? 'منذ ${difference.inMinutes} دقيقة'
+          : '${difference.inMinutes} minutes ago';
     } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago';
+      return locale == 'ar'
+          ? 'منذ ${difference.inHours} ساعة'
+          : '${difference.inHours} hours ago';
     } else {
-      return '${difference.inDays} days ago';
+      return locale == 'ar'
+          ? 'منذ ${difference.inDays} يوم'
+          : '${difference.inDays} days ago';
     }
   }
 
@@ -311,7 +318,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Price in Different Currencies',
+                      'Price in Different Currencies'.tr(),
                       style: GoogleFonts.outfit(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -339,7 +346,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               ),
                               SizedBox(width: 4),
                               Text(
-                                _isDataFresh() ? 'Live' : 'Cached',
+                                _isDataFresh() ? 'Live'.tr() : 'Cached'.tr(),
                                 style: GoogleFonts.outfit(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
@@ -370,7 +377,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   Padding(
                     padding: EdgeInsets.only(bottom: 16),
                     child: Text(
-                      'Last updated: ${_formatLastUpdate(_lastRateUpdate!)}',
+                      '${"Last updated:".tr()} ${_formatLastUpdate(_lastRateUpdate!)}',
                       style: GoogleFonts.outfit(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -416,7 +423,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                currency['name']!,
+                                currency['name']!.toString().tr(),
                                 style: GoogleFonts.outfit(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -641,7 +648,7 @@ Check out this amazing product on our marketplace!
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            'Negotiable',
+                            'Negotiable'.tr(),
                             style: GoogleFonts.outfit(
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
@@ -732,7 +739,7 @@ Check out this amazing product on our marketplace!
                               ),
                               SizedBox(width: 4),
                               Text(
-                                'Convert',
+                                'Convert'.tr(),
                                 style: GoogleFonts.outfit(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -783,7 +790,7 @@ Check out this amazing product on our marketplace!
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              product.condition,
+              product.condition=='new'?'new'.tr():product.condition=='refurbished'?"refurbished".tr():product.condition=='Good'?"Good".tr():product.condition,
               style: GoogleFonts.outfit(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -2317,7 +2324,7 @@ preserveWatermark: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: Text(
-            'Rate ${seller.getDisplayName()}',
+            '${"Rate".tr()} ${seller.getDisplayName()}',
             style: GoogleFonts.outfit(fontWeight: FontWeight.w600,color: Colors.black),
           ),
           content: Column(
@@ -2575,11 +2582,11 @@ Future<void> _submitQuickReviewWithDebug(
   }
 
   String _getRatingText(double rating) {
-    if (rating <= 1) return 'Poor';
-    if (rating <= 2) return 'Fair';
-    if (rating <= 3) return 'Good';
-    if (rating <= 4) return 'Very Good';
-    return 'Excellent';
+    if (rating <= 1) return 'Poor'.tr();
+    if (rating <= 2) return 'Fair'.tr();
+    if (rating <= 3) return 'Good'.tr();
+    if (rating <= 4) return 'Very Good'.tr();
+    return 'Excellent'.tr();
   }
 
   Color _getRatingColor(double rating) {

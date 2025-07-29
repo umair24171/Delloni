@@ -266,7 +266,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           children: [
             Icon(Icons.mark_email_unread, color: Colors.white),
             SizedBox(width: 8),
-            Text('Mark Unread'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('Mark unread'.tr(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
       ),

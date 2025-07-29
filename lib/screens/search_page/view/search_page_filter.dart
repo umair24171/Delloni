@@ -186,7 +186,7 @@ class _SearchFilterPageState extends State<SearchFilterPage> {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        _showLocationError('Location services are disabled');
+        _showLocationError('Location services are disabled'.tr());
         return;
       }
 
@@ -194,7 +194,7 @@ class _SearchFilterPageState extends State<SearchFilterPage> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          _showLocationError('Location permission denied');
+          _showLocationError('Location permission denied'.tr());
           return;
         }
       }

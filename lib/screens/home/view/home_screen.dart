@@ -1,6 +1,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -1016,7 +1017,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                     Row(
                       children: [
                         Text(
-                          product['condition'] ?? 'Used'.tr(),
+                    product['condition']!=null? product['condition']=='new'?'new'.tr():product['condition']=='refurbished'?"refurbished".tr():product['condition']=='Good'?"Good".tr():product['condition'] ?? 'Used'.tr():product['condition'] ?? 'Used'.tr(),
                           style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
                         ),
                         Spacer(),
@@ -1285,11 +1286,12 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                 itemCount: math.min(categories.length, 8),
                 itemBuilder: (context, index) {
                   final category = categories[index];
+                  String name=category['name']!=null?category['name'].toString().tr():'Category'.tr();
                   return Container(
                     width: 70,
                     margin: EdgeInsets.only(right: 12),
                     child: _buildCategoryItem(
-                      category['name'] ?? 'Category',
+                      name ,
                       category['iconUrl'] ?? 'category',
                       _getColorFromHex(category['color'] ?? '#666666'),
                       onTap: () => _navigateToCategoryHierarchy(category),
@@ -1381,7 +1383,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                   style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,),
                 ),
                 InkWell(
-                  onTap: () => _navigateToProductList('Recently Added', recentlyAdded),
+                  onTap: () => _navigateToProductList('Recently Added'.tr(), recentlyAdded),
                   child: Text(
                     AppLocalizations.seeAll.tr(),
                     style: GoogleFonts.poppins(
@@ -1728,7 +1730,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
         MaterialPageRoute(
           builder: (context) => SubCategoriesPage(
             categoryId: categoryId,
-            categoryName: categoryName,
+            categoryName: categoryName.toString().tr(),
           ),
         ),
       );
@@ -1833,14 +1835,20 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
       
       final now = DateTime.now();
       final difference = now.difference(postDate);
-      
+      final locale = context.locale.languageCode;
       if (difference.inDays > 0) {
-        return '${difference.inDays}d ago';
+        return locale == 'ar'
+            ? 'منذ ${difference.inDays} يوم'
+            : '${difference.inDays}d ago';
       } else if (difference.inHours > 0) {
-        return '${difference.inHours}h ago';
+        return locale == 'ar'
+            ? 'منذ ${difference.inHours} ساعة'
+            : '${difference.inHours}h ago';
       } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes}m ago';
-      } else {
+        return locale == 'ar'
+            ? 'منذ ${difference.inMinutes} دقيقة'
+            : '${difference.inMinutes}m ago';
+      }  else {
         return 'Just now'.tr();
       }
     } catch (e) {

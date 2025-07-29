@@ -676,7 +676,7 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
                 
                 // Photo source options - SINGLE PHOTO
                 Text(
-                  'Single Photo',
+                  'Single Photo'.tr(),
                   style: GoogleFonts.jost(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1154,7 +1154,7 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
                               ),
                               SizedBox(height: 8),
                               Text(
-                                '${"Add at least".tr()} $minPhotos ${"photos to continue"}',
+                                '${"Add at least".tr()} $minPhotos ${"photos to continue".tr()}',
                                 // easy.tr('add_at_least_photos', args: ['${minPhotos}']),
                                 style: GoogleFonts.jost(
                                   fontSize: 12,
