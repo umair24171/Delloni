@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
+import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
 import 'package:arabicmarketplace/screens/home/model/category_model.dart';
 import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
 import 'package:arabicmarketplace/screens/search_page/city_district_selection_page.dart';
@@ -67,97 +68,143 @@ void setEditingItemId(String? itemId) {
   notifyListeners();
 }
 // ENHANCED: Update existing item instead of creating new one
-Future<bool> updateExistingItem(BuildContext context) async {
-  try {
-    _setPublishing(true);
-    _setError(null);
+ Future<bool> updateExistingItem(BuildContext context) async {
+    try {
+      _setPublishing(true);
+      _setError(null);
 
-    developer.log('Starting update process for item: $_editingItemId');
+      developer.log('Starting update process for item: $_editingItemId');
 
-    // Validate form data first
-    if (!_validateFormData()) {
-      _setPublishing(false);
-      return false;
-    }
-
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    final user = userProvider.currentUser;
-
-    if (user == null) {
-      _setError('Please login to continue');
-      _setPublishing(false);
-      return false;
-    }
-
-    if (_editingItemId == null) {
-      _setError('Item ID not found');
-      _setPublishing(false);
-      return false;
-    }
-
-    // If new images were added, upload them
-    if (images.isNotEmpty) {
-      developer.log('Uploading ${images.length} new images...');
-      final uploadSuccess = await uploadImages(_editingItemId!);
-      
-      if (!uploadSuccess) {
+      // Validate form data first
+      if (!_validateFormData()) {
         _setPublishing(false);
         return false;
       }
-    }
 
-    developer.log('Updating Firestore document...');
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final user = userProvider.currentUser;
 
-    // ENHANCED: Update item document with category-specific fields
-    Map<String, dynamic> updateData = {
-      'itemTitle': itemTitle.trim(),
-      'category': category,
-      'categoryName': categoryName,
-      'condition': condition,
-      'description': description.trim(),
-      'brand': brand.trim(),
-      'dimensions': dimensions.trim(),
-      'color': color.trim(),
-      'price': price,
-      'allowPriceNegotiation': allowPriceNegotiation,
-      'shippingOption': shippingOption,
-      'latitude': latitude,
-      'longitude': longitude,
-      'locationAddress': locationAddress,
-      'cityId': selectedCityId,
-      'cityName': selectedCityName,
-      'districtId': selectedDistrictId,
-      'districtName': selectedDistrictName,
-      'updatedAt': FieldValue.serverTimestamp(),
+      if (user == null) {
+        _setError('Please login to continue');
+        _setPublishing(false);
+        return false;
+      }
+
+      if (_editingItemId == null) {
+        _setError('Item ID not found');
+        _setPublishing(false);
+        return false;
+      }
+
+      // If new images were added, upload them
+      if (images.isNotEmpty) {
+        developer.log('Uploading ${images.length} new images...');
+        final uploadSuccess = await uploadImages(_editingItemId!);
+        
+        if (!uploadSuccess) {
+          _setPublishing(false);
+          return false;
+        }
+      }
+
+      developer.log('Updating Firestore document...');
+
+      // ENHANCED: Update item document with category-specific fields
+      Map<String, dynamic> updateData = {
+        'itemTitle': itemTitle.trim(),
+        'category': category,
+        'categoryName': categoryName,
+        'condition': condition,
+        'description': description.trim(),
+        'brand': brand.trim(),
+        'dimensions': dimensions.trim(),
+        'color': color.trim(),
+        'price': price,
+        'allowPriceNegotiation': allowPriceNegotiation,
+        'shippingOption': shippingOption,
+        'latitude': latitude,
+        'longitude': longitude,
+        'locationAddress': locationAddress,
+        'cityId': selectedCityId,
+        'cityName': selectedCityName,
+        'districtId': selectedDistrictId,
+        'districtName': selectedDistrictName,
+        'updatedAt': FieldValue.serverTimestamp(),
+        
+        // Update category-specific fields
+        'categorySpecificFields': _categorySpecificFields,
+        'categoryFieldTemplate': _categoryFieldTemplate,
+        'categoryTemplateName': _categoryTemplateName,
+        'hasCustomFields': _categorySpecificFields.isNotEmpty,
+      };
+
+      // Only update imageUrls if new images were uploaded
+      if (images.isNotEmpty) {
+        updateData['imageUrls'] = imageUrls;
+        updateData['photoCount'] = imageUrls.length;
+      }
+
+      await _firestore.collection('items').doc(_editingItemId!).update(updateData);
+
+      // ✅ NEW: Refresh HomeProvider after update
+      await _refreshHomeProviderAfterUpdate(context);
+
+      developer.log('Item updated successfully!');
+      _setPublishing(false);
       
-      // Update category-specific fields
-      'categorySpecificFields': _categorySpecificFields,
-      'categoryFieldTemplate': _categoryFieldTemplate,
-      'categoryTemplateName': _categoryTemplateName,
-      'hasCustomFields': _categorySpecificFields.isNotEmpty,
-    };
+      // Don't reset form here for edit mode - let the calling page handle navigation
+      return true;
 
-    // Only update imageUrls if new images were uploaded
-    if (images.isNotEmpty) {
-      updateData['imageUrls'] = imageUrls;
-      updateData['photoCount'] = imageUrls.length;
+    } catch (e) {
+      _setPublishing(false);
+      _setError('Failed to update item: $e');
+      developer.log('Update failed: $e');
+      return false;
     }
-
-    await _firestore.collection('items').doc(_editingItemId!).update(updateData);
-
-    developer.log('Item updated successfully!');
-    _setPublishing(false);
-    
-    // Don't reset form here for edit mode - let the calling page handle navigation
-    return true;
-
-  } catch (e) {
-    _setPublishing(false);
-    _setError('Failed to update item: $e');
-    developer.log('Update failed: $e');
-    return false;
   }
-}
+  // ✅ NEW: Method to refresh HomeProvider after update
+  Future<void> _refreshHomeProviderAfterUpdate(BuildContext context) async {
+    try {
+      developer.log('🔄 Refreshing HomeProvider after item update...');
+      
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
+      
+      // Clear caches first
+      homeProvider.clearCaches();
+      
+      // Force refresh to get updated data
+      await homeProvider.refreshData();
+      
+      developer.log('✅ HomeProvider refreshed after update');
+    } catch (e) {
+      developer.log('❌ Error refreshing HomeProvider after update: $e');
+    }
+  }
+
+  // ✅ NEW: Method to clear HomeProvider caches (for external use)
+  void clearHomeProviderCaches(BuildContext context) {
+    try {
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
+      homeProvider.clearCaches();
+      developer.log('✅ HomeProvider caches cleared');
+    } catch (e) {
+      developer.log('❌ Error clearing HomeProvider caches: $e');
+    }
+  }
+
+  // ✅ NEW: Method to trigger immediate home refresh (for external use)
+  Future<void> triggerHomeRefresh(BuildContext context) async {
+    try {
+      developer.log('🔄 Triggering immediate home refresh...');
+      
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
+      await homeProvider.refreshData();
+      
+      developer.log('✅ Home refresh completed');
+    } catch (e) {
+      developer.log('❌ Error triggering home refresh: $e');
+    }
+  }
 // ENHANCED: Publish method that handles both create and update
 Future<bool> publishOrUpdateItem(BuildContext context) async {
   if (isEditMode && _editingItemId != null) {
@@ -289,12 +336,11 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
   }
 
   // ENHANCED: Category-specific max file size
-  int get maxImageSizeMB {
-    if (isRealEstateCategory) {
-      return 10; // 10MB for real estate photos
-    }
-    return 5; // 5MB for regular items
+   int get maxImageSizeMB {
+    // Return a very high limit (effectively no limit)
+    return 1000; // 1GB - effectively unlimited
   }
+
 
   void _setError(String? error) {
     _error = error;
@@ -499,16 +545,16 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
         return false;
       }
 
-      // Check file size with dynamic limit
-      final sizeInBytes = await file.length();
-      final sizeInMB = sizeInBytes / (1024 * 1024);
-      
-      if (sizeInMB > maxImageSizeMB) {
-        _setError('Image size should be less than ${maxImageSizeMB}MB for this category');
-        return false;
-      }
+      // REMOVED: File size check - No longer checking file size
+      // final sizeInBytes = await file.length();
+      // final sizeInMB = sizeInBytes / (1024 * 1024);
+      // 
+      // if (sizeInMB > maxImageSizeMB) {
+      //   _setError('Image size should be less than ${maxImageSizeMB}MB for this category');
+      //   return false;
+      // }
 
-      // Check file type with dynamic allowed types
+      // Check file type with dynamic allowed types (keeping this validation)
       final extension = image.path.split('.').last.toLowerCase();
       if (!allowedImageTypes.contains(extension)) {
         _setError('Only ${allowedImageTypes.join(', ')} files are allowed');
@@ -877,7 +923,7 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
   }
 
   // ENHANCED: Enhanced publish item method with category-specific metadata
-  Future<bool> publishItem(BuildContext context) async {
+    Future<bool> publishItem(BuildContext context) async {
     try {
       _setPublishing(true);
       _setError(null);
@@ -980,11 +1026,17 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
         });
       }
 
+      // FIXED: Add the document to Firestore
       await _firestore.collection('items').doc(itemId).set(itemData);
+      
+      // FIXED: Check saved searches
       await SavedSearchService.checkSavedSearchesForNewItem({
         'id': itemId,
         ...itemData,
       });
+
+      // ✅ NEW: Refresh HomeProvider immediately after publishing
+      await _refreshHomeProviderAfterPublish(context, itemData, itemId);
 
       developer.log('Item published successfully with ${_categorySpecificFields.length} category-specific fields!');
       _setPublishing(false);
@@ -999,6 +1051,60 @@ Future<bool> publishOrUpdateItem(BuildContext context) async {
       return false;
     }
   }
+ // ✅ NEW: Method to refresh HomeProvider after publishing
+  Future<void> _refreshHomeProviderAfterPublish(
+    BuildContext context, 
+    Map<String, dynamic> itemData, 
+    String itemId
+  ) async {
+    try {
+      developer.log('🔄 Refreshing HomeProvider after item publish...');
+      
+      // Get HomeProvider instance
+      final homeProvider = Provider.of<HomeProvider>(context, listen: false);
+      
+      // Method 1: Force refresh all data (most reliable)
+      await homeProvider.refreshData();
+      
+      // Method 2: Add optimistic update for immediate visibility
+      await _addOptimisticUpdate(homeProvider, itemData, itemId);
+      
+      // Method 3: Clear specific caches that might be stale
+      homeProvider.clearCaches();
+      
+      developer.log('✅ HomeProvider refreshed successfully');
+      
+      // Small delay to ensure UI updates
+      await Future.delayed(Duration(milliseconds: 500));
+      
+    } catch (e) {
+      developer.log('❌ Error refreshing HomeProvider: $e');
+    }
+  }
+
+  // ✅ NEW: Add optimistic update for immediate item visibility  
+  Future<void> _addOptimisticUpdate(
+    HomeProvider homeProvider, 
+    Map<String, dynamic> itemData,
+    String itemId
+  ) async {
+    try {
+      // Create a temporary item data structure for immediate display
+      final Map<String, dynamic> tempItemData = {
+        ...itemData,
+        'id': itemId,
+        'createdAt': DateTime.now(), // Use current time for immediate sorting
+      };
+      
+      // Add to the beginning of allProducts for immediate visibility
+      homeProvider.addOptimisticItem(tempItemData);
+      
+      developer.log('✅ Added optimistic update for item: $itemId');
+    } catch (e) {
+      developer.log('❌ Error adding optimistic update: $e');
+    }
+  }
+
 
 
   // ENHANCED: Extract property type from category name

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:arabicmarketplace/main.dart';
+import 'package:arabicmarketplace/screens/chat/view/chat_screen.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notification_saved_search_page.dart';
 import 'package:arabicmarketplace/screens/notifications/view/notifications_page.dart';
+import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -16,6 +19,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:googleapis_auth/auth_io.dart' as auth;
+
 
 // Background message handler (must be top-level function)
 @pragma('vm:entry-point')
@@ -71,6 +75,47 @@ class NotificationService {
       log('Error initializing notification service: $e');
     }
   }
+  Future<void> clearAppBadge() async {
+  try {
+    // Clear all local notifications
+    await _localNotifications.cancelAll();
+    
+    // For iOS: Reset badge count to 0
+    if (Platform.isIOS) {
+      const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
+        presentAlert: false,
+        presentBadge: true,
+        presentSound: false,
+        badgeNumber: 0,
+      );
+      
+      const NotificationDetails details = NotificationDetails(
+        iOS: iOSDetails,
+      );
+      
+      // Show a silent notification to reset badge
+      await _localNotifications.show(
+        -1, // Use negative ID for badge reset
+        null,
+        null,
+        details,
+      );
+      
+      // Immediately cancel it
+      await _localNotifications.cancel(-1);
+    }
+    
+    // For Android: Cancel all notifications (this clears the badge)
+    if (Platform.isAndroid) {
+      await _localNotifications.cancelAll();
+    }
+    
+    log('App badge cleared successfully');
+  } catch (e) {
+    log('Error clearing app badge: $e');
+  }
+}
+
 
   // Load Firebase service account credentials from assets
   Future<void> _loadServiceAccountCredentials() async {
@@ -335,17 +380,15 @@ class NotificationService {
 
     // Handle notification taps when app is in background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      log('Notification opened app: ${message.messageId}');
-      _handleNotificationTap(message);
+      log('Notification opened app from background: ${message.messageId}');
+      // Add small delay to ensure navigation context is ready
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleNotificationTap(message, isFromBackground: true);
+      });
     });
 
-    // Handle notification tap when app is terminated
-    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-      if (message != null) {
-        log('App opened from terminated state: ${message.messageId}');
-        _handleNotificationTap(message);
-      }
-    });
+    // Note: Initial message handling is now done in main.dart
+    // This prevents race conditions during app startup
   }
 
   // Handle foreground messages
@@ -555,44 +598,125 @@ class NotificationService {
   }
 
   // Create notification payload
-  String _createPayload(RemoteMessage message) {
-    return message.data.isNotEmpty 
-        ? message.data.toString() 
-        : message.messageId ?? '';
+ String _createPayload(RemoteMessage message) {
+    try {
+      if (message.data.isNotEmpty) {
+        // Create a simple key=value format that's easy to parse
+        List<String> pairs = [];
+        message.data.forEach((key, value) {
+          pairs.add('$key=$value');
+        });
+        return pairs.join(',');
+      }
+      return message.messageId ?? '';
+    } catch (e) {
+      log('Error creating payload: $e');
+      return message.messageId ?? '';
+    }
+  }
+  // Handle notification tap from local notifications
+ void _onNotificationTapped(NotificationResponse response) {
+    log('Local notification tapped: ${response.payload}');
+    
+    // Parse payload to extract data
+    Map<String, dynamic> data = {};
+    if (response.payload != null && response.payload!.isNotEmpty) {
+      try {
+        // If payload is a simple string with key=value pairs
+        if (response.payload!.contains('=')) {
+          final pairs = response.payload!.split(',');
+          for (String pair in pairs) {
+            final keyValue = pair.split('=');
+            if (keyValue.length == 2) {
+              data[keyValue[0].trim()] = keyValue[1].trim();
+            }
+          }
+        }
+      } catch (e) {
+        log('Error parsing payload: $e');
+      }
+    }
+    
+    _handleNotificationNavigation(data, response.actionId);
   }
 
-  // Handle notification tap from local notifications
-  void _onNotificationTapped(NotificationResponse response) {
-    log('Local notification tapped: ${response.payload}');
-    _handleNotificationNavigation(response.payload ?? '', response.actionId);
-  }
 
   // Handle notification tap from FCM
-  void _handleNotificationTap(RemoteMessage message) {
+  void _handleNotificationTap(RemoteMessage message, {bool isFromBackground = false}) {
     log('FCM notification tapped: ${message.data}');
-    _handleNotificationNavigation(message.data.toString(), null);
-  }
+    
+    final context = navigatorKey.currentContext;
+    if (context == null) {
+      log('Navigation context not available, retrying...');
+      // Retry after delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleNotificationTap(message, isFromBackground: isFromBackground);
+      });
+      return;
+    }
 
+    _handleNotificationNavigation(message.data, null, isFromBackground: isFromBackground);
+  }
   // Handle notification navigation
-  void _handleNotificationNavigation(String payload, String? actionId) {
+  void _handleNotificationNavigation(Map<String, dynamic> data, String? actionId, {bool isFromBackground = false}) {
     try {
-      // Parse payload and navigate accordingly
-      // This should integrate with your app's navigation system
-      Navigator.push(navigatorKey.currentContext!, MaterialPageRoute(builder: (context) => const NotificationsPage()));
-      
-      // Example navigation logic:
-      /*
-      if (payload.contains('chatId')) {
-        // Navigate to chat
-        NavigationService.navigateToChat(chatId);
-      } else if (payload.contains('itemId')) {
-        // Navigate to item details
-        NavigationService.navigateToItem(itemId);
+      final context = navigatorKey.currentContext;
+      if (context == null) {
+        log('Navigation context not available');
+        return;
       }
-      */
+
+      // Extract navigation parameters
+      final String? chatId = data['chatId'];
+      final String? itemId = data['itemId'];
+      final String? productId = data['productId'];
+      final String? savedSearchName = data['savedSearchName'];
+      final String type = data['type'] ?? 'general';
+
+      Widget? targetScreen;
+      
+      // Determine target screen based on data
+      if (chatId != null) {
+        targetScreen = ChatPage();
+        log('Navigating to chat: $chatId');
+      } else if (productId != null) {
+        targetScreen = ProductDetailScreen(productId: productId);
+        log('Navigating to product: $productId');
+      } else if (itemId != null) {
+        targetScreen = ProductDetailScreen(productId: itemId);
+        log('Navigating to item: $itemId');
+      } else if (savedSearchName != null) {
+        targetScreen = const SavedSearchesPage();
+        log('Navigating to saved searches');
+      } else {
+        targetScreen = const NotificationsPage();
+        log('Navigating to notifications page');
+      }
+
+      // Navigate to target screen
+      if (targetScreen != null) {
+        if (isFromBackground) {
+          // For background/foreground transitions, use regular push
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => targetScreen!),
+          );
+        } else {
+          // For terminated state (handled in main.dart), this won't be called
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => targetScreen!),
+          );
+        }
+      }
       
     } catch (e) {
       log('Error handling notification navigation: $e');
+      // Fallback navigation
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => const NotificationsPage()),
+        );
+      }
     }
   }
 

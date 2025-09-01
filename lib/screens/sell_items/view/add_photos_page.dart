@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:arabicmarketplace/main.dart';
@@ -261,7 +262,7 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
               String successMessage = source == ImageSource.camera
                 ?"Camera photo processed and added successfully!"
                 : AppLocalizations.photoAddedWithWatermark.tr();
-              _showSuccessSnackBar(successMessage);
+              // _showSuccessSnackBar(successMessage);
               // Force rebuild to show the new image
               setState(() {});
             }
@@ -284,117 +285,227 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
       }
     }
   }
+// ✅ FIXED: Enhanced multiple image picker with better error handling
+Future<void> _pickMultipleImages(BuildContext dialogContext) async {
+  if (_isProcessingImage || !mounted) return;
+  
+  // Close the source selection dialog first
+  if (Navigator.canPop(dialogContext)) {
+    Navigator.pop(dialogContext);
+  }
+  
+  final itemProvider = Provider.of<ItemProvider>(_safeContext, listen: false);
+  final remainingSlots = itemProvider.maxImages - itemProvider.images.length;
+  
+  if (remainingSlots <= 0) {
+    _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['${itemProvider.maxImages}']));
+    return;
+  }
 
-  // Pick multiple images with intelligent batching (no changes needed here since it's gallery only)
-  Future<void> _pickMultipleImages(BuildContext dialogContext) async {
-    if (_isProcessingImage || !mounted) return;
-    
-    // Close the source selection dialog first
-    if (Navigator.canPop(dialogContext)) {
-      Navigator.pop(dialogContext);
-    }
-    
-    final itemProvider = Provider.of<ItemProvider>(_safeContext, listen: false);
-    final remainingSlots = itemProvider.maxImages - itemProvider.images.length;
-    
-    if (remainingSlots <= 0) {
-      _showErrorSnackBar(AppLocalizations.maximumPhotosLimitReached.tr(args: ['${itemProvider.maxImages}']));
-      return;
-    }
+  if (mounted) {
+    setState(() {
+      _isProcessingImage = true;
+    });
+  }
 
+  try {
+    print('🔄 Starting multiple image selection...');
+    
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage(
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
+    ).timeout(
+      Duration(seconds: 30), // ✅ ADD TIMEOUT
+      onTimeout: () => throw TimeoutException('Image selection timeout', Duration(seconds: 30)),
+    );
+    
+    print('📸 Multiple images picked: ${pickedFiles.length}');
+    
+    if (pickedFiles.isNotEmpty && mounted) {
+      // ✅ LIMIT: Take only what we can handle
+      final filesToProcess = pickedFiles.take(remainingSlots).toList();
+      
+      // ✅ VALIDATE: Check file sizes and types before processing
+      final validFiles = await _validateMultipleFiles(filesToProcess);
+      
+      if (validFiles.isEmpty) {
+        _showErrorSnackBar('No valid images selected');
+        return;
+      }
+      
+      print('✅ Valid files to process: ${validFiles.length}');
+      
+      // Show processing dialog
+      _showProcessingDialog('Processing ${validFiles.length} images...\nThis may take a few minutes');
+      
+      // ✅ PROCESS: Use robust processing with better error handling
+      await _processMultipleImagesRobust(validFiles, itemProvider);
+    }
+  } catch (e) {
+    print('❌ Error in _pickMultipleImages: $e');
+    _hideProcessingDialog();
+    if (mounted) {
+      String errorMessage = 'Failed to select images';
+      
+      if (e is TimeoutException) {
+        errorMessage = 'Image selection timed out. Please try with fewer images.';
+      } else if (e.toString().contains('memory')) {
+        errorMessage = 'Not enough memory. Please try with fewer images.';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Permission denied. Please allow photo access.';
+      }
+      
+      _showErrorSnackBar(errorMessage);
+    }
+  } finally {
     if (mounted) {
       setState(() {
-        _isProcessingImage = true;
+        _isProcessingImage = false;
       });
     }
+  }
+}
 
+// ✅ NEW: Validate multiple files before processing
+Future<List<XFile>> _validateMultipleFiles(List<XFile> files) async {
+  final List<XFile> validFiles = [];
+  
+  for (final file in files) {
     try {
-      final picker = ImagePicker();
-      final pickedFiles = await picker.pickMultiImage(
-        maxWidth: 1920,
-        maxHeight: 1920,
-        imageQuality: 85,
-      );
-      
-      print('Multiple images picked: ${pickedFiles.length}');
-      
-      if (pickedFiles.isNotEmpty && mounted) {
-        // Limit to remaining slots
-        final filesToProcess = pickedFiles.take(remainingSlots).toList();
-        
-        // Show processing dialog
-        _showProcessingDialog(AppLocalizations.processingImagesCount.tr(args: ['${filesToProcess.length}']));
-        
-        int successCount = 0;
-        int failCount = 0;
-        
-        // Process in batches of 3 to avoid memory issues
-        const batchSize = 3;
-        for (int i = 0; i < filesToProcess.length; i += batchSize) {
-          if (!mounted) break; // Check if widget is still mounted
-          
-          final batch = filesToProcess.skip(i).take(batchSize).toList();
-          
-          // Process batch sequentially to avoid overwhelming the system
-          for (final file in batch) {
-            if (!mounted) break;
-            
-            try {
-              final watermarkedImage = await _addWatermarkToImage(file);
-              if (watermarkedImage != null && mounted) {
-                final success = await itemProvider.addImage(watermarkedImage);
-                if (success) {
-                  successCount++;
-                } else {
-                  failCount++;
-                }
-              } else {
-                failCount++;
-              }
-            } catch (e) {
-              print('Error processing image: $e');
-              failCount++;
-            }
-          }
-          
-          // Small delay between batches and update UI
-          if (i + batchSize < filesToProcess.length && mounted) {
-            setState(() {}); // Update UI to show progress
-            await Future.delayed(Duration(milliseconds: 300));
-          }
-        }
-        
-        // Hide dialog safely
-        _hideProcessingDialog();
-        
-        // Show result message and update UI
-        if (mounted) {
-          setState(() {}); // Force rebuild to show all new images
-          
-          if (successCount > 0 && failCount == 0) {
-            _showSuccessSnackBar(AppLocalizations.photosAddedSuccessfully.tr(args: ['$successCount']));
-          } else if (successCount > 0 && failCount > 0) {
-            _showErrorSnackBar(AppLocalizations.photosAddedFailed.tr(args: ['$successCount', '$failCount']));
-          } else {
-            _showErrorSnackBar(AppLocalizations.failedToAddPhotos.tr());
-          }
-        }
+      // Check if file exists
+      final fileObj = File(file.path);
+      if (!await fileObj.exists()) {
+        print('❌ File does not exist: ${file.path}');
+        continue;
       }
+      
+      // Check file size (skip files larger than 50MB to prevent memory issues)
+      final fileSize = await fileObj.length();
+      if (fileSize > 50 * 1024 * 1024) { // 50MB limit
+        print('❌ File too large: ${file.path} (${fileSize} bytes)');
+        continue;
+      }
+      
+      // Check file extension
+      final extension = file.path.split('.').last.toLowerCase();
+      if (!['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].contains(extension)) {
+        print('❌ Invalid file type: ${file.path}');
+        continue;
+      }
+      
+      validFiles.add(file);
     } catch (e) {
-      print('Error picking multiple images: $e');
-      _hideProcessingDialog();
-      if (mounted) {
-        _showErrorSnackBar(AppLocalizations.errorPickingImages.tr(args: ['$e']));
+      print('❌ Error validating file ${file.path}: $e');
+    }
+  }
+  
+  return validFiles;
+}
+
+// ✅ NEW: Robust multiple image processing with better error handling
+Future<void> _processMultipleImagesRobust(List<XFile> files, ItemProvider itemProvider) async {
+  int successCount = 0;
+  int failCount = 0;
+  
+  try {
+    // ✅ REDUCE BATCH SIZE to prevent memory issues
+    const batchSize = 3; // Reduced from 8 to 3
+    
+    for (int i = 0; i < files.length; i += batchSize) {
+      if (!mounted) break;
+      
+      final batchEnd = (i + batchSize).clamp(0, files.length);
+      final batch = files.sublist(i, batchEnd);
+      
+      print('📦 Processing batch ${(i ~/ batchSize) + 1}/${((files.length / batchSize).ceil())} (${batch.length} images)');
+      
+      // ✅ SEQUENTIAL PROCESSING to prevent memory overload
+      for (int j = 0; j < batch.length; j++) {
+        if (!mounted) break;
+        
+        final file = batch[j];
+        final imageIndex = i + j + 1;
+        
+        try {
+          print('🖼️ Processing image $imageIndex/${files.length}: ${file.name}');
+          
+          // Update processing dialog with current progress
+          if (_isDialogShowing) {
+            _hideProcessingDialog();
+            _showProcessingDialog('Processing image $imageIndex/${files.length}\nPlease wait...');
+          }
+          
+          // ✅ ADD TIMEOUT for each image processing
+          final watermarkedImage = await _addWatermarkToImage(file).timeout(
+            Duration(seconds: 30),
+            onTimeout: () {
+              print('⏰ Watermarking timeout for image $imageIndex');
+              return file; // Return original if watermarking times out
+            },
+          );
+          
+          if (watermarkedImage != null && mounted) {
+            final success = await itemProvider.addImage(watermarkedImage);
+            
+            if (success) {
+              successCount++;
+              print('✅ Successfully processed image $imageIndex');
+            } else {
+              failCount++;
+              print('❌ Failed to add image $imageIndex to provider');
+            }
+          } else {
+            failCount++;
+            print('❌ Failed to watermark image $imageIndex');
+          }
+          
+          // ✅ GARBAGE COLLECTION: Force cleanup between images
+          await Future.delayed(Duration(milliseconds: 100)); // Small delay
+          
+        } catch (e) {
+          failCount++;
+          print('❌ Error processing image $imageIndex: $e');
+          
+          // ✅ CONTINUE PROCESSING other images even if one fails
+          continue;
+        }
       }
-    } finally {
+      
+      // ✅ UPDATE UI between batches
       if (mounted) {
-        setState(() {
-          _isProcessingImage = false;
-        });
+        setState(() {});
+      }
+      
+      // ✅ MEMORY MANAGEMENT: Longer delay between batches
+      if (batchEnd < files.length) {
+        await Future.delayed(Duration(milliseconds: 500));
+      }
+    }
+    
+  } catch (e) {
+    print('❌ Error in batch processing: $e');
+  } finally {
+    // Hide processing dialog
+    _hideProcessingDialog();
+    
+    // Show results and update UI
+    if (mounted) {
+      setState(() {}); // Force rebuild
+      
+      print('📊 Processing completed: $successCount success, $failCount failed');
+      
+      if (successCount > 0 && failCount == 0) {
+        _showSuccessSnackBar('Successfully added $successCount photos! 🎉');
+      } else if (successCount > 0 && failCount > 0) {
+        _showErrorSnackBar('Added $successCount photos, $failCount failed.\nTry again with smaller images.');
+      } else if (failCount > 0) {
+        _showErrorSnackBar('Failed to process images. Please try with smaller files.');
       }
     }
   }
-
+}
   void _showProcessingDialog(String message) {
     if (!_isDialogShowing && mounted) {
       _isDialogShowing = true;
@@ -698,19 +809,8 @@ class _EnhancedAddPhotosPageState extends State<EnhancedAddPhotosPage> {
                         }
                       ),
                     ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Consumer<ItemProvider>(
-                        builder: (context, itemProvider, child) {
-                          return _buildImageSourceOption(
-                            AppLocalizations.gallery.tr(),
-                            Icons.photo_library,
-                            Colors.green,
-                            () => _pickImage(dialogContext, source: ImageSource.gallery, itemPro: itemProvider),
-                          );
-                        }
-                      ),
-                    ),
+                    // SizedBox(width: 16),
+                  
                   ],
                 ),
                 

@@ -837,6 +837,7 @@ Check out this amazing product on our marketplace!
     ),
   );
 }
+
 // Helper method to extract field template data from product
 Map<String, Map<String, dynamic>> _getFieldTemplateData(ProductDetailModel product) {
   final templateData = <String, Map<String, dynamic>>{};
@@ -866,48 +867,56 @@ Map<String, Map<String, dynamic>> _getFieldTemplateData(ProductDetailModel produ
   return templateData;
 }
 // Enhanced stat item builder that can handle both custom icons and fallback icons
+// Alternative solution using IntrinsicWidth for more flexible sizing
 Widget _buildStatItemWithIcon(IconData fallbackIcon, String? iconUrl, String value, String label) {
-  return Expanded(
-    child: Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Color(0xFF2D5016).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+  return IntrinsicWidth(
+    child: Container(
+      constraints: BoxConstraints(
+        minWidth: 80,
+        maxWidth: 120,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Color(0xFF2D5016).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: _buildIconWidget(iconUrl, fallbackIcon),
           ),
-          child: _buildIconWidget(iconUrl, fallbackIcon),
-        ),
-        SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.outfit(
-            fontSize: 13,
-            color: Colors.grey[700],
-            fontWeight: FontWeight.w600,
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 11,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+          SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
 
-// Helper method to build icon widget (custom URL or fallback)
+// Helper method to build icon widget (custom URL or fallback) - NO CHANGES NEEDED
 Widget _buildIconWidget(String? iconUrl, IconData fallbackIcon) {
   if (iconUrl != null && iconUrl.isNotEmpty) {
     return ClipRRect(
@@ -1493,122 +1502,8 @@ IconData _getFeatureIcon(String feature) {
   return Icons.check_circle_outline;
 }
 
-  String _getFieldDisplayName(String fieldName) {
-    final displayNames = {
-      'year': 'Year',
-      'kilometers': 'Mileage',
-      'mileage': 'Mileage',
-      'fuel_type': 'Fuel Type',
-      'transmission': 'Transmission',
-      'engine_capacity': 'Engine Capacity',
-      'body_type': 'Body Type',
-      'car_type': 'Car Type',
-      'doors': 'Doors',
-      'seating_capacity': 'Seating',
-      'power_steering': 'Power Steering',
-      'air_conditioning': 'Air Conditioning',
-      'bike_type': 'Bike Type',
-      'engine_type': 'Engine Type',
-      'storage': 'Storage',
-      'ram': 'RAM',
-      'screen_size': 'Screen Size',
-      'battery_capacity': 'Battery',
-      'network_type': 'Network',
-      'dual_sim': 'Dual SIM',
-      'processor': 'Processor',
-      'storage_type': 'Storage Type',
-      'storage_capacity': 'Storage Capacity',
-      'graphics_card': 'Graphics Card',
-      'operating_system': 'Operating System',
-      'property_type': 'Property Type',
-      'area': 'Area',
-      'bedrooms': 'Bedrooms',
-      'bathrooms': 'Bathrooms',
-      'furnished': 'Furnished',
-      'parking': 'Parking',
-      'purpose': 'Purpose',
-      'size': 'Size',
-      'material': 'Material',
-      'gender': 'Gender',
-      'room_type': 'Room Type',
-      'assembly_required': 'Assembly Required',
-      'sport_type': 'Sport Type',
-      'suitable_for': 'Suitable For',
-    };
-    
-    return displayNames[fieldName] ?? fieldName.replaceAll('_', ' ').split(' ')
-        .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
-        .join(' ');
-  }
 
-  // Helper method to format field values
-  String _formatFieldValue(dynamic value, String fieldName) {
-    if (value == null) return 'N/A';
-    
-    // Add units/suffixes based on field type
-    final fieldUnits = {
-      'kilometers': ' km',
-      'mileage': ' km',
-      'engine_capacity': ' CC',
-      'area': ' sq ft',
-      'battery_capacity': ' mAh',
-      'screen_size': '"',
-    };
-    
-    if (value is bool) {
-      return value ? 'Yes' : 'No';
-    }
-    
-    final unit = fieldUnits[fieldName] ?? '';
-    return '${value.toString()}$unit';
-  }
-  // Helper method to get standard fields not in category fields
-  List<Map<String, String>> _getStandardFields(
-    ProductDetailModel product, 
-    Map<String, dynamic> categoryFields
-  ) {
-    final standardFields = <Map<String, String>>[];
-    
-    // Only add standard fields if they're not already in category fields
-    if (!categoryFields.containsKey('color') && product.color != null && product.color!.isNotEmpty) {
-      standardFields.add({'label': 'Color'.tr(), 'value': product.color!});
-    }
-    
-    if (product.brand != null && product.brand!.isNotEmpty) {
-      standardFields.add({'label': 'Brand'.tr(), 'value': product.brand!});
-    }
-    
-    if (product.dimensions != null && product.dimensions!.isNotEmpty) {
-      standardFields.add({'label': 'Dimensions'.tr(), 'value': product.dimensions!});
-    }
 
-    // Add legacy specifications that aren't category fields
-    final specs = product.specifications;
-    final stats = product.stats;
-    
-    if (stats.registeredIn != null && !categoryFields.containsKey('registered_in')) {
-      standardFields.add({'label': 'Registered in'.tr(), 'value': stats.registeredIn!});
-    }
-    
-    if (stats.assembly != null && !categoryFields.containsKey('assembly')) {
-      standardFields.add({'label': 'Assembly'.tr(), 'value': stats.assembly!});
-    }
-
-    return standardFields;
-  }
-
-  // Helper method to extract boolean features
-  List<String> _extractBooleanFeatures(Map<String, dynamic> fields) {
-    final features = <String>[];
-    
-    for (final entry in fields.entries) {
-      if (entry.value is bool && entry.value == true) {
-        features.add(_getFieldDisplayName(entry.key));
-      }
-    }
-    
-    return features;
-  }
 
 Widget _buildImageSectionWithOverlay(ProductDetailModel product, ProductDetailProvider provider) {
   return Stack(
@@ -2269,40 +2164,6 @@ preserveWatermark: true,
     );
   }
 
-  // Helper methods
-  Widget _buildStatItem(IconData icon, String text) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Color(0xFF2D5016).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon, 
-              size: 24, 
-              color: Color(0xFF2D5016),
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            text,
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: Colors.grey[700],
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-  
   // Review-related methods
   bool _canUserReview(String sellerId) {
     // Logic to check if current user can review this seller

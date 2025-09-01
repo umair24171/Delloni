@@ -71,9 +71,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (userType == expectedType) {
             _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
-            Navigator.pushReplacement(
+            Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => LocationScreen()),
+              (context)=>false
             );
           } else {
             await _auth.signOut();
@@ -138,9 +139,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result['success']) {
         if (result['autoVerified'] == true) {
           _showSuccessSnackBar(AppLocalizations.success.tr()); // Localized
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => LocationScreen()),
+            (context)=>false
           );
         } else {
           _navigateToOTPScreen(result['verificationId'], phoneNumber);
@@ -413,7 +415,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Phone Number Input Field with Country Code Picker
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    // color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: ColorsController.borderColor),
                   ),
@@ -431,7 +433,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         textStyle: GoogleFonts.jost(
                           fontSize: 16,
                           fontWeight: FontWeight.w400,
-                          color: Colors.black,
+                          // color: Colors.black,
                         ),
                         padding: EdgeInsets.symmetric(
                           horizontal: 8,
@@ -456,7 +458,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: GoogleFonts.jost(
                             fontSize: 16,
                             fontWeight: FontWeight.w400,
-                            color: Colors.black,
+                            // color: Colors.black,
                           ),
                           decoration: InputDecoration(
                             border: InputBorder.none,
@@ -468,7 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             hintStyle: GoogleFonts.jost(
                               fontSize: 16,
                               fontWeight: FontWeight.w400,
-                              color: Color(0xFF9CA3AF),
+                              // color: Color(0xFF9CA3AF),
                             ),
                           ),
                         ),
@@ -516,8 +518,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.w400,
                       color: Colors.grey[500],
                     ),
-                    filled: true,
-                    fillColor: Colors.white,
+                    // filled: true,
+                    // fillColor: Colors.white,
                     prefixIcon: const Icon(Icons.email),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,

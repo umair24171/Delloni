@@ -647,6 +647,7 @@ class IndividualChatProvider with ChangeNotifier {
         senderName: currentUserName,
         messagePreview: _getMessagePreview(messageText.trim()),
         chatId: _chat!.id,
+        // messageType: MessageType.text,
       );
 
       // Stop typing
@@ -896,6 +897,7 @@ class IndividualChatProvider with ChangeNotifier {
           'messagePreview': messagePreview,
           'productId': _chat?.productId,
           'productTitle': _chat?.productTitle,
+          // 'action': 'view_item',
         },
       );
 

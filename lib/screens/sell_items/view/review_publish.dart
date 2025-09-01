@@ -1119,19 +1119,20 @@ Widget _buildDetailRow(String label, String value) {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: canPublish ? () async {
+        onPressed:itemProvider.isPublishing?null : () async {
           try {
             final success = await itemProvider.publishItem(context);
             if (success) {
-              Navigator.pushReplacement(
+              Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => SuccessPage()),
+                (route)=>false
               );
             }
           } catch (e) {
             _showSnackBar(context, 'Error: $e', Colors.red);
           }
-        } : null,
+        } ,
         style: ElevatedButton.styleFrom(
           backgroundColor: canPublish 
               ? ColorsController.primaryColor

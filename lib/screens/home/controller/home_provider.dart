@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:flutter/foundation.dart';
 
 class HomeProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,42 +14,79 @@ class HomeProvider with ChangeNotifier {
   bool _isLoading = true;
   String? _error;
   
-  // Data lists
-  List<Map<String, dynamic>> _categories = [];
-  List<Map<String, dynamic>> _featuredProducts = [];
-  List<Map<String, dynamic>> _personalizedProducts = [];
-  List<Map<String, dynamic>> _mostViewedProducts = [];
-  List<Map<String, dynamic>> _mobilePhones = [];
-  List<Map<String, dynamic>> _computers = [];
-  List<Map<String, dynamic>> _computerAccessories = [];
-  List<Map<String, dynamic>> _adBanners = [];
-  List<Map<String, dynamic>> _allProducts = [];
+  // OPTIMIZED: Separate loading states for better UX
+  bool _isCategoriesLoading = false;
+  bool _isProductsLoading = false;
+  bool _isBannersLoading = false;
+  
+  // Data lists - OPTIMIZED: Using final for better memory management
+  final List<Map<String, dynamic>> _categories = [];
+  final List<Map<String, dynamic>> _featuredProducts = [];
+  final List<Map<String, dynamic>> _personalizedProducts = [];
+  final List<Map<String, dynamic>> _mostViewedProducts = [];
+  final List<Map<String, dynamic>> _mobilePhones = [];
+  final List<Map<String, dynamic>> _computers = [];
+  final List<Map<String, dynamic>> _computerAccessories = [];
+  final List<Map<String, dynamic>> _adBanners = [];
+  final List<Map<String, dynamic>> _allProducts = [];
+  
+  // OPTIMIZED: Cache for expensive computations
+  final Map<String, List<Map<String, dynamic>>> _categoryCache = {};
+  final Map<String, DateTime> _cacheTimestamps = {};
+  final Map<String, List<Map<String, dynamic>>> _searchCache = {};
+  static const Duration _cacheExpiry = Duration(minutes: 5);
+  
+  // OPTIMIZED: Pagination support
+  DocumentSnapshot? _lastProductDoc;
+  DocumentSnapshot? _lastCategoryDoc;
+  bool _hasMoreProducts = true;
+  bool _hasMoreCategories = true;
+  static const int _pageSize = 20;
+  static const int _maxProducts = 100; // Limit total products in memory
   
   // User location for personalization
   double? _userLatitude;
   double? _userLongitude;
   String? _userLocationAddress;
   
+  // OPTIMIZED: Debouncing and throttling
+  Timer? _debounceTimer;
+  Timer? _locationDebounceTimer;
+  DateTime? _lastUpdateTime;
+  static const Duration _debounceDelay = Duration(milliseconds: 500);
+  static const Duration _minUpdateInterval = Duration(seconds: 2);
+  
   // Streams for real-time updates
   StreamSubscription? _categoriesSubscription;
   StreamSubscription? _productsSubscription;
   StreamSubscription? _bannersSubscription;
+  
+  // OPTIMIZED: Connection state tracking
+  bool _isOnline = true;
+  
+  // OPTIMIZED: Performance monitoring
+  final Stopwatch _performanceStopwatch = Stopwatch();
 
-  // Getters
+  // Getters - OPTIMIZED: Using unmodifiable lists
   bool get isLoading => _isLoading;
+  bool get isCategoriesLoading => _isCategoriesLoading;
+  bool get isProductsLoading => _isProductsLoading;
+  bool get isBannersLoading => _isBannersLoading;
   String? get error => _error;
-  List<Map<String, dynamic>> get categories => _categories;
-  List<Map<String, dynamic>> get featuredProducts => _featuredProducts;
-  List<Map<String, dynamic>> get personalizedProducts => _personalizedProducts;
-  List<Map<String, dynamic>> get mostViewedProducts => _mostViewedProducts;
-  List<Map<String, dynamic>> get mobilePhones => _mobilePhones;
-  List<Map<String, dynamic>> get computers => _computers;
-  List<Map<String, dynamic>> get computerAccessories => _computerAccessories;
-  List<Map<String, dynamic>> get adBanners => _adBanners;
-  List<Map<String, dynamic>> get allProducts => _allProducts;
+  List<Map<String, dynamic>> get categories => List.unmodifiable(_categories);
+  List<Map<String, dynamic>> get featuredProducts => List.unmodifiable(_featuredProducts);
+  List<Map<String, dynamic>> get personalizedProducts => List.unmodifiable(_personalizedProducts);
+  List<Map<String, dynamic>> get mostViewedProducts => List.unmodifiable(_mostViewedProducts);
+  List<Map<String, dynamic>> get mobilePhones => List.unmodifiable(_mobilePhones);
+  List<Map<String, dynamic>> get computers => List.unmodifiable(_computers);
+  List<Map<String, dynamic>> get computerAccessories => List.unmodifiable(_computerAccessories);
+  List<Map<String, dynamic>> get adBanners => List.unmodifiable(_adBanners);
+  List<Map<String, dynamic>> get allProducts => List.unmodifiable(_allProducts);
   double? get userLatitude => _userLatitude;
   double? get userLongitude => _userLongitude;
   String? get userLocationAddress => _userLocationAddress;
+  bool get hasMoreProducts => _hasMoreProducts;
+  bool get hasMoreCategories => _hasMoreCategories;
 
   HomeProvider() {
     _initializeData();
@@ -56,20 +94,59 @@ class HomeProvider with ChangeNotifier {
 
   Future<void> _initializeData() async {
     try {
+      _performanceStopwatch.start();
       _setLoading(true);
-      await _getUserLocation();
-      _setupRealTimeListeners();
-      await _loadInitialData();
+      
+      // OPTIMIZED: Parallel initialization with timeout
+      await Future.any([
+        _performInitialization(),
+        Future.delayed(Duration(seconds: 15), () => throw TimeoutException('Initialization timeout')),
+      ]);
+      
       _setLoading(false);
+      _performanceStopwatch.stop();
+      log('HomeProvider initialized in ${_performanceStopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       _setError('Failed to initialize data: $e');
       log('HomeProvider initialization error: $e');
+      _performanceStopwatch.stop();
     }
   }
 
+  Future<void> _performInitialization() async {
+    // OPTIMIZED: Get location first as it's needed for personalization
+    await _getUserLocation();
+    
+    // OPTIMIZED: Load critical data first, then set up listeners
+    await _loadCriticalData();
+    _setupOptimizedRealTimeListeners();
+    
+    // OPTIMIZED: Load remaining data in background
+    unawaited(_loadRemainingData());
+  }
+
+  Future<void> _loadCriticalData() async {
+    // Load only essential data for immediate display
+    await Future.wait([
+      _loadParentCategories(limit: 8), // Only load first 8 categories
+      _loadFeaturedProducts(), // Load featured products first
+      _loadActiveAdBanners(),
+    ]);
+  }
+
+  Future<void> _loadRemainingData() async {
+    // Load remaining data in background
+    await Future.wait([
+      _loadMoreProducts(),
+      _loadMoreCategories(),
+    ]);
+  }
+
   void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      _scheduleNotification();
+    }
   }
 
   void _setError(String? error) {
@@ -78,505 +155,635 @@ class HomeProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Get user location for personalized content
+  // OPTIMIZED: Debounced notifications to prevent excessive rebuilds
+  void _scheduleNotification() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDelay, () {
+      if (!_shouldThrottleUpdate()) {
+        notifyListeners();
+        _lastUpdateTime = DateTime.now();
+      }
+    });
+  }
+
+  bool _shouldThrottleUpdate() {
+    if (_lastUpdateTime == null) return false;
+    return DateTime.now().difference(_lastUpdateTime!) < _minUpdateInterval;
+  }
+
+  // OPTIMIZED: Efficient location handling with debouncing
   Future<void> _getUserLocation() async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!await _isLocationServiceAvailable()) return;
 
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-
-      if (permission == LocationPermission.deniedForever) return;
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-      );
+      final position = await _getCurrentPositionWithTimeout();
+      if (position == null) return;
 
       _userLatitude = position.latitude;
       _userLongitude = position.longitude;
 
-      // Reverse geocode to get city name
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(_userLatitude!, _userLongitude!);
-        if (placemarks.isNotEmpty) {
-          _userLocationAddress = placemarks.first.locality ?? placemarks.first.subAdministrativeArea ?? placemarks.first.administrativeArea ?? 'Unknown location';
-        } else {
-          _userLocationAddress = 'Unknown location';
-        }
-      } catch (e) {
-        _userLocationAddress = 'Unknown location';
-      }
+      // OPTIMIZED: Debounce reverse geocoding
+      _locationDebounceTimer?.cancel();
+      _locationDebounceTimer = Timer(Duration(seconds: 1), () async {
+        await _performReverseGeocoding();
+      });
       
-      log('User location obtained: $_userLatitude, $_userLongitude, address: $_userLocationAddress');
-      notifyListeners();
+      log('User location obtained: $_userLatitude, $_userLongitude');
     } catch (e) {
       log('Error getting user location: $e');
     }
   }
 
-  // Setup real-time listeners
-  void _setupRealTimeListeners() {
-    // Categories listener - Get parent categories only
+  Future<bool> _isLocationServiceAvailable() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return false;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return false;
+    }
+
+    return permission != LocationPermission.deniedForever;
+  }
+
+  Future<Position?> _getCurrentPositionWithTimeout() async {
+    try {
+      return await Future.any([
+        Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium),
+        Future.delayed(Duration(seconds: 5), () => throw TimeoutException('Location timeout')),
+      ]);
+    } catch (e) {
+      log('Location timeout or error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _performReverseGeocoding() async {
+    try {
+      if (_userLatitude == null || _userLongitude == null) return;
+      
+      final placemarks = await placemarkFromCoordinates(_userLatitude!, _userLongitude!);
+      if (placemarks.isNotEmpty) {
+        _userLocationAddress = placemarks.first.locality ?? 
+                              placemarks.first.subAdministrativeArea ?? 
+                              placemarks.first.administrativeArea ?? 
+                              'Unknown location';
+      } else {
+        _userLocationAddress = 'Unknown location';
+      }
+      _scheduleNotification();
+    } catch (e) {
+      _userLocationAddress = 'Unknown location';
+      log('Reverse geocoding error: $e');
+    }
+  }
+
+  // OPTIMIZED: More efficient real-time listeners with error handling
+  // ✅ ENHANCED: Better real-time listener setup with immediate data fetching
+  void _setupOptimizedRealTimeListeners() {
+    // Categories listener with pagination
     _categoriesSubscription = _firestore
         .collection('categories')
         .where('isActive', isEqualTo: true)
-        .where('level', isEqualTo: 0) // Parent categories only
+        .where('level', isEqualTo: 0)
+        .orderBy('order')
+        .limit(_pageSize)
         .snapshots()
-        .listen(_onCategoriesChanged, onError: (e) => log('Categories stream error: $e'));
+        .listen(_onCategoriesChanged, 
+                onError: _handleStreamError,
+                onDone: () => log('Categories stream completed'));
 
-    // Products listener
+    // ✅ ENHANCED: Products listener with better filtering for recent items
     _productsSubscription = _firestore
         .collection('items')
         .where('status', isEqualTo: 'active')
+        .orderBy('createdAt', descending: true)
+        .limit(_pageSize * 2) // Increased limit to catch more recent items
         .snapshots()
-        .listen(_onProductsChanged, onError: (e) => log('Products stream error: $e'));
+        .listen(_onProductsChanged,
+                onError: _handleStreamError,
+                onDone: () => log('Products stream completed'));
 
-    // Ad banners listener
+    // Banners listener
     _bannersSubscription = _firestore
         .collection('adBanners')
         .where('isActive', isEqualTo: true)
+        .orderBy('priority', descending: true)
         .snapshots()
-        .listen(_onBannersChanged, onError: (e) => log('Banners stream error: $e'));
+        .listen(_onBannersChanged,
+                onError: _handleStreamError,
+                onDone: () => log('Banners stream completed'));
+  }
+
+  void _handleStreamError(dynamic error) {
+    log('Stream error: $error');
+    _isOnline = false;
+    // Don't set error state for stream errors - keep showing cached data
   }
 
   void _onCategoriesChanged(QuerySnapshot snapshot) {
     try {
-      _categories = snapshot.docs.map((doc) {
+      _isCategoriesLoading = true;
+      
+      final newCategories = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
       
-      // Sort by order and priority
-      _categories.sort((a, b) {
-        final orderA = a['order'] ?? 0;
-        final orderB = b['order'] ?? 0;
-        if (orderA != orderB) {
-          return orderA.compareTo(orderB);
+      // OPTIMIZED: Update only if data actually changed
+      if (!_listsEqual(_categories, newCategories)) {
+        _categories.clear();
+        _categories.addAll(_sortCategories(newCategories));
+        
+        if (snapshot.docs.isNotEmpty) {
+          _lastCategoryDoc = snapshot.docs.last;
         }
-        final priorityA = a['priority'] ?? 0;
-        final priorityB = b['priority'] ?? 0;
-        return priorityB.compareTo(priorityA);
-      });
+        
+        log('Updated ${_categories.length} categories');
+        _scheduleNotification();
+      }
       
-      log('Loaded ${_categories.length} parent categories');
-      notifyListeners();
+      _isCategoriesLoading = false;
+      _isOnline = true;
     } catch (e) {
       log('Error processing categories: $e');
+      _isCategoriesLoading = false;
     }
   }
 
+ // ✅ ENHANCED: Better product change handling with immediate updates
   void _onProductsChanged(QuerySnapshot snapshot) {
     try {
-      _allProducts = snapshot.docs.map((doc) {
+      _isProductsLoading = true;
+      
+      final newProducts = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
       
-      _categorizeProducts(_allProducts);
-      log('Loaded ${_allProducts.length} products');
-      notifyListeners();
+      log('📱 Real-time update: ${newProducts.length} products received');
+      
+      // ✅ ENHANCED: Force immediate update instead of checking for changes
+      _updateProductsImmediately(newProducts);
+      
+      if (snapshot.docs.isNotEmpty) {
+        _lastProductDoc = snapshot.docs.last;
+      }
+      
+      _isProductsLoading = false;
+      _isOnline = true;
+      
+      log('✅ Products updated via real-time listener');
     } catch (e) {
-      log('Error processing products: $e');
+      log('❌ Error processing real-time product changes: $e');
+      _isProductsLoading = false;
+    }
+  }
+ // ✅ NEW: Force immediate product update without change checking
+  void _updateProductsImmediately(List<Map<String, dynamic>> newProducts) {
+    try {
+      final stopwatch = Stopwatch()..start();
+      
+      // Remove duplicates from new products
+      final uniqueNewProducts = _removeDuplicatesById(newProducts);
+      
+      // Replace current products with new ones (for real-time updates)
+      _allProducts.clear();
+      _allProducts.addAll(uniqueNewProducts.take(_maxProducts));
+      
+      // Force immediate recategorization
+      _categorizeProductsOptimized(_allProducts);
+      
+      stopwatch.stop();
+      log('✅ Immediate product update completed in ${stopwatch.elapsedMilliseconds}ms');
+      _scheduleNotification();
+      
+    } catch (e) {
+      log('❌ Error in immediate product update: $e');
     }
   }
 
   void _onBannersChanged(QuerySnapshot snapshot) {
     try {
-      final now = DateTime.now();
+      _isBannersLoading = true;
       
-      _adBanners = snapshot.docs.map((doc) {
+      final now = DateTime.now();
+      final newBanners = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
-      }).where((banner) {
-        // Check if banner is currently active
-        final startDate = (banner['startDate'] as Timestamp?)?.toDate();
-        final endDate = (banner['endDate'] as Timestamp?)?.toDate();
-        
-        if (startDate == null || endDate == null) return false;
-        
-        return now.isAfter(startDate) && now.isBefore(endDate);
-      }).toList();
+      }).where((banner) => _isBannerActive(banner, now)).toList();
       
-      // Sort by priority
-      _adBanners.sort((a, b) {
-        final priorityA = a['priority'] ?? 0;
-        final priorityB = b['priority'] ?? 0;
-        return priorityB.compareTo(priorityA);
-      });
+      if (!_listsEqual(_adBanners, newBanners)) {
+        _adBanners.clear();
+        _adBanners.addAll(_sortBanners(newBanners));
+        
+        log('Updated ${_adBanners.length} active banners');
+        _scheduleNotification();
+      }
       
-      log('Loaded ${_adBanners.length} active banners');
-      notifyListeners();
+      _isBannersLoading = false;
+      _isOnline = true;
     } catch (e) {
       log('Error processing banners: $e');
+      _isBannersLoading = false;
     }
   }
 
-  // Load initial data
-  Future<void> _loadInitialData() async {
-    await Future.wait([
-      _loadParentCategories(),
-      _loadProducts(),
-      _loadAdBanners(),
-    ]);
+  // OPTIMIZED: Efficient product updating with minimal recomputation
+ void _updateProductsEfficiently(List<Map<String, dynamic>> newProducts) {
+  // Check if we need to update
+  if (_listsEqual(_allProducts, newProducts)) return;
+  
+  final stopwatch = Stopwatch()..start();
+  
+  // FIXED: Remove duplicates from new products first
+  final uniqueNewProducts = _removeDuplicatesById(newProducts);
+  
+  // OPTIMIZED: Limit total products in memory
+  if (_allProducts.length + uniqueNewProducts.length > _maxProducts) {
+    final overflow = _allProducts.length + uniqueNewProducts.length - _maxProducts;
+    if (overflow > 0 && _allProducts.length > overflow) {
+      _allProducts.removeRange(_allProducts.length - overflow, _allProducts.length);
+    }
+  }
+  
+  // FIXED: Add only unique products to avoid duplicates
+  final existingIds = _allProducts.map((p) => p['id']).toSet();
+  final productsToAdd = uniqueNewProducts.where((p) => !existingIds.contains(p['id'])).toList();
+  
+  // Add new unique products
+  _allProducts.addAll(productsToAdd);
+  
+  // FIXED: Remove any duplicates that might have slipped through
+  final uniqueAllProducts = _removeDuplicatesById(_allProducts);
+  _allProducts.clear();
+  _allProducts.addAll(uniqueAllProducts);
+  
+  // OPTIMIZED: Only recategorize if we have significant changes
+  if (productsToAdd.length > 3 || _shouldRecategorize()) {
+    _categorizeProductsOptimized(_allProducts);
+  }
+  
+  stopwatch.stop();
+  log('Product update completed in ${stopwatch.elapsedMilliseconds}ms. Added ${productsToAdd.length} unique products.');
+  _scheduleNotification();
+}
+
+  bool _shouldRecategorize() {
+    // Recategorize every 5 minutes or if categories are empty
+    return _featuredProducts.isEmpty || 
+           (_lastUpdateTime != null && 
+            DateTime.now().difference(_lastUpdateTime!) > Duration(minutes: 5));
   }
 
-  // Load parent categories only
-  Future<void> _loadParentCategories() async {
+  // OPTIMIZED: Efficient initial data loading with pagination
+  Future<void> _loadParentCategories({int limit = 20}) async {
     try {
-      log('Loading parent categories...');
+      log('Loading parent categories (limit: $limit)...');
+      _isCategoriesLoading = true;
       
-      final snapshot = await _firestore
+      Query query = _firestore
           .collection('categories')
           .where('isActive', isEqualTo: true)
-          .where('level', isEqualTo: 0) // Parent categories only
-          .get();
+          .where('level', isEqualTo: 0)
+          .orderBy('order')
+          .limit(limit);
 
-      _categories = snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
+      final snapshot = await query.get();
+
+      final categories = snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
         return data;
       }).toList();
       
-      // Sort categories
-      _categories.sort((a, b) {
-        final orderA = a['order'] ?? 0;
-        final orderB = b['order'] ?? 0;
-        if (orderA != orderB) {
-          return orderA.compareTo(orderB);
-        }
-        final priorityA = a['priority'] ?? 0;
-        final priorityB = b['priority'] ?? 0;
-        return priorityB.compareTo(priorityA);
-      });
+      _categories.clear();
+      _categories.addAll(_sortCategories(categories));
+      
+      if (snapshot.docs.isNotEmpty) {
+        _lastCategoryDoc = snapshot.docs.last;
+        _hasMoreCategories = snapshot.docs.length == limit;
+      }
       
       log('Loaded ${_categories.length} parent categories');
+      _isCategoriesLoading = false;
     } catch (e) {
       log('Error loading parent categories: $e');
+      _isCategoriesLoading = false;
     }
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _loadMoreCategories() async {
+    if (!_hasMoreCategories || _isCategoriesLoading) return;
+    
     try {
-      log('Loading products...');
+      _isCategoriesLoading = true;
       
-      final snapshot = await _firestore
+      Query query = _firestore
+          .collection('categories')
+          .where('isActive', isEqualTo: true)
+          .where('level', isEqualTo: 0)
+          .orderBy('order')
+          .limit(_pageSize);
+          
+      if (_lastCategoryDoc != null) {
+        query = query.startAfterDocument(_lastCategoryDoc!);
+      }
+
+      final snapshot = await query.get();
+      
+      if (snapshot.docs.isNotEmpty) {
+        final newCategories = snapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+        
+        _categories.addAll(_sortCategories(newCategories));
+        _lastCategoryDoc = snapshot.docs.last;
+        _hasMoreCategories = snapshot.docs.length == _pageSize;
+        
+        _scheduleNotification();
+      } else {
+        _hasMoreCategories = false;
+      }
+      
+      _isCategoriesLoading = false;
+    } catch (e) {
+      log('Error loading more categories: $e');
+      _isCategoriesLoading = false;
+    }
+  }
+
+ Future<void> _loadFeaturedProducts() async {
+  try {
+    log('Loading featured products...');
+    
+    final snapshot = await _firestore
+        .collection('items')
+        .where('status', isEqualTo: 'active')
+        .where('isFeatured', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .limit(20) // FIXED: Increased limit to account for potential duplicates
+        .get();
+
+    final featured = snapshot.docs.map((doc) {
+      Map<String, dynamic> data = doc.data();
+      data['id'] = doc.id;
+      return data;
+    }).toList();
+    
+    _featuredProducts.clear();
+    // FIXED: Remove duplicates and limit to 10
+    _featuredProducts.addAll(_removeDuplicatesById(featured).take(10));
+    
+    log('Loaded ${_featuredProducts.length} unique featured products');
+  } catch (e) {
+    log('Error loading featured products: $e');
+  }
+}
+
+  Future<void> _loadMoreProducts() async {
+    if (!_hasMoreProducts || _isProductsLoading) return;
+    
+    try {
+      _isProductsLoading = true;
+      
+      Query query = _firestore
           .collection('items')
           .where('status', isEqualTo: 'active')
           .orderBy('createdAt', descending: true)
-          .limit(100)
-          .get();
+          .limit(_pageSize);
+          
+      if (_lastProductDoc != null) {
+        query = query.startAfterDocument(_lastProductDoc!);
+      }
 
-      _allProducts = snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-
-      _categorizeProducts(_allProducts);
-      log('Loaded ${_allProducts.length} products');
+      final snapshot = await query.get();
+      
+      if (snapshot.docs.isNotEmpty) {
+        final newProducts = snapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          data['id'] = doc.id;
+          return data;
+        }).toList();
+        
+        _updateProductsEfficiently(newProducts);
+        _lastProductDoc = snapshot.docs.last;
+        _hasMoreProducts = snapshot.docs.length == _pageSize;
+      } else {
+        _hasMoreProducts = false;
+      }
+      
+      _isProductsLoading = false;
     } catch (e) {
-      log('Error loading products: $e');
+      log('Error loading more products: $e');
+      _isProductsLoading = false;
     }
   }
 
-  Future<void> _loadAdBanners() async {
+  Future<void> _loadActiveAdBanners() async {
     try {
       log('Loading ad banners...');
+      _isBannersLoading = true;
       
-      final now = Timestamp.now();
+      // OPTIMIZED: Simplified banner query
       final snapshot = await _firestore
           .collection('adBanners')
           .where('isActive', isEqualTo: true)
-          .where('startDate', isLessThanOrEqualTo: now)
-          .where('endDate', isGreaterThan: now)
+          .orderBy('priority', descending: true)
+          .limit(10)
           .get();
 
-      _adBanners = snapshot.docs.map((doc) {
+      final now = DateTime.now();
+      final banners = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data();
         data['id'] = doc.id;
         return data;
-      }).toList();
+      }).where((banner) => _isBannerActive(banner, now)).toList();
       
-      // Sort by priority
-      _adBanners.sort((a, b) {
-        final priorityA = a['priority'] ?? 0;
-        final priorityB = b['priority'] ?? 0;
-        return priorityB.compareTo(priorityA);
-      });
+      _adBanners.clear();
+      _adBanners.addAll(banners);
       
       log('Loaded ${_adBanners.length} active banners');
+      _isBannersLoading = false;
     } catch (e) {
       log('Error loading ad banners: $e');
-      
-      // Fallback: load all banners if date query fails
-      try {
-        final fallbackSnapshot = await _firestore
-            .collection('adBanners')
-            .where('isActive', isEqualTo: true)
-            .get();
-            
-        final now = DateTime.now();
-        _adBanners = fallbackSnapshot.docs.map((doc) {
-          Map<String, dynamic> data = doc.data();
-          data['id'] = doc.id;
-          return data;
-        }).where((banner) {
-          final startDate = (banner['startDate'] as Timestamp?)?.toDate();
-          final endDate = (banner['endDate'] as Timestamp?)?.toDate();
-          
-          if (startDate == null || endDate == null) return false;
-          return now.isAfter(startDate) && now.isBefore(endDate);
-        }).toList();
-        
-        log('Loaded ${_adBanners.length} banners using fallback method');
-      } catch (fallbackError) {
-        log('Fallback banner loading also failed: $fallbackError');
-      }
+      _isBannersLoading = false;
     }
   }
 
-  // Categorize products into different sections
- void _categorizeProducts(List<Map<String, dynamic>> allProducts) {
-  try {
-    // MOST VIEWED - ALWAYS GLOBAL (ALL CITIES) - SHOWN AT TOP
-    final viewedProducts = allProducts
-        .where((p) => (p['viewCount'] ?? 0) > 0)
-        .toList();
-    viewedProducts.sort((a, b) => (b['viewCount'] ?? 0).compareTo(a['viewCount'] ?? 0));
-    _mostViewedProducts = viewedProducts.take(10).toList();
-
-    // FEATURED PRODUCTS - GLOBAL (can include promoted items from all cities)
-    _featuredProducts = allProducts
-        .where((p) => p['isFeatured'] == true || p['isPromoted'] == true)
-        .take(10)
-        .toList();
-
-    // PERSONALIZED PRODUCTS - LOCATION-BASED IF LOCATION IS SET
-    if (_userLatitude != null && _userLongitude != null) {
-      // User has location - show nearby products
-      _personalizedProducts = _getLocationBasedProducts(allProducts);
-      log('Showing ${_personalizedProducts.length} location-based personalized products');
-    } else {
-      // No location - show recent/popular products as fallback
-      final fallbackProducts = allProducts
-          .where((p) => p['isFeatured'] != true && p['isPromoted'] != true)
-          .toList();
+  bool _isBannerActive(Map<String, dynamic> banner, DateTime now) {
+    try {
+      final startDate = (banner['startDate'] as Timestamp?)?.toDate();
+      final endDate = (banner['endDate'] as Timestamp?)?.toDate();
       
-      // Sort by creation date for recent items
-      fallbackProducts.sort((a, b) {
-        try {
-          DateTime aDate = a['createdAt'] is Timestamp 
-              ? (a['createdAt'] as Timestamp).toDate()
-              : DateTime.parse(a['createdAt'].toString());
-          DateTime bDate = b['createdAt'] is Timestamp 
-              ? (b['createdAt'] as Timestamp).toDate()
-              : DateTime.parse(b['createdAt'].toString());
-          return bDate.compareTo(aDate);
-        } catch (e) {
-          return 0;
-        }
-      });
-      
-      _personalizedProducts = fallbackProducts.take(10).toList();
-      log('No location set - showing ${_personalizedProducts.length} recent products as personalized');
-    }
-
-    // CATEGORY-SPECIFIC PRODUCTS - CAN BE LOCATION-FILTERED OR GLOBAL
-    
-    // Option 1: Location-based category products (if location is set)
-    if (_userLatitude != null && _userLongitude != null) {
-      _mobilePhones = _getLocationBasedCategoryProducts(
-        allProducts, 
-        _isMobileCategory, 
-        10
-      );
-      _computers = _getLocationBasedCategoryProducts(
-        allProducts, 
-        _isComputerCategory, 
-        10
-      );
-      _computerAccessories = _getLocationBasedCategoryProducts(
-        allProducts, 
-        _isComputerAccessoryCategory, 
-        10
-      );
-    } else {
-      // No location - show global category products
-      _mobilePhones = allProducts
-          .where((p) => _isMobileCategory(p['category']?.toString() ?? ''))
-          .take(10)
-          .toList();
-      _computers = allProducts
-          .where((p) => _isComputerCategory(p['category']?.toString() ?? ''))
-          .take(10)
-          .toList();
-      _computerAccessories = allProducts
-          .where((p) => _isComputerAccessoryCategory(p['category']?.toString() ?? ''))
-          .take(10)
-          .toList();
-    }
-
-    log('Categorized products: Featured(${_featuredProducts.length}), '
-        'Viewed(${_mostViewedProducts.length}), '
-        'Personalized(${_personalizedProducts.length}), '
-        'Mobiles(${_mobilePhones.length}), '
-        'Computers(${_computers.length}), '
-        'Accessories(${_computerAccessories.length})');
-        
-  } catch (e) {
-    log('Error categorizing products: $e');
-  }
-}
-// NEW: Get location-based products for specific categories
-List<Map<String, dynamic>> _getLocationBasedCategoryProducts(
-  List<Map<String, dynamic>> products, 
-  bool Function(String) categoryChecker,
-  int limit
-) {
-  if (_userLatitude == null || _userLongitude == null) {
-    return products
-        .where((p) => categoryChecker(p['category']?.toString() ?? ''))
-        .take(limit)
-        .toList();
-  }
-
-  const double radiusInKm = 100.0; // Larger radius for category products
-
-  final categoryProducts = products.where((product) {
-    // First check if it matches the category
-    if (!categoryChecker(product['category']?.toString() ?? '')) {
+      if (startDate == null || endDate == null) return false;
+      return now.isAfter(startDate) && now.isBefore(endDate);
+    } catch (e) {
       return false;
     }
+  }
 
-    final lat = product['latitude'] as double?;
-    final lng = product['longitude'] as double?;
+  // OPTIMIZED: More efficient product categorization with caching
+  void _categorizeProductsOptimized(List<Map<String, dynamic>> allProducts) {
+    try {
+      final stopwatch = Stopwatch()..start();
+      
+      // OPTIMIZED: Clear previous data efficiently
+      _mostViewedProducts.clear();
+      _personalizedProducts.clear();
+      _mobilePhones.clear();
+      _computers.clear();
+      _computerAccessories.clear();
+      
+      // OPTIMIZED: Use single pass for multiple categorizations
+      final viewedProducts = <Map<String, dynamic>>[];
+      final mobileProducts = <Map<String, dynamic>>[];
+      final computerProducts = <Map<String, dynamic>>[];
+      final accessoryProducts = <Map<String, dynamic>>[];
+      
+      for (final product in allProducts) {
+        // Collect viewed products
+        if ((product['viewCount'] ?? 0) > 0) {
+          viewedProducts.add(product);
+        }
+        
+        // Categorize by type
+        final category = product['category']?.toString() ?? '';
+        if (_isMobileCategory(category)) {
+          mobileProducts.add(product);
+        } else if (_isComputerCategory(category)) {
+          computerProducts.add(product);
+        } else if (_isComputerAccessoryCategory(category)) {
+          accessoryProducts.add(product);
+        }
+      }
+      
+      // OPTIMIZED: Sort once and take needed amount
+      _mostViewedProducts.addAll(_sortByViewCount(viewedProducts).take(10));
+      
+      // OPTIMIZED: Location-based filtering with caching
+      if (_userLatitude != null && _userLongitude != null) {
+        _personalizedProducts.addAll(_getLocationBasedProductsOptimized(allProducts, 10));
+        _mobilePhones.addAll(_getLocationBasedProductsOptimized(mobileProducts, 10));
+        _computers.addAll(_getLocationBasedProductsOptimized(computerProducts, 10));
+        _computerAccessories.addAll(_getLocationBasedProductsOptimized(accessoryProducts, 10));
+      } else {
+        _personalizedProducts.addAll(_sortByDate(allProducts).take(10));
+        _mobilePhones.addAll(mobileProducts.take(10));
+        _computers.addAll(computerProducts.take(10));
+        _computerAccessories.addAll(accessoryProducts.take(10));
+      }
+
+      stopwatch.stop();
+      log('Product categorization completed in ${stopwatch.elapsedMilliseconds}ms');
+      log('Categorized: Featured(${_featuredProducts.length}), '
+          'Viewed(${_mostViewedProducts.length}), '
+          'Personalized(${_personalizedProducts.length}), '
+          'Mobiles(${_mobilePhones.length}), '
+          'Computers(${_computers.length}), '
+          'Accessories(${_computerAccessories.length})');
+        
+    } catch (e) {
+      log('Error categorizing products: $e');
+    }
+  }
+
+  // OPTIMIZED: Efficient location-based filtering with distance calculation caching
+  List<Map<String, dynamic>> _getLocationBasedProductsOptimized(
+    List<Map<String, dynamic>> products, 
+    int limit
+  ) {
+    if (_userLatitude == null || _userLongitude == null) {
+      return products.take(limit).toList();
+    }
+
+    const double radiusInKm = 50.0;
+    final userLat = _userLatitude!;
+    final userLng = _userLongitude!;
     
-    // If no location data, include it (might be older products)
-    if (lat == null || lng == null) return true;
-
-    final distance = Geolocator.distanceBetween(
-      _userLatitude!,
-      _userLongitude!,
-      lat,
-      lng,
-    );
-
-    return distance <= radiusInKm * 1000;
-  }).toList();
-
-  // Sort by distance if location data exists, otherwise by date
-  categoryProducts.sort((a, b) {
-    final aLat = a['latitude'] as double?;
-    final aLng = a['longitude'] as double?;
-    final bLat = b['latitude'] as double?;
-    final bLng = b['longitude'] as double?;
-
-    if (aLat != null && aLng != null && bLat != null && bLng != null) {
-      // Both have location - sort by distance
-      final distanceA = Geolocator.distanceBetween(_userLatitude!, _userLongitude!, aLat, aLng);
-      final distanceB = Geolocator.distanceBetween(_userLatitude!, _userLongitude!, bLat, bLng);
-      return distanceA.compareTo(distanceB);
-    } else {
-      // Sort by creation date for products without location
-      try {
-        DateTime aDate = a['createdAt'] is Timestamp 
-            ? (a['createdAt'] as Timestamp).toDate()
-            : DateTime.parse(a['createdAt'].toString());
-        DateTime bDate = b['createdAt'] is Timestamp 
-            ? (b['createdAt'] as Timestamp).toDate()
-            : DateTime.parse(b['createdAt'].toString());
-        return bDate.compareTo(aDate);
-      } catch (e) {
-        return 0;
+    final List<MapEntry<Map<String, dynamic>, double>> productsWithDistance = [];
+    
+    for (final product in products) {
+      final lat = product['latitude'] as double?;
+      final lng = product['longitude'] as double?;
+      
+      if (lat != null && lng != null) {
+        final distance = Geolocator.distanceBetween(userLat, userLng, lat, lng);
+        if (distance <= radiusInKm * 1000) {
+          productsWithDistance.add(MapEntry(product, distance));
+        }
       }
     }
-  });
 
-  return categoryProducts.take(limit).toList();
-}
-
-
- // Enhanced location-based products with better fallback
-List<Map<String, dynamic>> _getLocationBasedProducts(List<Map<String, dynamic>> products) {
-  if (_userLatitude == null || _userLongitude == null) {
-    return products.take(10).toList();
+    if (productsWithDistance.isNotEmpty) {
+      // Sort by distance and return
+      productsWithDistance.sort((a, b) => a.value.compareTo(b.value));
+      return productsWithDistance.take(limit).map((e) => e.key).toList();
+    } else {
+      // Fallback to city-based or recent products
+      return _getCityBasedProductsOptimized(products, limit);
+    }
   }
 
-  const double radiusInKm = 50.0;
+  List<Map<String, dynamic>> _getCityBasedProductsOptimized(
+    List<Map<String, dynamic>> products, 
+    int limit
+  ) {
+    if (_userLocationAddress == null) {
+      return _sortByDate(products).take(limit).toList();
+    }
 
-  final localProducts = products.where((product) {
-    final lat = product['latitude'] as double?;
-    final lng = product['longitude'] as double?;
+    final userCity = _getCityFromAddress(_userLocationAddress!).toLowerCase();
     
-    if (lat == null || lng == null) return false;
+    final cityProducts = products.where((product) {
+      final productLocation = product['locationAddress']?.toString() ?? '';
+      final productCity = (product['cityName']?.toString() ?? 
+                          _getCityFromAddress(productLocation)).toLowerCase();
+      
+      return productCity.contains(userCity) || userCity.contains(productCity);
+    }).toList();
 
-    final distance = Geolocator.distanceBetween(
-      _userLatitude!,
-      _userLongitude!,
-      lat,
-      lng,
-    );
+    return cityProducts.isNotEmpty 
+        ? cityProducts.take(limit).toList()
+        : _sortByDate(products).take(limit).toList();
+  }
 
-    return distance <= radiusInKm * 1000;
-  }).toList();
-
-  // If we have local products, use them
-  if (localProducts.isNotEmpty) {
-    // Sort by distance
-    localProducts.sort((a, b) {
-      final distanceA = Geolocator.distanceBetween(
-        _userLatitude!,
-        _userLongitude!,
-        a['latitude'] as double,
-        a['longitude'] as double,
-      );
-      final distanceB = Geolocator.distanceBetween(
-        _userLatitude!,
-        _userLongitude!,
-        b['latitude'] as double,
-        b['longitude'] as double,
-      );
-      return distanceA.compareTo(distanceB);
+  // OPTIMIZED: Efficient sorting methods
+  List<Map<String, dynamic>> _sortCategories(List<Map<String, dynamic>> categories) {
+    categories.sort((a, b) {
+      final orderA = a['order'] ?? 0;
+      final orderB = b['order'] ?? 0;
+      if (orderA != orderB) return orderA.compareTo(orderB);
+      
+      final priorityA = a['priority'] ?? 0;
+      final priorityB = b['priority'] ?? 0;
+      return priorityB.compareTo(priorityA);
     });
-
-    return localProducts.take(10).toList();
-  } else {
-    // No local products found - expand radius or show city-based products
-    log('No products found within ${radiusInKm}km, showing city-based products');
-    return _getCityBasedProducts(products);
-  }
-}
-
-// NEW: Get products from the same city when no nearby products
-List<Map<String, dynamic>> _getCityBasedProducts(List<Map<String, dynamic>> products) {
-  if (_userLocationAddress == null) {
-    return products.take(10).toList();
+    return categories;
   }
 
-  // Extract city name from user's location
-  final userCity = _getCityFromAddress(_userLocationAddress!);
-  
-  final cityProducts = products.where((product) {
-    final productLocation = product['locationAddress']?.toString() ?? '';
-    final productCity = product['cityName']?.toString() ?? _getCityFromAddress(productLocation);
-    
-    return productCity.toLowerCase().contains(userCity.toLowerCase()) ||
-           userCity.toLowerCase().contains(productCity.toLowerCase());
-  }).toList();
+  List<Map<String, dynamic>> _sortBanners(List<Map<String, dynamic>> banners) {
+    banners.sort((a, b) {
+      final priorityA = a['priority'] ?? 0;
+      final priorityB = b['priority'] ?? 0;
+      return priorityB.compareTo(priorityA);
+    });
+    return banners;
+  }
 
-  if (cityProducts.isNotEmpty) {
-    return cityProducts.take(10).toList();
-  } else {
-    // Fallback to recent products
-    final recentProducts = products.toList();
-    recentProducts.sort((a, b) {
+  List<Map<String, dynamic>> _sortByViewCount(List<Map<String, dynamic>> products) {
+    products.sort((a, b) => (b['viewCount'] ?? 0).compareTo(a['viewCount'] ?? 0));
+    return products;
+  }
+
+  List<Map<String, dynamic>> _sortByDate(List<Map<String, dynamic>> products) {
+    products.sort((a, b) {
       try {
         DateTime aDate = a['createdAt'] is Timestamp 
             ? (a['createdAt'] as Timestamp).toDate()
@@ -589,73 +796,110 @@ List<Map<String, dynamic>> _getCityBasedProducts(List<Map<String, dynamic>> prod
         return 0;
       }
     });
-    return recentProducts.take(10).toList();
+    return products;
   }
-}
 
-// Helper method to extract city name from address
-String _getCityFromAddress(String address) {
-  final parts = address.split(',');
-  return parts.isNotEmpty ? parts.first.trim() : address;
-}
+  // OPTIMIZED: Efficient list comparison
+  bool _listsEqual(List<Map<String, dynamic>> list1, List<Map<String, dynamic>> list2) {
+    if (list1.length != list2.length) return false;
+    
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i]['id'] != list2[i]['id']) return false;
+    }
+    return true;
+  }
 
-  // Category helper methods
+  // Helper methods remain the same but optimized
   bool _isMobileCategory(String category) {
-    final mobileCategories = [
-      'mobiles',
-      'mobile phones',
-      'smartphones',
-      'cell phones',
-      'phone',
-    ];
-    return mobileCategories.any((cat) => 
-        category.toLowerCase().contains(cat));
+    final lowerCategory = category.toLowerCase();
+    return lowerCategory.contains('mobile') || 
+           lowerCategory.contains('phone') || 
+           lowerCategory.contains('smartphone');
   }
 
   bool _isComputerCategory(String category) {
-    final computerCategories = [
-      'computers',
-      'laptops',
-      'computer',
-      'laptop',
-      'desktop',
-      'pc',
-    ];
-    return computerCategories.any((cat) => 
-        category.toLowerCase().contains(cat));
+    final lowerCategory = category.toLowerCase();
+    return lowerCategory.contains('computer') || 
+           lowerCategory.contains('laptop') || 
+           lowerCategory.contains('desktop') || 
+           lowerCategory.contains('pc');
   }
 
   bool _isComputerAccessoryCategory(String category) {
-    final accessoryCategories = [
-      'computer accessories',
-      'accessories',
-      'cables',
-      'keyboards',
-      'mouse',
-      'headphones',
-      'monitor',
-      'speaker',
-    ];
-    return accessoryCategories.any((cat) => 
-        category.toLowerCase().contains(cat));
+    final lowerCategory = category.toLowerCase();
+    return lowerCategory.contains('accessories') || 
+           lowerCategory.contains('cable') || 
+           lowerCategory.contains('keyboard') || 
+           lowerCategory.contains('mouse') || 
+           lowerCategory.contains('headphone') || 
+           lowerCategory.contains('monitor') || 
+           lowerCategory.contains('speaker');
   }
 
-  // Public methods for UI interaction
+  String _getCityFromAddress(String address) {
+    final parts = address.split(',');
+    return parts.isNotEmpty ? parts.first.trim() : address;
+  }
+
+  // OPTIMIZED: Public methods with caching and error handling
+   // ✅ ENHANCED: Enhanced refresh method with better error handling and logging
   Future<void> refreshData() async {
     try {
+      log('🔄 Starting HomeProvider data refresh...');
       _setError(null);
-      await _loadInitialData();
+      
+      // Clear caches first
+      _clearCaches();
+      
+      // Reset pagination
+      _lastProductDoc = null;
+      _lastCategoryDoc = null;
+      _hasMoreProducts = true;
+      _hasMoreCategories = true;
+      
+      // Clear existing data
+      _categories.clear();
+      _featuredProducts.clear();
+      _personalizedProducts.clear();
+      _mostViewedProducts.clear();
+      _mobilePhones.clear();
+      _computers.clear();
+      _computerAccessories.clear();
+      _adBanners.clear();
+      _allProducts.clear();
+      
+      // Load critical data first
+      await _loadCriticalData();
+      
+      // Load remaining data in background
+      unawaited(_loadRemainingData());
+      
+      log('✅ HomeProvider data refresh completed');
     } catch (e) {
+      log('❌ HomeProvider refresh failed: $e');
       _setError('Failed to refresh data: $e');
     }
   }
 
+  void _clearCaches() {
+    _categoryCache.clear();
+    _cacheTimestamps.clear();
+    _searchCache.clear();
+  }
+
+  // OPTIMIZED: Batch operations for better performance
   Future<void> incrementProductView(String productId) async {
     try {
-      await _firestore.collection('items').doc(productId).update({
+      // OPTIMIZED: Use batch write for better performance
+      final batch = _firestore.batch();
+      final docRef = _firestore.collection('items').doc(productId);
+      
+      batch.update(docRef, {
         'viewCount': FieldValue.increment(1),
         'views': FieldValue.increment(1),
       });
+      
+      await batch.commit();
     } catch (e) {
       log('Error incrementing view count: $e');
     }
@@ -663,17 +907,30 @@ String _getCityFromAddress(String address) {
 
   Future<void> toggleProductFavorite(String productId, bool isFavorite) async {
     try {
-      await _firestore.collection('items').doc(productId).update({
+      // OPTIMIZED: Use batch write
+      final batch = _firestore.batch();
+      final docRef = _firestore.collection('items').doc(productId);
+      
+      batch.update(docRef, {
         'favoriteCount': FieldValue.increment(isFavorite ? 1 : -1),
         'likes': FieldValue.increment(isFavorite ? 1 : -1),
       });
+      
+      await batch.commit();
     } catch (e) {
       log('Error toggling favorite: $e');
     }
   }
 
-  // Get products by category ID
+  // OPTIMIZED: Cached category products
   Future<List<Map<String, dynamic>>> getProductsByCategory(String categoryId) async {
+    final cacheKey = 'category_$categoryId';
+    
+    // Check cache first
+    if (_isCacheValid(cacheKey)) {
+      return _categoryCache[cacheKey]!;
+    }
+    
     try {
       final snapshot = await _firestore
           .collection('items')
@@ -683,43 +940,44 @@ String _getCityFromAddress(String address) {
           .limit(20)
           .get();
 
-      return snapshot.docs.map((doc) {
+      final products = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data();
         data['id'] = doc.id;
         return data;
       }).toList();
+      
+      // Cache the result
+      _categoryCache[cacheKey] = products;
+      _cacheTimestamps[cacheKey] = DateTime.now();
+      
+      return products;
     } catch (e) {
       log('Error getting products by category: $e');
-      return [];
+      return _categoryCache[cacheKey] ?? [];
     }
   }
 
-  // Get subcategories for a parent category
-  Future<List<Map<String, dynamic>>> getSubCategories(String parentCategoryId) async {
-    try {
-      final snapshot = await _firestore
-          .collection('categories')
-          .where('isActive', isEqualTo: true)
-          .where('parentId', isEqualTo: parentCategoryId)
-          .orderBy('order')
-          .get();
-
-      return snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data();
-        data['id'] = doc.id;
-        return data;
-      }).toList();
-    } catch (e) {
-      log('Error getting subcategories: $e');
-      return [];
-    }
-  }
-
-  // Search products
+  // OPTIMIZED: Cached search with debouncing
   Future<List<Map<String, dynamic>>> searchProducts(String query) async {
+    if (query.trim().isEmpty) return [];
+    
+    final normalizedQuery = query.toLowerCase().trim();
+    
+    // Check cache first
+    if (_searchCache.containsKey(normalizedQuery)) {
+      return _searchCache[normalizedQuery]!;
+    }
+    
     try {
-      if (query.trim().isEmpty) return [];
+      // OPTIMIZED: Search in memory first for better performance
+      final memoryResults = _searchInMemory(normalizedQuery);
       
+      if (memoryResults.isNotEmpty) {
+        _searchCache[normalizedQuery] = memoryResults;
+        return memoryResults;
+      }
+      
+      // Fallback to Firestore if memory search doesn't yield results
       final snapshot = await _firestore
           .collection('items')
           .where('status', isEqualTo: 'active')
@@ -733,13 +991,15 @@ String _getCityFromAddress(String address) {
         final title = (product['itemTitle'] ?? '').toString().toLowerCase();
         final description = (product['description'] ?? '').toString().toLowerCase();
         final brand = (product['brand'] ?? '').toString().toLowerCase();
-        final searchQuery = query.toLowerCase();
         
-        return title.contains(searchQuery) || 
-               description.contains(searchQuery) || 
-               brand.contains(searchQuery);
+        return title.contains(normalizedQuery) || 
+               description.contains(normalizedQuery) || 
+               brand.contains(normalizedQuery);
       }).toList();
 
+      // Cache the result
+      _searchCache[normalizedQuery] = results;
+      
       return results;
     } catch (e) {
       log('Error searching products: $e');
@@ -747,7 +1007,28 @@ String _getCityFromAddress(String address) {
     }
   }
 
-  // Get banner by ID
+  List<Map<String, dynamic>> _searchInMemory(String query) {
+    return _allProducts.where((product) {
+      final title = (product['itemTitle'] ?? '').toString().toLowerCase();
+      final description = (product['description'] ?? '').toString().toLowerCase();
+      final brand = (product['brand'] ?? '').toString().toLowerCase();
+      
+      return title.contains(query) || 
+             description.contains(query) || 
+             brand.contains(query);
+    }).toList();
+  }
+
+  bool _isCacheValid(String key) {
+    if (!_categoryCache.containsKey(key) || !_cacheTimestamps.containsKey(key)) {
+      return false;
+    }
+    
+    final cacheTime = _cacheTimestamps[key]!;
+    return DateTime.now().difference(cacheTime) < _cacheExpiry;
+  }
+
+  // Optimized getters with null safety
   Map<String, dynamic>? getBannerById(String bannerId) {
     try {
       return _adBanners.firstWhere((banner) => banner['id'] == bannerId);
@@ -756,7 +1037,6 @@ String _getCityFromAddress(String address) {
     }
   }
 
-  // Get category by ID
   Map<String, dynamic>? getCategoryById(String categoryId) {
     try {
       return _categories.firstWhere((category) => category['id'] == categoryId);
@@ -765,19 +1045,171 @@ String _getCityFromAddress(String address) {
     }
   }
 
-  // Public method to set user location from UI
+  Future<List<Map<String, dynamic>>> getSubCategories(String parentCategoryId) async {
+    final cacheKey = 'subcategories_$parentCategoryId';
+    
+    if (_isCacheValid(cacheKey)) {
+      return _categoryCache[cacheKey]!;
+    }
+    
+    try {
+      final snapshot = await _firestore
+          .collection('categories')
+          .where('isActive', isEqualTo: true)
+          .where('parentId', isEqualTo: parentCategoryId)
+          .orderBy('order')
+          .get();
+
+      final subcategories = snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+      
+      _categoryCache[cacheKey] = subcategories;
+      _cacheTimestamps[cacheKey] = DateTime.now();
+      
+      return subcategories;
+    } catch (e) {
+      log('Error getting subcategories: $e');
+      return _categoryCache[cacheKey] ?? [];
+    }
+  }
+
   void setUserLocation(double latitude, double longitude, String address) {
     _userLatitude = latitude;
     _userLongitude = longitude;
     _userLocationAddress = address;
-    notifyListeners();
+    
+    // OPTIMIZED: Recategorize products when location changes
+    if (_allProducts.isNotEmpty) {
+      _categorizeProductsOptimized(_allProducts);
+    }
+    
+    _scheduleNotification();
   }
+
+  // OPTIMIZED: Load more data methods for pagination
+  Future<void> loadMoreProducts() async {
+    if (_hasMoreProducts && !_isProductsLoading) {
+      await _loadMoreProducts();
+    }
+  }
+
+  Future<void> loadMoreCategories() async {
+    if (_hasMoreCategories && !_isCategoriesLoading) {
+      await _loadMoreCategories();
+    }
+  }
+
+  // OPTIMIZED: Performance monitoring methods
+  Map<String, dynamic> getPerformanceStats() {
+    return {
+      'totalProducts': _allProducts.length,
+      'totalCategories': _categories.length,
+      'cacheSize': _categoryCache.length,
+      'searchCacheSize': _searchCache.length,
+      'isOnline': _isOnline,
+      'hasMoreProducts': _hasMoreProducts,
+      'hasMoreCategories': _hasMoreCategories,
+    };
+  }
+  // FIXED: Helper method to remove duplicates based on product ID
+List<Map<String, dynamic>> _removeDuplicatesById(List<Map<String, dynamic>> products) {
+  final seen = <String>{};
+  final result = <Map<String, dynamic>>[];
+  
+  for (final product in products) {
+    final id = product['id'] ?? '';
+    if (id.isNotEmpty && !seen.contains(id)) {
+      seen.add(id);
+      result.add(product);
+    }
+  }
+  
+  return result;
+}
+// ✅ NEW: Method to add optimistic item update for immediate visibility
+  void addOptimisticItem(Map<String, dynamic> itemData) {
+    try {
+      // Add to the beginning of allProducts for immediate visibility
+      _allProducts.insert(0, itemData);
+      
+      // Also add to appropriate category lists for immediate visibility
+      final category = itemData['category']?.toString() ?? '';
+      final categoryName = itemData['categoryName']?.toString() ?? '';
+      
+      // Add to featured if applicable
+      if (itemData['isFeatured'] == true) {
+        _featuredProducts.insert(0, itemData);
+      }
+      
+      // Add to category-specific lists
+      if (_isMobileCategory(categoryName)) {
+        _mobilePhones.insert(0, itemData);
+      } else if (_isComputerCategory(categoryName)) {
+        _computers.insert(0, itemData);
+      } else if (_isComputerAccessoryCategory(categoryName)) {
+        _computerAccessories.insert(0, itemData);
+      }
+      
+      // Add to personalized products (recent items)
+      _personalizedProducts.insert(0, itemData);
+      
+      // Limit list sizes to prevent memory issues
+      _limitListSizes();
+      
+      log('✅ Optimistic item added: ${itemData['itemTitle']}');
+      _scheduleNotification();
+    } catch (e) {
+      log('❌ Error adding optimistic item: $e');
+    }
+  }
+
+  // ✅ NEW: Method to limit list sizes after optimistic updates
+  void _limitListSizes() {
+    const maxOptimisticItems = 50;
+    
+    if (_allProducts.length > _maxProducts) {
+      _allProducts.removeRange(_maxProducts, _allProducts.length);
+    }
+    
+    if (_featuredProducts.length > maxOptimisticItems) {
+      _featuredProducts.removeRange(maxOptimisticItems, _featuredProducts.length);
+    }
+    
+    if (_personalizedProducts.length > maxOptimisticItems) {
+      _personalizedProducts.removeRange(maxOptimisticItems, _personalizedProducts.length);
+    }
+    
+    if (_mobilePhones.length > maxOptimisticItems) {
+      _mobilePhones.removeRange(maxOptimisticItems, _mobilePhones.length);
+    }
+    
+    if (_computers.length > maxOptimisticItems) {
+      _computers.removeRange(maxOptimisticItems, _computers.length);
+    }
+    
+    if (_computerAccessories.length > maxOptimisticItems) {
+      _computerAccessories.removeRange(maxOptimisticItems, _computerAccessories.length);
+    }
+  }
+
+  // ✅ ENHANCED: Public method to clear caches (called from ItemProvider)
+  void clearCaches() {
+    _clearCaches();
+    log('✅ HomeProvider caches cleared from external call');
+  }
+
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
+    _locationDebounceTimer?.cancel();
     _categoriesSubscription?.cancel();
     _productsSubscription?.cancel();
     _bannersSubscription?.cancel();
+    _clearCaches();
     super.dispose();
   }
 }

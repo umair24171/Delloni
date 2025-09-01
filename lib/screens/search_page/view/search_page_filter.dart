@@ -93,9 +93,9 @@ class _SearchFilterPageState extends State<SearchFilterPage> {
     userLongitude = filters.longitude;
     
     _minRadiusController.text = filters.minRadius?.toString() ?? '0';
-    _maxRadiusController.text = filters.maxRadius?.toString() ?? '50';
+    _maxRadiusController.text = filters.maxRadius?.toString() ?? '0';
     _minPriceController.text = filters.minPrice?.toString() ?? '0';
-    _maxPriceController.text = filters.maxPrice?.toString() ?? '1000000';
+    _maxPriceController.text = filters.maxPrice?.toString() ?? '0';
 
     // Load existing category-specific filters
     if (filters.categorySpecificFilters != null) {
@@ -771,11 +771,11 @@ class _SearchFilterPageState extends State<SearchFilterPage> {
               ),
             ),
           ),
-          // Debug button (remove in production)
-          IconButton(
-            onPressed: debugEverything,
-            icon: Icon(Icons.bug_report, color: Colors.orange),
-          ),
+          // // Debug button (remove in production)
+          // IconButton(
+          //   onPressed: debugEverything,
+          //   icon: Icon(Icons.bug_report, color: Colors.orange),
+          // ),
         ],
       ),
       body: Column(

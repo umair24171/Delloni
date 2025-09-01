@@ -986,7 +986,7 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
   void initState() {
     super.initState();
     // Generate a default name based on the search
-    _nameController.text = _generateDefaultName();
+    _nameController.text = '';
   }
 
   String _generateDefaultName() {
@@ -1033,36 +1033,36 @@ class _SaveSearchDialogState extends State<SaveSearchDialog> {
             ),
             maxLength: 50,
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Search criteria:'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _getSearchCriteriaText(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // const SizedBox(height: 16),
+          // Container(
+          //   padding: const EdgeInsets.all(12),
+          //   decoration: BoxDecoration(
+          //     color: Colors.grey[50],
+          //     borderRadius: BorderRadius.circular(8),
+          //     border: Border.all(color: Colors.grey[300]!),
+          //   ),
+          //   child: Column(
+          //     crossAxisAlignment: CrossAxisAlignment.start,
+          //     children: [
+          //       Text(
+          //         'Search criteria:'.tr(),
+          //         style: GoogleFonts.poppins(
+          //           fontSize: 12,
+          //           fontWeight: FontWeight.w500,
+          //           color: Colors.grey[600],
+          //         ),
+          //       ),
+          //       const SizedBox(height: 4),
+          //       Text(
+          //         _getSearchCriteriaText(),
+          //         style: GoogleFonts.poppins(
+          //           fontSize: 14,
+          //           color: Colors.grey[700],
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
           const SizedBox(height: 12),
           Row(
             children: [

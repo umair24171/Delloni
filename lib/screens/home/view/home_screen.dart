@@ -1018,12 +1018,16 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                       children: [
                         Text(
                     product['condition']!=null? product['condition']=='new'?'new'.tr():product['condition']=='refurbished'?"refurbished".tr():product['condition']=='Good'?"Good".tr():product['condition'] ?? 'Used'.tr():product['condition'] ?? 'Used'.tr(),
-                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                          style: GoogleFonts.poppins(fontSize: 12,
+                          //  color: Colors.grey[600]
+                           ),
                         ),
                         Spacer(),
                         Text(
                           _getTimeSincePosted(product['createdAt']),
-                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                          style: GoogleFonts.poppins(fontSize: 12, 
+                          // color: Colors.grey[600]
+                          ),
                         ),
                       ],
                     ),
@@ -1034,14 +1038,18 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
                         Expanded(
                           child: Text(
                             product['locationAddress'] ?? 'Location not set'.tr(),
-                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                            style: GoogleFonts.poppins(fontSize: 12, 
+                            // color: Colors.grey[600]
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Text(
                           '${product['viewCount'] ?? product['views'] ?? 0} ${'views'.tr()}',
-                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+                          style: GoogleFonts.poppins(fontSize: 12,
+                          //  color: Colors.grey[600]
+                           ),
                         ),
                       ],
                     ),
@@ -1080,7 +1088,7 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
           style: GoogleFonts.poppins(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            // color: Colors.black,
           ),
         );
       } else {
@@ -1306,204 +1314,225 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
     );
   }
 
-  Widget _buildProductSection(String title, List<Map<String, dynamic>> products) {
-    if (products.isEmpty) return SizedBox.shrink();
-    
-    return RepaintBoundary(
-      child: Container(
-        margin: EdgeInsets.only(top: 8),
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,)),
-                InkWell(
-                  onTap: () => _navigateToProductList(title, products),
-                  child: Text(
-                    AppLocalizations.seeAll.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: ColorsController.primaryColor,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.underline,
-                    ),
+ Widget _buildProductSection(String title, List<Map<String, dynamic>> products) {
+  if (products.isEmpty) return SizedBox.shrink();
+  
+  // FIXED: Remove duplicates from the section
+  final uniqueProducts = _removeDuplicates(products);
+  
+  if (uniqueProducts.isEmpty) return SizedBox.shrink();
+  
+  return RepaintBoundary(
+    child: Container(
+      margin: EdgeInsets.only(top: 8),
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,)),
+              InkWell(
+                onTap: () => _navigateToProductList(title, uniqueProducts),
+                child: Text(
+                  '${AppLocalizations.seeAll.tr()} (${uniqueProducts.length})', // Show count
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: ColorsController.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
                   ),
                 ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              if (uniqueProducts.isNotEmpty)
+                Expanded(child: _buildProductCard(uniqueProducts[0])),
+              if (uniqueProducts.length > 1) ...[
+                SizedBox(width: 12),
+                Expanded(child: _buildProductCard(uniqueProducts[1])),
               ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                if (products.isNotEmpty)
-                  Expanded(child: _buildProductCard(products[0])),
-                if (products.length > 1) ...[
-                  SizedBox(width: 12),
-                  Expanded(child: _buildProductCard(products[1])),
-                ],
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildRecentlyAddedSection(List<Map<String, dynamic>> allProducts) {
-    if (allProducts.isEmpty) return SizedBox.shrink();
-    
-    final recentProducts = allProducts.take(20).toList();
-    recentProducts.sort((a, b) {
-      try {
-        DateTime aDate = a['createdAt'] is Timestamp 
-            ? (a['createdAt'] as Timestamp).toDate()
-            : DateTime.parse(a['createdAt'].toString());
-        DateTime bDate = b['createdAt'] is Timestamp 
-            ? (b['createdAt'] as Timestamp).toDate()
-            : DateTime.parse(b['createdAt'].toString());
-        return bDate.compareTo(aDate);
-      } catch (e) {
-        return 0;
-      }
-    });
-    
-    final recentlyAdded = recentProducts.take(2).toList();
-    
-    return RepaintBoundary(
-      child: Container(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recently Added'.tr(),
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,),
-                ),
-                InkWell(
-                  onTap: () => _navigateToProductList('Recently Added'.tr(), recentlyAdded),
-                  child: Text(
-                    AppLocalizations.seeAll.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: ColorsController.primaryColor,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.underline,
-                    ),
+ // FIXED: Updated _buildRecentlyAddedSection to show all recent products in "See All"
+Widget _buildRecentlyAddedSection(List<Map<String, dynamic>> allProducts) {
+  if (allProducts.isEmpty) return SizedBox.shrink();
+  
+  // FIXED: Get more recent products for "See All"
+  final recentProducts = allProducts.take(50).toList(); // Increased from 20 to 50
+  recentProducts.sort((a, b) {
+    try {
+      DateTime aDate = a['createdAt'] is Timestamp 
+          ? (a['createdAt'] as Timestamp).toDate()
+          : DateTime.parse(a['createdAt'].toString());
+      DateTime bDate = b['createdAt'] is Timestamp 
+          ? (b['createdAt'] as Timestamp).toDate()
+          : DateTime.parse(b['createdAt'].toString());
+      return bDate.compareTo(aDate);
+    } catch (e) {
+      return 0;
+    }
+  });
+  
+  // FIXED: Remove duplicates from recent products
+  final uniqueRecentProducts = _removeDuplicates(recentProducts);
+  
+  // FIXED: Take only 2 for display, but pass all unique recent products to "See All"
+  final displayProducts = uniqueRecentProducts.take(2).toList();
+  
+  return RepaintBoundary(
+    child: Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recently Added'.tr(),
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600,),
+              ),
+              InkWell(
+                // FIXED: Pass all unique recent products instead of just 2
+                onTap: () => _navigateToProductList('Recently Added'.tr(), uniqueRecentProducts),
+                child: Text(
+                  '${AppLocalizations.seeAll.tr()} (${uniqueRecentProducts.length})', // Show count
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: ColorsController.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
                   ),
                 ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              if (displayProducts.isNotEmpty)
+                Expanded(child: _buildProductCard(displayProducts[0])),
+              if (displayProducts.length > 1) ...[
+                SizedBox(width: 12),
+                Expanded(child: _buildProductCard(displayProducts[1])),
               ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                if (recentlyAdded.isNotEmpty)
-                  Expanded(child: _buildProductCard(recentlyAdded[0])),
-                if (recentlyAdded.length > 1) ...[
-                  SizedBox(width: 12),
-                  Expanded(child: _buildProductCard(recentlyAdded[1])),
-                ],
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+ Widget _buildFeaturedSection(List<Map<String, dynamic>> featuredProducts) {
+  if (featuredProducts.isEmpty) return SizedBox.shrink();
+  
+  // FIXED: Remove duplicates
+  final uniqueFeatured = _removeDuplicates(featuredProducts);
+  
+  if (uniqueFeatured.isEmpty) return SizedBox.shrink();
+  
+  return RepaintBoundary(
+    child: Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppLocalizations.featured.tr(), 
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+              ),
+              InkWell(
+                onTap: () => _navigateToProductList(AppLocalizations.featured.tr(), uniqueFeatured),
+                child: Text(
+                  '${AppLocalizations.seeAll.tr()} (${uniqueFeatured.length})', // Show count
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: ColorsController.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              if (uniqueFeatured.isNotEmpty)
+                Expanded(child: _buildProductCard(uniqueFeatured[0])),
+              if (uniqueFeatured.length > 1) ...[
+                SizedBox(width: 12),
+                Expanded(child: _buildProductCard(uniqueFeatured[1])),
+              ],
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
-  Widget _buildFeaturedSection(List<Map<String, dynamic>> featuredProducts) {
-    if (featuredProducts.isEmpty) return SizedBox.shrink();
-    
-    return RepaintBoundary(
-      child: Container(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  AppLocalizations.featured.tr(), 
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
-                ),
-                InkWell(
-                  onTap: () => _navigateToProductList(AppLocalizations.featured.tr(), featuredProducts),
-                  child: Text(
-                    AppLocalizations.seeAll.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: ColorsController.primaryColor,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.underline,
-                    ),
+Widget _buildPersonalizedSection(List<Map<String, dynamic>> personalizedProducts) {
+  if (personalizedProducts.isEmpty) return SizedBox.shrink();
+  
+  // FIXED: Remove duplicates
+  final uniquePersonalized = _removeDuplicates(personalizedProducts);
+  
+  if (uniquePersonalized.isEmpty) return SizedBox.shrink();
+  
+  return RepaintBoundary(
+    child: Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppLocalizations.personalized.tr(), 
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
+              ),
+              InkWell(
+                onTap: () => _navigateToProductList(AppLocalizations.personalized.tr(), uniquePersonalized),
+                child: Text(
+                  '${AppLocalizations.seeAll.tr()} (${uniquePersonalized.length})', // Show count
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: ColorsController.primaryColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
                   ),
                 ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              if (uniquePersonalized.isNotEmpty)
+                Expanded(child: _buildProductCard(uniquePersonalized[0])),
+              if (uniquePersonalized.length > 1) ...[
+                SizedBox(width: 12),
+                Expanded(child: _buildProductCard(uniquePersonalized[1])),
               ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                if (featuredProducts.isNotEmpty)
-                  Expanded(child: _buildProductCard(featuredProducts[0])),
-                if (featuredProducts.length > 1) ...[
-                  SizedBox(width: 12),
-                  Expanded(child: _buildProductCard(featuredProducts[1])),
-                ],
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildPersonalizedSection(List<Map<String, dynamic>> personalizedProducts) {
-    if (personalizedProducts.isEmpty) return SizedBox.shrink();
-    
-    return RepaintBoundary(
-      child: Container(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  AppLocalizations.personalized.tr(), 
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)
-                ),
-                InkWell(
-                  onTap: () => _navigateToProductList(AppLocalizations.personalized.tr(), personalizedProducts),
-                  child: Text(
-                    AppLocalizations.seeAll.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: ColorsController.primaryColor,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                if (personalizedProducts.isNotEmpty)
-                  Expanded(child: _buildProductCard(personalizedProducts[0])),
-                if (personalizedProducts.length > 1) ...[
-                  SizedBox(width: 12),
-                  Expanded(child: _buildProductCard(personalizedProducts[1])),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAdBannersSection(List<Map<String, dynamic>> banners) {
     if (banners.isEmpty) return SizedBox.shrink();
@@ -1685,6 +1714,20 @@ class _MarketplaceHomePageState extends State<MarketplaceHomePage>
       ),
     );
   }
+  List<Map<String, dynamic>> _removeDuplicates(List<Map<String, dynamic>> products) {
+  final seen = <String>{};
+  final result = <Map<String, dynamic>>[];
+  
+  for (final product in products) {
+    final id = product['id'] ?? '';
+    if (id.isNotEmpty && !seen.contains(id)) {
+      seen.add(id);
+      result.add(product);
+    }
+  }
+  
+  return result;
+}
 
   Widget _buildProductImage(Map<String, dynamic> product) {
     final imageUrls = product['imageUrls'] as List<dynamic>?;

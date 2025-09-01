@@ -27,7 +27,7 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
 
   final List<Widget> _screens = [
     MarketplaceHomePage(),
-    ChatPage(),
+    ChatPage(isFromNotification: true),
     ItemDetailsPage(isMain: true),
     // SearchPage(isMain: true),
     SearchFilterPage(isMain: true),

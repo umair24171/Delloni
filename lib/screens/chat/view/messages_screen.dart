@@ -826,46 +826,49 @@ class _MessagesScreenState extends State<MessagesScreen>
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isMe ? Colors.grey[200] : Colors.green[700],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child:
-                      message.type == MessageType.image &&
-                          message.imageUrls != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            message.imageUrls!.first,
-                            width: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 200,
-                                height: 100,
-                                color: Colors.grey[300],
-                                child: Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey[600],
-                                ),
-                              );
-                            },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.grey[200] : Colors.green[700],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child:
+                        message.type == MessageType.image &&
+                            message.imageUrls != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              message.imageUrls!.first,
+                              width: 200,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 200,
+                                  height: 100,
+                                  color: Colors.grey[300],
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey[600],
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : Text(
+                            message.message,
+                            style: GoogleFonts.jost(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: isMe ? Colors.black : Colors.white,
+                              height: 1.4,
+                            ),
                           ),
-                        )
-                      : Text(
-                          message.message,
-                          style: GoogleFonts.jost(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: isMe ? Colors.black : Colors.white,
-                            height: 1.4,
-                          ),
-                        ),
+                  ),
                 ),
                 SizedBox(height: 4),
                 Text(

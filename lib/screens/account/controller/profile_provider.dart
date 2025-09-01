@@ -134,7 +134,7 @@ class ProfileProvider with ChangeNotifier {
     
     emailController.text = _userProfile!.email;
     phoneController.text = _userProfile!.phone;
-    passwordController.text = '************'; // Placeholder for security
+    passwordController.text = ''; // Placeholder for security
   }
 
   // Pick image from camera or gallery

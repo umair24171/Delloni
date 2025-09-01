@@ -136,7 +136,12 @@ class SuccessPage extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     // Navigate to homepage
-                    Navigator.of(context).push(MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()));
+                     Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()),
+                (route)=>false
+              );
+                    // Navigator.of(context).push(MaterialPageRoute(builder: (context) => CustomBottomNavigationBar()));
                   },
                   style: ElevatedButton.styleFrom(
                     // elevation: 0,

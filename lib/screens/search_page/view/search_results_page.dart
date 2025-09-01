@@ -30,13 +30,30 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   late SearchProvider _searchProvider;
   bool _isInitialized = false;
   String? _displayCategoryName;
+  ScrollController _scrollController = ScrollController();
+  double _bannerOffset = 0.0;
 
   @override
   void initState() {
     super.initState();
     _displayCategoryName = widget.categoryName;
+    
+    // Listen to scroll for banner animation
+    _scrollController.addListener(() {
+      setState(() {
+        // Move banner left/right based on scroll position
+        _bannerOffset = (_scrollController.offset * 0.1) % 60 - 30;
+      });
+    });
+    
     // Call initialization but don't await it to avoid setState during build
     _initializeSearch();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _initializeSearch() {
@@ -179,12 +196,6 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             },
             icon: const Icon(Icons.tune, color: Colors.black),
           ),
-          
-          // Save search button
-          IconButton(
-            onPressed: _showSaveSearchDialog,
-            icon: const Icon(Icons.bookmark_add, color: Colors.black),
-          ),
         ],
       ),
       body: !_isInitialized
@@ -195,17 +206,84 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             )
           : Consumer<SearchProvider>(
               builder: (context, searchProvider, child) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                return Stack(
                   children: [
-                    // Search Summary Section
-                    _buildSearchSummary(searchProvider),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Compact Search Summary Section
+                        _buildCompactSearchSummary(searchProvider),
+                        
+                        // Compact Active Filters Section
+                        if (searchProvider.hasFilters) _buildCompactActiveFilters(searchProvider),
+                        
+                        // Results Section
+                        Expanded(child: _buildResultsSection(searchProvider)),
+                      ],
+                    ),
                     
-                    // Active Filters Section
-                    if (searchProvider.hasFilters) _buildActiveFilters(searchProvider),
-                    
-                    // Results Section
-                    Expanded(child: _buildResultsSection(searchProvider)),
+                    // Floating Save Search Banner (moves with scroll)
+                // Replace the existing floating banner section with this updated version
+
+// Floating Save Search Banner (moves with scroll)
+Positioned(
+  left: 16,
+  //  + _bannerOffset,
+  right: 16 ,
+  // - _bannerOffset,
+  bottom: 20,
+  child: Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+      color: Colors.green[50],
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.green[200]!),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.1),
+          spreadRadius: 1,
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        // Changed from notifications_none to favorite_border (heart icon)
+        Icon(Icons.favorite_border, color: Colors.green[700], size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Save Search', // Changed from 'Suche speichern'
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.green[700],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green[700],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: InkWell(
+            onTap: _showSaveSearchDialog,
+            child: Text(
+              'Save Now', // Changed from 'Jetzt buchen' to be more appropriate
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
                   ],
                 );
               },
@@ -213,106 +291,34 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
-  Widget _buildSearchSummary(SearchProvider searchProvider) {
+  Widget _buildCompactSearchSummary(SearchProvider searchProvider) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[200]!),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.search, color: Colors.blue[700], size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _getCustomSearchSummary(searchProvider),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue[700],
-                  ),
-                ),
+          Expanded(
+            child: Text(
+              'Mehr als ${searchProvider.searchResults.length} ${"results found".tr()}',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${searchProvider.searchResults.length} ${"results found".tr()}',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: Colors.blue[600],
-                ),
-              ),
-              if (searchProvider.searchResults.isNotEmpty || searchProvider.hasFilters)
-                TextButton.icon(
-                  onPressed: _showSaveSearchDialog,
-                  icon: const Icon(Icons.bookmark_add, size: 16),
-                  label: Text('Save'.tr()),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.blue[700],
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  ),
-                ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // NEW: Custom search summary that shows category name properly
-  String _getCustomSearchSummary(SearchProvider searchProvider) {
-    List<String> parts = [];
-    
-    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-      parts.add('"${widget.initialQuery!}"');
-    }
-    
-    if (_displayCategoryName != null) {
-      parts.add('in $_displayCategoryName');
-    }
-    
-    if (searchProvider.filters.minPrice != null || searchProvider.filters.maxPrice != null) {
-      if (searchProvider.filters.minPrice != null && searchProvider.filters.maxPrice != null) {
-        parts.add('\$${searchProvider.filters.minPrice!.toStringAsFixed(0)} - \$${searchProvider.filters.maxPrice!.toStringAsFixed(0)}');
-      } else if (searchProvider.filters.minPrice != null) {
-        parts.add('above \$${searchProvider.filters.minPrice!.toStringAsFixed(0)}');
-      } else if (searchProvider.filters.maxPrice != null) {
-        parts.add('below \$${searchProvider.filters.maxPrice!.toStringAsFixed(0)}');
-      }
-    }
-    
-    if (searchProvider.filters.cityName != null) {
-      String locationText = searchProvider.filters.districtName != null 
-          ? '${searchProvider.filters.districtName}, ${searchProvider.filters.cityName}'
-          : searchProvider.filters.cityName!;
-      parts.add('in $locationText');
-    }
-    
-    if (searchProvider.filters.adType != null && searchProvider.filters.adType != 'All') {
-      parts.add('${searchProvider.filters.adType} ads');
-    }
-    
-    return parts.isNotEmpty ? parts.join(' • ') : 'All items';
-  }
-
-  Widget _buildActiveFilters(SearchProvider searchProvider) {
+  Widget _buildCompactActiveFilters(SearchProvider searchProvider) {
     final filters = searchProvider.filters;
     final activeFilters = <Widget>[];
 
     // UPDATED: Show category name instead of ID
     if (filters.selectedCategory != null && _displayCategoryName != null) {
-      activeFilters.add(_buildFilterChip(
-        'Category: $_displayCategoryName',
+      activeFilters.add(_buildCompactFilterChip(
+        _displayCategoryName!,
         () {
           // Create new filters without category
           final newFilters = filters.copyWith(selectedCategory: null);
@@ -327,8 +333,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       String locationText = filters.districtName != null 
           ? '${filters.districtName}, ${filters.cityName}'
           : filters.cityName!;
-      activeFilters.add(_buildFilterChip(
-        'Location: $locationText',
+      activeFilters.add(_buildCompactFilterChip(
+        locationText,
         () {
           // Create new filters without location
           final newFilters = filters.copyWith(
@@ -348,14 +354,14 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     if (filters.minPrice != null || filters.maxPrice != null) {
       String priceText = '';
       if (filters.minPrice != null && filters.maxPrice != null) {
-        priceText = '${"Price:".tr()} \$${filters.minPrice!.toStringAsFixed(0)} - \$${filters.maxPrice!.toStringAsFixed(0)}';
+        priceText = '\$${filters.minPrice!.toStringAsFixed(0)} - \$${filters.maxPrice!.toStringAsFixed(0)}';
       } else if (filters.minPrice != null) {
-        priceText = '${"Min Price:".tr()} \$${filters.minPrice!.toStringAsFixed(0)}';
+        priceText = 'Min \$${filters.minPrice!.toStringAsFixed(0)}';
       } else if (filters.maxPrice != null) {
-        priceText = '${"Max Price:".tr()} \$${filters.maxPrice!.toStringAsFixed(0)}';
+        priceText = 'Max \$${filters.maxPrice!.toStringAsFixed(0)}';
       }
       if (priceText.isNotEmpty) {
-        activeFilters.add(_buildFilterChip(
+        activeFilters.add(_buildCompactFilterChip(
           priceText, 
           () {
             // Create new filters without price range
@@ -370,8 +376,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     }
 
     if (filters.adType != null && filters.adType != 'All') {
-      activeFilters.add(_buildFilterChip(
-        'Type: ${filters.adType}',
+      activeFilters.add(_buildCompactFilterChip(
+        filters.adType!,
         () {
           // Create new filters without ad type
           final newFilters = filters.copyWith(adType: 'All');
@@ -380,65 +386,97 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       ));
     }
 
-    if (activeFilters.isEmpty) return const SizedBox.shrink();
+    // Add Filter button as first item
+    activeFilters.insert(0, _buildFilterButton());
+
+    if (activeFilters.length <= 1) return const SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Active Filters'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    searchProvider.clearFilters();
-                    _displayCategoryName = null;
-                    setState(() {});
-                  },
-                  child: Text(
-                    'Clear All'.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: activeFilters),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: activeFilters),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, VoidCallback onRemove) {
+  Widget _buildFilterButton() {
     return Container(
       margin: const EdgeInsets.only(right: 8),
-      child: Chip(
-        label: Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.green[200]!),
         ),
-        backgroundColor: Colors.blue[100],
-        deleteIcon: const Icon(Icons.close, size: 16),
-        onDeleted: onRemove,
-        side: BorderSide(color: Colors.blue[300]!),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.tune, size: 16, color: Colors.green[700]),
+            const SizedBox(width: 4),
+            Text(
+              'Filter',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.green[700],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green[700],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '3',
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactFilterChip(String label, VoidCallback onRemove) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onRemove,
+              child: Icon(
+                Icons.close,
+                size: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -518,38 +556,20 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Save this search to get notified when new items are added'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: Colors.grey[500],
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _showSaveSearchDialog,
-              icon: const Icon(Icons.bookmark_add, size: 18),
-              label: Text('Save Search'.tr()),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0D5E2A),
-                side: const BorderSide(color: Color(0xFF0D5E2A)),
-              ),
-            ),
           ],
         ),
       );
     }
 
-    // UPDATED: Better grid layout for product cards
+    // Results with proper padding for floating banner
     return RefreshIndicator(
       onRefresh: () async {
          _initializeSearch();
       },
       child: searchProvider.searchResults.length > 4 
           ? GridView.builder(
-              padding: const EdgeInsets.all(16),
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Bottom padding for floating banner
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
@@ -563,7 +583,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               },
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Bottom padding for floating banner
               itemCount: searchProvider.searchResults.length,
               itemBuilder: (context, index) {
                 final product = searchProvider.searchResults[index];
@@ -573,7 +594,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
-  // NEW: Grid card layout for better space utilization
+  // NEW: Grid card layout matching reference image style
   Widget _buildProductGridCard(ProductModel product) {
     return Container(
       child: InkWell(
@@ -588,33 +609,33 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.1),
                 spreadRadius: 1,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image Container
+              // Image Container with badges
               Expanded(
                 flex: 3,
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                    color: Colors.grey[100],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                   ),
                   child: Stack(
                     children: [
                       // Product Image
                       ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                         child: product.imageUrls.isNotEmpty
                             ? Image.network(
                                 product.imageUrls.first,
@@ -642,40 +663,62 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                               ),
                       ),
                       
+                      // TOP badge (like in reference)
+                      if (product.isFeatured == true)
+                        Positioned(
+                          top: 4,
+                          left: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[600],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'TOP',
+                              style: GoogleFonts.poppins(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      
                       // Favorite Icon
                       Positioned(
-                        top: 6,
-                        right: 6,
+                        top: 4,
+                        right: 4,
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
                             Icons.favorite_border,
                             color: Colors.white,
-                            size: 14,
+                            size: 12,
                           ),
                         ),
                       ),
                       
-                      // Negotiable Tag
-                      if (product.allowPriceNegotiation)
+                      // Image count badge (bottom right)
+                      if (product.imageUrls.length > 1)
                         Positioned(
-                          bottom: 6,
-                          left: 6,
+                          bottom: 4,
+                          right: 4,
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.yellow[700],
-                              borderRadius: BorderRadius.circular(4),
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              AppLocalizations.negotiable.tr(),
+                              '${product.imageUrls.length}',
                               style: GoogleFonts.poppins(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.white,
                               ),
                             ),
@@ -705,22 +748,35 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       
-                      // Price
-                      Text(
-                        '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                      // Price with negotiation info
+                      Row(
+                        children: [
+                          Text(
+                            '\$${product.price?.toStringAsFixed(0) ?? '0'}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          if (product.allowPriceNegotiation)
+                            Text(
+                              ' VB',
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                color: Colors.blue[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
                       ),
                       const Spacer(),
                       
-                      // Location and Time
+                      // Distance and Location
                       Text(
-                        product.locationAddress ?? 'Location not set',
+                        '${product.locationAddress?.split(',').first ?? 'Unknown'} (${(product.locationAddress?.split(',').last ?? 0)} km)',
                         style: GoogleFonts.poppins(
                           fontSize: 10, 
                           color: Colors.grey[600]
@@ -728,11 +784,13 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      
+                      // Time posted
                       Text(
                         _getTimeSincePosted(product.createdAt),
                         style: GoogleFonts.poppins(
-                          fontSize: 10, 
-                          color: Colors.grey[600]
+                          fontSize: 9, 
+                          color: Colors.grey[500]
                         ),
                       ),
                     ],
@@ -748,7 +806,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   Widget _buildProductCard(ProductModel product) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -761,44 +819,44 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.1),
                 spreadRadius: 1,
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
               ),
             ],
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Image Container
               Container(
-                height: 170,
-                width: double.infinity,
+                width: 120,
+                height: 90,
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  color: Colors.grey[100],
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                 ),
                 child: Stack(
                   children: [
                     // Product Image
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                       child: product.imageUrls.isNotEmpty
                           ? Image.network(
                               product.imageUrls.first,
                               fit: BoxFit.cover,
-                              height: 170,
-                              width: double.infinity,
+                              width: 120,
+                              height: 90,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
                                   color: Colors.grey[200],
                                   child: Icon(
                                     Icons.image, 
-                                    size: 50, 
+                                    size: 30, 
                                     color: Colors.grey[400]
                                   ),
                                 );
@@ -808,46 +866,68 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                               color: Colors.grey[200],
                               child: Icon(
                                 Icons.image, 
-                                size: 50, 
+                                size: 30, 
                                 color: Colors.grey[400]
                               ),
                             ),
                     ),
                     
+                    // TOP badge
+                    if (product.isFeatured == true)
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[600],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'TOP',
+                            style: GoogleFonts.poppins(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    
                     // Favorite Icon
                     Positioned(
-                      top: 8,
-                      right: 8,
+                      top: 4,
+                      right: 4,
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(16),
+                          color: Colors.black.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(
                           Icons.favorite_border,
                           color: Colors.white,
-                          size: 18,
+                          size: 14,
                         ),
                       ),
                     ),
                     
-                    // Negotiable Tag
-                    if (product.allowPriceNegotiation)
+                    // Image count
+                    if (product.imageUrls.length > 1)
                       Positioned(
-                        bottom: 8,
-                        left: 8,
+                        bottom: 4,
+                        right: 4,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.yellow[700],
-                            borderRadius: BorderRadius.circular(4),
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            AppLocalizations.negotiable.tr(),
+                            '${product.imageUrls.length}',
                             style: GoogleFonts.poppins(
                               fontSize: 10,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
@@ -858,81 +938,82 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
               ),
               
               // Content Section
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    Text(
-                      product.title ?? 'No Title',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    
-                    // Price
-                    Text(
-                      '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    // Condition and Time Row
-                    Row(
-                      children: [
-                        Text(
-                          product.condition ?? 'Unknown',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12, 
-                            color: Colors.grey[600]
-                          ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        product.title ?? 'No Title',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
                         ),
-                        const Spacer(),
-                        Text(
-                          _getTimeSincePosted(product.createdAt),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12, 
-                            color: Colors.grey[600]
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    
-                    // Location and Category Row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            product.locationAddress ?? 'Location not set',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Price and distance row
+                      Row(
+                        children: [
+                          Text(
+                            '\$${product.price?.toStringAsFixed(0) ?? '0'}',
                             style: GoogleFonts.poppins(
-                              fontSize: 12, 
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          if (product.allowPriceNegotiation)
+                            Text(
+                              ' VB',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.blue[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          const Spacer(),
+                          Text(
+                              '${(product.locationAddress?.split(',').last ?? 0)} km',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Location and Time Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              product.locationAddress?.split(',').first ?? 'Unknown location',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11, 
+                                color: Colors.grey[600]
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            _getTimeSincePosted(product.createdAt),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11, 
                               color: Colors.grey[600]
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        Text(
-                          product.categoryName ?? product.category ?? '',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12, 
-                            color: Colors.grey[600]
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

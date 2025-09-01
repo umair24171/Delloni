@@ -266,10 +266,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         controller: provider.emailController,
                       ),
                       
-                      const SizedBox(height: 16),
+                      // const SizedBox(height: 16),
                       
                       // Read-only Password Field
-                      _buildPasswordField(provider),
+                      // _buildPasswordField(provider),
                       
                       const SizedBox(height: 16),
                       
@@ -484,13 +484,15 @@ Widget _buildReadOnlyTextField({
   Widget _buildPasswordField(ProfileProvider provider) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey[200], // Read-only color
-        borderRadius: BorderRadius.circular(27),
+        // color: Colors.grey[200], // Read-only color
+        // borderRadius: BorderRadius.circular(27),
+          borderRadius: BorderRadius.circular(27),
+      border: Border.all(color: Colors.grey[300]!), // Add border for clarity
       ),
       child: TextFormField(
         controller: provider.passwordController,
         obscureText: !provider.isPasswordVisible,
-        readOnly: true,
+        // readOnly: true,
         style: GoogleFonts.jost(
           fontSize: 16,
           fontWeight: FontWeight.w500,
@@ -507,7 +509,7 @@ Widget _buildReadOnlyTextField({
               size: 20,
             ),
           ),
-          hintText: '************',
+          hintText: 'Enter password to change',
           hintStyle: GoogleFonts.jost(
             fontSize: 16,
             fontWeight: FontWeight.w500,

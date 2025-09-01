@@ -14,9 +14,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart'; // Add this import
 
-// FIXED: ChatPage with proper Dismissible widget handling
 class ChatPage extends StatefulWidget {
-  const ChatPage({Key? key}) : super(key: key);
+  final bool isFromNotification;
+  const ChatPage({Key? key, this.isFromNotification = false}) : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -83,6 +83,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         // backgroundColor: Colors.white,
         appBar: AppBar(
           // backgroundColor: Colors.white,
+          // automaticallyImplyLeading: !widget.isFromNotification,
           elevation: 0,
            surfaceTintColor:Theme.of(context).appBarTheme.backgroundColor ,
           title: Text(
@@ -93,8 +94,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               // color: Colors.black,
             ),
           ),
-          leading: const SizedBox.shrink(),
-          leadingWidth: 0,
+          leading: widget.isFromNotification ? const SizedBox.shrink() : IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+          leadingWidth:widget.isFromNotification?0 :40,
           actions: [
             IconButton(
               icon: Icon(Icons.search),

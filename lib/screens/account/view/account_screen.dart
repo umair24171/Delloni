@@ -126,16 +126,16 @@ class _AccountScreenState extends State<AccountScreen> {
                             const SizedBox(height: 8),
                             
                             // Rating Stars (placeholder)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.star, color: Colors.amber[600], size: 20),
-                                Icon(Icons.star, color: Colors.amber[600], size: 20),
-                                Icon(Icons.star, color: Colors.amber[600], size: 20),
-                                Icon(Icons.star, color: Colors.amber[600], size: 20),
-                                Icon(Icons.star, color: Colors.grey[400], size: 20),
-                              ],
-                            ),
+                            // Row(
+                            //   mainAxisAlignment: MainAxisAlignment.center,
+                            //   children: [
+                            //     Icon(Icons.star, color: Colors.amber[600], size: 20),
+                            //     Icon(Icons.star, color: Colors.amber[600], size: 20),
+                            //     Icon(Icons.star, color: Colors.amber[600], size: 20),
+                            //     Icon(Icons.star, color: Colors.amber[600], size: 20),
+                            //     Icon(Icons.star, color: Colors.grey[400], size: 20),
+                            //   ],
+                            // ),
                           ],
                         );
                       },
@@ -534,7 +534,8 @@ class _AccountScreenState extends State<AccountScreen> {
                   child: Icon(
                     Icons.delete_forever_rounded,
                     size: 40,
-                    color: Theme.of(context).colorScheme.error,
+                    // color: Theme.of(context).colorScheme.error,
+                    // color: Colors.redAccent,
                   ),
                 ),
                 
@@ -546,7 +547,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   style: GoogleFonts.jost(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onBackground,
+                    // color: Theme.of(context).colorScheme.onBackground,
                   ),
                 ),
                 
@@ -564,7 +565,8 @@ class _AccountScreenState extends State<AccountScreen> {
                     children: [
                       Icon(
                         Icons.warning_amber_rounded,
-                        color: Theme.of(context).colorScheme.error,
+// color: Colors.red,
+                        // color: Theme.of(context).colorScheme.error,
                         size: 24,
                       ),
                       const SizedBox(height: 8),
@@ -573,7 +575,8 @@ class _AccountScreenState extends State<AccountScreen> {
                         style: GoogleFonts.jost(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.error,
+                          // color: Colors.red,
+                          // color: Theme.of(context).colorScheme.error,
                         ),
                       ),
                     ],

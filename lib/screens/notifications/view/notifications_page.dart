@@ -10,7 +10,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-
 // Simplified NotificationsPage - Only Messages & Saved Searches
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -22,6 +21,7 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isMarkingAllAsRead = false;
 
   @override
   void initState() {
@@ -38,6 +38,64 @@ class _NotificationsPageState extends State<NotificationsPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // Function to mark all notifications as read
+  Future<void> _markAllNotificationsAsRead() async {
+    setState(() {
+      _isMarkingAllAsRead = true;
+    });
+
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) return;
+
+      // Get all unread notifications
+      final unreadNotifications = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .collection('notifications')
+          .where('read', isEqualTo: false)
+          .get();
+
+      // Create batch to update all at once
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (final doc in unreadNotifications.docs) {
+        batch.update(doc.reference, {'read': true});
+      }
+
+      // Commit the batch
+      await batch.commit();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All notifications marked as read'.tr()),
+            backgroundColor: const Color(0xff014700),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark notifications as read: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isMarkingAllAsRead = false;
+        });
+      }
+    }
   }
 
   @override
@@ -258,27 +316,70 @@ class _NotificationsPageState extends State<NotificationsPage>
               );
             }
 
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: snapshot.data!.docs.length,
-              itemBuilder: (context, index) {
-                final notification = snapshot.data!.docs[index];
-                final data = notification.data() as Map<String, dynamic>;
+            // Check if there are unread notifications
+            final unreadCount = snapshot.data!.docs
+                .where((doc) => !(doc.data() as Map<String, dynamic>)['read'] ?? false)
+                .length;
 
-                return _buildNotificationHistoryItem(
-                  title: data['title'] ?? '',
-                  body: data['body'] ?? '',
-                  type: data['type'] ?? '',
-                  createdAt:
-                      (data['createdAt'] as Timestamp?)?.toDate() ??
-                      DateTime.now(),
-                  isRead: data['read'] ?? false,
-                  onTap: () {
-                    // Mark as read and handle tap
-                    _handleNotificationTap(notification.id, data);
-                  },
-                );
-              },
+            return Column(
+              children: [
+                // Mark all as read button (only show if there are unread notifications)
+                if (unreadCount > 0)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    child: ElevatedButton.icon(
+                      onPressed: _isMarkingAllAsRead ? null : _markAllNotificationsAsRead,
+                      icon: _isMarkingAllAsRead
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Icon(Icons.done_all),
+                      label: Text(_isMarkingAllAsRead 
+                          ? 'Marking as read...'.tr() 
+                          : 'Mark All as Read ($unreadCount)'.tr()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff014700),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                
+                // Notifications list
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final notification = snapshot.data!.docs[index];
+                      final data = notification.data() as Map<String, dynamic>;
+
+                      return _buildNotificationHistoryItem(
+                        title: data['title'] ?? '',
+                        body: data['body'] ?? '',
+                        type: data['type'] ?? '',
+                        createdAt:
+                            (data['createdAt'] as Timestamp?)?.toDate() ??
+                            DateTime.now(),
+                        isRead: data['read'] ?? false,
+                        onTap: () {
+                          // Mark as read and handle tap
+                          _handleNotificationTap(notification.id, data);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             );
           },
         );

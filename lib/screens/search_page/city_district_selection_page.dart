@@ -432,9 +432,27 @@ class _CityDistrictSelectionPageState extends State<CityDistrictSelectionPage> {
         Container(
           margin: EdgeInsets.symmetric(horizontal: 16),
           child: InkWell(
-            onTap: () {
-              // Skip district selection - proceed with city only
-            },
+            onTap:_selectedCityId != null ? () {
+                          final fullAddress = _selectedDistrictName != null
+                              ? '$_selectedDistrictName, $_selectedCityName'
+                              : _selectedCityName!;
+                          print('🏙️ CITY SELECTION DEBUG:');
+                          print('  - Selected City ID: $_selectedCityId');
+                          print('  - Selected City Name: $_selectedCityName');
+                          print('  - Selected District ID: $_selectedDistrictId');
+                          print('  - Selected District Name: $_selectedDistrictName');
+                          print('  - Full Address: $fullAddress');
+
+                          Navigator.pop(context, {
+                            'cityId': _selectedCityId,
+                            'districtId': _selectedDistrictId,
+                            'cityName': _selectedCityName,
+                            'districtName': _selectedDistrictName,
+                            'fullAddress': fullAddress,
+                            'latitude': 0.0, // You can store actual coordinates
+                            'longitude': 0.0,
+                          });
+                        } : null,
             child: Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(

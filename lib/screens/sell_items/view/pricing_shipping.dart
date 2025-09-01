@@ -171,19 +171,19 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
           final testUSD = testSYP / _exchangeRates['SYP']!;
           print('🧪 TEST: $testSYP SYP = \$${testUSD.toStringAsFixed(4)} USD');
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('✅ Live rates: 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: Row(
+          //       children: [
+          //         Icon(Icons.check_circle, color: Colors.white),
+          //         SizedBox(width: 8),
+          //         Text('✅ Live rates: 1 USD = ${_exchangeRates['SYP']?.toStringAsFixed(0)} SYP'),
+          //       ],
+          //     ),
+          //     backgroundColor: Colors.green,
+          //     duration: Duration(seconds: 2),
+          //   ),
+          // );
         }
       } else {
         throw Exception('API returned status: ${response.statusCode}');
@@ -195,19 +195,19 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
           _isLoadingRates = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('❌ Failed to update rates. Using fallback.')),
-              ],
-            ),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Row(
+        //       children: [
+        //         Icon(Icons.error_outline, color: Colors.white),
+        //         SizedBox(width: 8),
+        //         Expanded(child: Text('❌ Failed to update rates. Using fallback.')),
+        //       ],
+        //     ),
+        //     backgroundColor: Colors.orange,
+        //     duration: Duration(seconds: 3),
+        //   ),
+        // );
       }
     }
   }
@@ -1192,12 +1192,12 @@ class _EnhancedPricingShippingPageState extends State<EnhancedPricingShippingPag
                 allowPriceNegotiation: isNegotiable,
               );
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Pricing information saved successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              // ScaffoldMessenger.of(context).showSnackBar(
+              //   SnackBar(
+              //     content: Text('Pricing information saved successfully!'),
+              //     backgroundColor: Colors.green,
+              //   ),
+              // );
                 
               Navigator.push(
                 context,

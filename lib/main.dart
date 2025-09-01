@@ -12,18 +12,22 @@ import 'package:arabicmarketplace/screens/account/controller/profile_provider.da
 import 'package:arabicmarketplace/screens/account/view/account_profile_page.dart';
 import 'package:arabicmarketplace/screens/auth/controller/user_provider.dart';
 import 'package:arabicmarketplace/screens/chat/controller/chat_provider.dart';
+import 'package:arabicmarketplace/screens/chat/view/chat_screen.dart';
 import 'package:arabicmarketplace/screens/home/controller/home_provider.dart';
-import 'package:arabicmarketplace/screens/notifications/controller/notification_handler.dart';
 import 'package:arabicmarketplace/screens/notifications/controller/saved_search_provider.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notification_saved_search_page.dart';
+import 'package:arabicmarketplace/screens/notifications/view/notifications_page.dart';
 import 'package:arabicmarketplace/screens/product_detail/controller/product_detail_provider.dart';
+import 'package:arabicmarketplace/screens/product_detail/view/product_detail_screen.dart';
 import 'package:arabicmarketplace/screens/search_page/controller/search_provider.dart';
 import 'package:arabicmarketplace/screens/sell_items/controller/item_provider.dart';
-import 'package:arabicmarketplace/screens/sell_items/view/success_page.dart';
 import 'package:arabicmarketplace/splash_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
 
@@ -34,6 +38,8 @@ import 'package:shared_preferences/shared_preferences.dart'; // Import dart:ui a
 // import your splash screen
 
 GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Store initial message for later processing
+RemoteMessage? initialMessage;
 
 class ThemeProvider with ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
@@ -71,6 +77,8 @@ void main() async {
   
   // Initialize EasyLocalization BEFORE runApp
   await EasyLocalization.ensureInitialized();
+   PaintingBinding.instance.imageCache.maximumSize = 1000;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 * 1024 * 1024; // 200MB
   
   runApp(
   EasyLocalization(
@@ -107,24 +115,149 @@ void main() async {
 }
 
 // Update your main.dart to load saved language preference
-class MyApp extends StatefulWidget {
+class MyApp extends StatefulWidget with WidgetsBindingObserver{
   const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+
+
+
   @override
   void initState() {
     super.initState();
-    // fixAllProductsLocation();
- fetchTestCollection() ;
-    _loadSavedLanguage();
-    NotificationService().initialize();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeApp();
   }
 
-  
+  Future<void> _initializeApp() async {
+    try {
+      // Load saved language first
+      await _loadSavedLanguage();
+      
+      // Initialize notification service
+      await NotificationService().initialize();
+      
+      // Clear app badge
+      await NotificationService().clearAppBadge();
+      
+      // Handle initial message after a delay to ensure navigation is ready
+      await _handleInitialMessage();
+      
+    } catch (e) {
+      print('Error initializing app: $e');
+    }
+  }
+     // Handle initial message when app is opened from terminated state
+  Future<void> _handleInitialMessage() async {
+    try {
+      final RemoteMessage? message = await FirebaseMessaging.instance.getInitialMessage();
+      
+      if (message != null) {
+        print('App opened from terminated state: ${message.messageId}');
+        
+        // Store the message to handle it after the widget tree is fully built
+        initialMessage = message;
+        
+        // Wait for the widget tree to be fully built before navigation
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Add additional delay to ensure everything is ready
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            _handleTerminatedStateNavigation(message);
+          });
+        });
+      }
+    } catch (e) {
+      print('Error handling initial message: $e');
+    }
+  }
+
+  // Handle navigation when app was opened from terminated state
+  void _handleTerminatedStateNavigation(RemoteMessage message) {
+    try {
+      final context = navigatorKey.currentContext;
+      if (context == null) {
+        print('Navigation context not available, retrying...');
+        // Retry after another delay
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _handleTerminatedStateNavigation(message);
+        });
+        return;
+      }
+
+      // Create payload string
+      final payload = message.data.toString();
+      
+      // Navigate based on message data
+      _navigateBasedOnPayload(context, message.data, isFromTerminatedState: true);
+      
+    } catch (e) {
+      print('Error handling terminated state navigation: $e');
+    }
+  }
+
+  // Enhanced navigation method
+  void _navigateBasedOnPayload(BuildContext context, Map<String, dynamic> data, {bool isFromTerminatedState = false}) {
+    try {
+      // Extract navigation data
+      final String? chatId = data['chatId'];
+      final String? itemId = data['itemId'];
+      final String? productId = data['productId'];
+      final String? savedSearchName = data['savedSearchName'];
+      final String type = data['type'] ?? 'general';
+
+      Widget? targetScreen;
+      
+      // Determine target screen based on data
+      if (chatId != null) {
+        targetScreen = ChatPage();
+      } else if (productId != null) {
+        targetScreen = ProductDetailScreen(productId: productId);
+      } else if (itemId != null) {
+        targetScreen = ProductDetailScreen(productId: itemId);
+      } else if (savedSearchName != null) {
+        targetScreen = const SavedSearchesPage();
+      } else {
+        targetScreen = const NotificationsPage();
+      }
+
+      // Navigate to target screen
+      if (targetScreen != null) {
+        if (isFromTerminatedState) {
+          // For terminated state, use pushAndRemoveUntil to replace the entire stack
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => targetScreen!),
+            // (route) => false, // Remove all previous routes
+          );
+        } else {
+          // For running state, use regular push
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => targetScreen!),
+          );
+        }
+      }
+      
+    } catch (e) {
+      print('Error navigating based on payload: $e');
+      // Fallback navigation
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const NotificationsPage()),
+      );
+    }
+  }
+  // Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Clear badge when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+    NotificationService().clearAppBadge();
+    }
+  }
 
   Future<void> _loadSavedLanguage() async {
     try {
@@ -210,7 +343,7 @@ Future<void> fixAllProductsLocation() async {
 // Call once: await fixAllProductsLocation();
 
   fetchTestCollection() async {
-    final testCollection = await FirebaseFirestore.instance.collection('chat_reports').get();
+    final testCollection = await FirebaseFirestore.instance.collection('contact_submissions').get();
 
    var datas = testCollection.docs.map((e) => e.data()).toList();
    for (var data in datas) {
@@ -218,7 +351,11 @@ Future<void> fixAllProductsLocation() async {
    }
    // log(datas.first.toString());
   }
-
+@override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
   @override
 Widget build(BuildContext context) {
   return Consumer<ThemeProvider>(

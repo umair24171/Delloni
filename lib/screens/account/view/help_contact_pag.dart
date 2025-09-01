@@ -9,27 +9,270 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:developer';
 import 'dart:ui' as ui;
 // Fixed Help & Contact Page
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
 class HelpContactService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   Future<List<FAQItem>> getFAQs() async => [];
   Future<List<HelpCategory>> getHelpCategories() async => [];
   Future<List<HelpArticle>> getHelpArticles(String categoryId) async => [];
-  Stream<List<ContactSubmission>> getUserContactSubmissions() => Stream.value([]);
+
   Future<Map<String, dynamic>> submitContactForm({
     required String name,
     required String email,
     required String subject,
     required String message,
     required String category,
-  }) async => {'success': true};
+    String? phoneNumber,
+  }) async {
+    try {
+      print('Starting form submission...');
+      
+      // Get current user
+      final User? currentUser = _auth.currentUser;
+      print('Current user: ${currentUser?.uid}');
+      
+      if (currentUser == null) {
+        print('No authenticated user found');
+        return {
+          'success': false,
+          'message': 'Please login to submit a contact form'
+        };
+      }
+
+      // Generate document reference to get the contactId
+      final docRef = _firestore.collection('contact_submissions').doc();
+      final contactId = docRef.id;
+      print('Generated contact ID: $contactId');
+
+      // Prepare the data
+      final now = Timestamp.now();
+      final contactData = {
+        'contactId': contactId,
+        'name': name.trim(),
+        'email': email.trim(),
+        'subject': subject.trim(),
+        'message': message.trim(),
+        'category': category,
+        'phoneNumber': phoneNumber?.isNotEmpty == true ? phoneNumber : null,
+        'userId': currentUser.uid,
+        'status': 'in_progress',
+        'priority': 'low',
+        'isRead': false,
+        'adminResponse': null,
+        'responseDate': null,
+        'createdAt': now,
+        'updatedAt': now,
+      };
+
+      print('Contact data prepared: $contactData');
+
+      // Save to Firestore
+      print('Saving to Firestore...');
+      await docRef.set(contactData);
+      print('Successfully saved to Firestore with ID: $contactId');
+      
+      return {
+        'success': true,
+        'message': 'Your message has been sent successfully!',
+        'contactId': contactId,
+      };
+
+    } on FirebaseException catch (e) {
+      print('Firebase Error: ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'message': 'Firebase error: ${e.message}',
+      };
+    } catch (e, stackTrace) {
+      print('General Error submitting contact form: $e');
+      print('Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'message': 'Failed to send message. Please check your internet connection and try again.',
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> submitBugReport({
     required String title,
     required String description,
     required String stepsToReproduce,
     String? expectedBehavior,
     String? actualBehavior,
-  }) async => {'success': true};
-}
+  }) async {
+    try {
+      print('Starting bug report submission...');
+      
+      // Get current user
+      final User? currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'message': 'Please login to submit a bug report'
+        };
+      }
 
+      // Generate document reference
+      final docRef = _firestore.collection('bug_reports').doc();
+      final bugId = docRef.id;
+
+      // Prepare the data
+      final now = Timestamp.now();
+      final bugData = {
+        'bugId': bugId,
+        'title': title.trim(),
+        'description': description.trim(),
+        'stepsToReproduce': stepsToReproduce.trim(),
+        'expectedBehavior': expectedBehavior?.trim(),
+        'actualBehavior': actualBehavior?.trim(),
+        'userId': currentUser.uid,
+        'status': 'reported',
+        'priority': 'medium',
+        'isResolved': false,
+        'assignedTo': null,
+        'resolution': null,
+        'createdAt': now,
+        'updatedAt': now,
+      };
+
+      // Save to Firestore
+      await docRef.set(bugData);
+      print('Bug report submitted successfully with ID: $bugId');
+      
+      return {
+        'success': true,
+        'message': 'Bug report submitted successfully!',
+        'bugId': bugId,
+      };
+
+    } on FirebaseException catch (e) {
+      print('Firebase Error in bug report: ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'message': 'Firebase error: ${e.message}',
+      };
+    } catch (e) {
+      print('Error submitting bug report: $e');
+      return {
+        'success': false,
+        'message': 'Failed to submit bug report. Please try again later.',
+      };
+    }
+  }
+
+  // Method to get user's contact submissions
+  Stream<List<ContactSubmission>> getUserContactSubmissions() {
+    final User? currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return Stream.value([]);
+    }
+
+    return _firestore
+        .collection('contact_submissions')
+        .where('userId', isEqualTo: currentUser.uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return ContactSubmission(
+          subject: data['subject'] ?? '',
+          message: data['message'] ?? '',
+          category: data['category'] ?? '',
+          createdAt: (data['createdAt'] as Timestamp).toDate(),
+          statusDisplay: _getStatusDisplay(data['status'] ?? 'in_progress'),
+          statusColor: _getStatusColor(data['status'] ?? 'in_progress'),
+          adminResponse: data['adminResponse'],
+        );
+      }).toList();
+    });
+  }
+
+  // Helper method to get status display text
+  String _getStatusDisplay(String status) {
+    switch (status) {
+      case 'in_progress':
+        return 'In Progress';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      case 'pending':
+        return 'Pending';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  // Helper method to get status color
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'in_progress':
+        return Colors.orange;
+      case 'resolved':
+        return Colors.green;
+      case 'closed':
+        return Colors.grey;
+      case 'pending':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Method to update contact submission (for admin use)
+  Future<Map<String, dynamic>> updateContactSubmission({
+    required String contactId,
+    String? status,
+    String? adminResponse,
+    String? priority,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'updatedAt': Timestamp.now(),
+      };
+
+      if (status != null) {
+        updateData['status'] = status;
+        updateData['isRead'] = true;
+      }
+
+      if (adminResponse != null) {
+        updateData['adminResponse'] = adminResponse;
+        updateData['responseDate'] = Timestamp.now();
+      }
+
+      if (priority != null) {
+        updateData['priority'] = priority;
+      }
+
+      await _firestore
+          .collection('contact_submissions')
+          .doc(contactId)
+          .update(updateData);
+
+      return {
+        'success': true,
+        'message': 'Contact submission updated successfully',
+      };
+
+    } catch (e) {
+      print('Error updating contact submission: $e');
+      return {
+        'success': false,
+        'message': 'Failed to update contact submission',
+      };
+    }
+  }
+}
 class FAQItem {
   final String question;
   final String answer;
@@ -683,7 +926,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
   Widget _buildContactForm() {
     return ContactFormWidget(
       onSuccess: () {
-        _tabController.animateTo(3);
+      // _showSuccessSnackBar(AppLocalizations.messageSentSuccess.tr());
         _showSuccessSnackBar(AppLocalizations.messageSentSuccess.tr());
       },
       onError: (message) => _showErrorSnackBar(message),
@@ -1103,8 +1346,7 @@ class _HelpContactPageState extends State<HelpContactPage> with TickerProviderSt
     }
   }
 }
-
-// Separate Contact Form Widget
+// Improved Contact Form Widget with better error handling
 class ContactFormWidget extends StatefulWidget {
   final VoidCallback onSuccess;
   final Function(String) onError;
@@ -1123,6 +1365,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
   String _selectedCategory = 'general';
@@ -1132,6 +1375,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _subjectController.dispose();
     _messageController.dispose();
     super.dispose();
@@ -1142,7 +1386,7 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        // color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
@@ -1152,20 +1396,26 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${AppLocalizations.sendUsMessage.tr()}',
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onBackground,
-              ),
+              AppLocalizations.sendUsMessage.tr(),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onBackground,
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onBackground,
+                    ),
             ),
             const SizedBox(height: 16),
             
             // Name field
             _buildFormField(
               controller: _nameController,
-              label: '${AppLocalizations.fullName.tr()}',
-              hint: 'enter_full_name'.tr(),
+              label: AppLocalizations.fullName.tr(),
+              hint: 'Enter your full name',
               validator: (value) => value?.isEmpty == true ? 'Name is required' : null,
             ),
             
@@ -1174,8 +1424,8 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Email field
             _buildFormField(
               controller: _emailController,
-              label: '${AppLocalizations.enterEmailAddress.tr()}',
-              hint: 'enter_email_address'.tr(),
+              label: AppLocalizations.enterEmailAddress.tr(),
+              hint: 'Enter your email address',
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
                 if (value?.isEmpty == true) return 'Email is required';
@@ -1188,13 +1438,28 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             
             const SizedBox(height: 16),
             
+            // Phone field (optional)
+            _buildFormField(
+              controller: _phoneController,
+              label: 'Phone Number (Optional)',
+              hint: 'Enter your phone number',
+              keyboardType: TextInputType.phone,
+            ),
+            
+            const SizedBox(height: 16),
+            
             // Category dropdown
             Text(
-              '${AppLocalizations.category.tr()}',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              AppLocalizations.category.tr(),
+              style: context.locale.languageCode == 'ar'
+                  ? GoogleFonts.cairo(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    )
+                  : GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -1206,23 +1471,28 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _selectedCategory.tr(),
-                  style:GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey[500],
-                  ),
+                  value: _selectedCategory,
+                  style: context.locale.languageCode == 'ar'
+                      ? GoogleFonts.cairo(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        )
+                      : GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
                   isExpanded: true,
                   onChanged: (value) {
                     setState(() {
                       _selectedCategory = value!;
                     });
                   },
-                  items:  [
-                    DropdownMenuItem(value: 'general', child: Text('General Inquiry'.tr())),
-                    DropdownMenuItem(value: 'account', child: Text('Account Issues'.tr())),
-                    DropdownMenuItem(value: 'technical', child: Text('Technical Support'.tr())),
-                    DropdownMenuItem(value: 'billing', child: Text('Billing & Payments'.tr())),
-                    DropdownMenuItem(value: 'feedback', child: Text('Feedback & Suggestions'.tr())),
+                  items: const [
+                    DropdownMenuItem(value: 'general', child: Text('General Inquiry')),
+                    DropdownMenuItem(value: 'account', child: Text('Account Issues')),
+                    DropdownMenuItem(value: 'technical', child: Text('Technical Support')),
+                    DropdownMenuItem(value: 'billing', child: Text('Billing & Payments')),
+                    DropdownMenuItem(value: 'feedback', child: Text('Feedback & Suggestions')),
                   ],
                 ),
               ),
@@ -1233,9 +1503,9 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Subject field
             _buildFormField(
               controller: _subjectController,
-              label: '${AppLocalizations.subject.tr()}',
-              hint: 'Brief description of your inquiry'.tr(),
-              validator: (value) => value?.isEmpty == true ? 'Subject is required'.tr() : null,
+              label: AppLocalizations.subject.tr(),
+              hint: 'Brief description of your inquiry',
+              validator: (value) => value?.isEmpty == true ? 'Subject is required' : null,
             ),
             
             const SizedBox(height: 16),
@@ -1243,10 +1513,10 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
             // Message field
             _buildFormField(
               controller: _messageController,
-              label: '${AppLocalizations.message.tr()}',
-              hint: 'Describe your issue or question in detail...'.tr(),
+              label: AppLocalizations.message.tr(),
+              hint: 'Describe your issue or question in detail...',
               maxLines: 5,
-              validator: (value) => value?.isEmpty == true ? 'Message is required'.tr() : null,
+              validator: (value) => value?.isEmpty == true ? 'Message is required' : null,
             ),
             
             const SizedBox(height: 24),
@@ -1273,12 +1543,18 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
                         ),
                       )
                     : Text(
-                        '${AppLocalizations.sendMessage.tr()}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                        AppLocalizations.sendMessage.tr(),
+                        style: context.locale.languageCode == 'ar'
+                            ? GoogleFonts.cairo(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              )
+                            : GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                       ),
               ),
             ),
@@ -1301,10 +1577,15 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
       children: [
         Text(
           label,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                )
+              : GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -1312,13 +1593,20 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
           keyboardType: keyboardType,
           maxLines: maxLines,
           validator: validator,
-          style: GoogleFonts.poppins(fontSize: 14),
+          style: context.locale.languageCode == 'ar'
+              ? GoogleFonts.cairo(fontSize: 14)
+              : GoogleFonts.poppins(fontSize: 14),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            hintStyle: context.locale.languageCode == 'ar'
+                ? GoogleFonts.cairo(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  )
+                : GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -1343,33 +1631,47 @@ class _ContactFormWidgetState extends State<ContactFormWidget> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
+    print('Form validation passed, starting submission...');
     setState(() => _isSubmitting = true);
 
     try {
+      print('Calling HelpContactService.submitContactForm...');
       final result = await HelpContactService().submitContactForm(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         subject: _subjectController.text.trim(),
         message: _messageController.text.trim(),
         category: _selectedCategory,
+        phoneNumber: _phoneController.text.trim().isNotEmpty 
+            ? _phoneController.text.trim() 
+            : null,
       );
 
-      if (result['success']) {
+      print('Service returned result: $result');
+
+      if (result['success'] == true) {
+        print('Success! Clearing form and calling onSuccess...');
         _clearForm();
         widget.onSuccess();
       } else {
+        print('Failed with message: ${result['message']}');
         widget.onError(result['message'] ?? 'Failed to send message');
       }
-    } catch (e) {
-      widget.onError('Failed to send message. Please try again.');
+    } catch (e, stackTrace) {
+      print('Exception in _submitForm: $e');
+      print('Stack trace: $stackTrace');
+      widget.onError('An unexpected error occurred. Please try again.');
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
   void _clearForm() {
     _nameController.clear();
     _emailController.clear();
+    _phoneController.clear();
     _subjectController.clear();
     _messageController.clear();
     setState(() => _selectedCategory = 'general');
